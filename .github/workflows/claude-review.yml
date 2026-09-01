@@ -1,0 +1,128 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - "**/*.md"
+      - "gradle/**"
+      - "gradlew"
+      - "gradlew.bat"
+      - ".gitignore"
+      - ".gitattributes"
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # 같은 저장소 브랜치 PR만 리뷰한다. fork PR은 시크릿을 받지 못하므로 건너뛴다.
+    # draft PR도 건너뛰고, Ready for review 시점에 실행된다.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Claude review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          track_progress: true
+          use_sticky_comment: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            너는 이 저장소의 코드 리뷰어다. 코드를 수정하지 말고 리뷰만 한다.
+            PR 브랜치는 이미 현재 작업 디렉터리에 체크아웃되어 있다.
+            모든 코멘트는 한국어로 쓴다.
+
+            ## 리뷰 기준
+            저장소 루트의 CLAUDE.md에서 "적용 범위", "코드 스타일", "개발 방식: SDD", "테스트" 절만
+            리뷰 기준으로 쓴다. CLAUDE.md의 1~4절(에이전트 행동 지침)은 리뷰 기준이 아니다.
+
+            ## 심각도와 판정 규칙
+            확신이 없으면 코멘트하지 않는다. 실제 파일을 읽어 확인한 것만 지적한다.
+            아래 세 심각도 중 어디에도 해당하지 않으면 코멘트하지 않는다.
+
+            ### [버그] 동작이 틀릴 가능성
+            - null / Optional 미처리, 빈 컬렉션·인덱스 경계, off-by-one
+            - 예외를 catch 후 무시, 리소스 미해제
+            - @Transactional 경계 오류, 같은 빈 내부 호출로 프록시 우회, 순환 참조
+            - 싱글턴 빈의 가변 인스턴스 필드 등 공유 가변 상태
+            - equals/hashCode 없이 Map 키나 Set 원소로 사용
+            - 인증·인가가 빠진 신규 엔드포인트
+
+            ### [규약] CLAUDE.md 위반. 아래는 예외 없이 지적한다.
+            - `else` 사용 (early return / guard clause로 바꿔야 함)
+            - `@Getter` `@Setter` `@Data`, 또는 setter 메서드
+            - DTO가 `record`가 아니거나, 관련 DTO 묶음이 `sealed interface`로 묶이지 않음
+            - `@Autowired` 필드 주입 (생성자 주입이어야 함)
+            - 엔티티 필드에 `@Column` 누락
+            - 파일 끝 개행(EOF) 없음
+            - 새로 추가된 로직에 대응하는 `*Test`가 이 PR에 없음
+            - 테스트 메서드명이 한글 `조건_결과` 형식이 아니거나 `// given` `// when` `// then` 주석이 없음
+            - build.gradle에 의존성을 추가하지 않은 채 미도입 기술(JPA, 쿼리 DSL, Redis, 메시지 브로커 등)을 전제한 코드
+
+            ### [단순화] 과한 코드. 아래 중 하나라도 참이면 지적한다.
+            - 구현체가 1개뿐인 인터페이스 (테스트 대역 목적은 제외)
+            - 이 PR과 기존 코드 어디에서도 호출되지 않는 public 메서드·클래스·필드
+            - 분기 대상이 1개뿐인 전략 패턴·팩토리·추상 클래스
+            - 호출부에서 항상 같은 값만 들어가는 설정 파라미터나 플래그
+            - 상속 깊이 3단계 이상
+            - getter로 값을 꺼내 호출자가 판단하는 코드 (객체가 스스로 판단해야 함)
+            - `a.getB().getC()` 형태의 디미터 법칙 위반
+            - 요구사항에 없는 예외 처리·유연성·확장점
+
+            ## 노이즈 제어
+            - 인라인 코멘트는 최대 8개. 초과하면 [버그] > [규약] > [단순화] 순으로 8개만 남긴다.
+            - 같은 유형의 지적이 여러 곳이면 첫 사례 1건만 인라인으로 달고,
+              요약에 "같은 문제 N곳"으로 적는다.
+            - 이 PR의 diff에 포함된 줄에만 코멘트한다.
+            - 네이밍 취향, 포매팅, 주석 스타일, 측정 없는 성능 추측, 칭찬은 쓰지 않는다.
+
+            ## 인라인 코멘트 형식
+            `mcp__github_inline_comment__create_inline_comment`를 `confirmed: true`로 호출한다.
+            body는 정확히 이 구조로 쓴다.
+
+            [심각도] 한 줄 요약
+            왜 문제인지 한 문장.
+            ```suggestion
+            (해당 라인 범위를 통째로 대체할, 그대로 컴파일되는 코드)
+            ```
+
+            - suggestion 블록은 `line`(단일 라인) 또는 `startLine`~`line`(여러 라인) 범위를 전부 대체한다.
+              들여쓰기와 괄호까지 맞춰서, 그대로 반영해도 컴파일되는 코드여야 한다.
+            - [단순화] 제안은 대체 코드의 줄 수가 원본보다 적을 때만 한다. 같거나 많으면 코멘트하지 않는다.
+            - 여러 파일에 걸치거나 새 파일이 필요해서 suggestion으로 표현할 수 없으면,
+              suggestion 대신 ```java 블록으로 코드를 쓰고 어느 파일에 넣어야 하는지 적는다.
+
+            ## PR 요약
+            마지막 응답이 PR 요약 코멘트가 된다. 형식:
+
+            **총평** — 한 문장. 머지 가능 여부와 가장 큰 문제 하나.
+            **지적 사항** — 심각도별 목록. 각 항목은 `파일:줄 — 한 줄 설명`.
+            **확인 못 한 것** — 판단하지 못한 부분. 없으면 이 줄을 쓰지 않는다.
+
+            지적할 것이 없으면 인라인 코멘트를 하나도 달지 말고 총평에 "지적 사항 없음"만 쓴다.
+
+            ## 금지
+            - 파일을 수정하거나 커밋·푸시하지 않는다.
+            - PR을 승인하거나 변경 요청 리뷰를 제출하지 않는다.
+            - 빌드나 테스트를 실행하지 않는다. 정적 리뷰만 한다.
+          claude_args: |
+            --model claude-sonnet-5
+            --max-turns 30
+            --allowedTools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment"
