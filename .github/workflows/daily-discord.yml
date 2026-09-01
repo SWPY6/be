@@ -1,0 +1,63 @@
+name: Daily Discord Digest
+
+on:
+  schedule:
+    # 22:00 KST = 13:00 UTC (KST는 UTC+9, 서머타임 없음).
+    # GitHub schedule은 고부하 시 지연될 수 있어 정시 도착을 보장하지 않는다.
+    - cron: "0 13 * * *"
+  workflow_dispatch:
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: 오늘 머지된 PR을 Discord로 전송
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+
+          # KST 기준 오늘 날짜와, 그날 00:00(KST)에 해당하는 UTC 시각.
+          # 출력 포맷이 gh의 mergedAt과 같아서 문자열 비교가 곧 시각 비교가 된다.
+          KST_DATE=$(TZ=Asia/Seoul date +%F)
+          SINCE=$(date -u -d "${KST_DATE} 00:00:00+09:00" +%Y-%m-%dT%H:%M:%SZ)
+          echo "KST 날짜: ${KST_DATE} / 조회 시작(UTC): ${SINCE}"
+
+          # --search를 쓰면 검색 인덱스 반영 지연으로 방금 머지된 PR이 누락될 수 있다.
+          # --state/--base만 쓰면 GraphQL 직접 조회라 지연이 없다. 날짜 필터는 jq가 한다.
+          gh pr list --repo "$GITHUB_REPOSITORY" --state merged --base main --limit 100 \
+            --json number,title,author,mergedAt,url > prs.json
+
+          # payload는 반드시 jq가 만든다. 문자열을 손으로 이어붙이면
+          # 제목의 따옴표·백슬래시·줄바꿈·이모지에서 JSON이 깨진다.
+          # gh의 정렬은 생성일 내림차순이므로 mergedAt으로 다시 정렬한다.
+          # URL을 <>로 감싸 Discord가 PR마다 미리보기 카드를 붙이지 않게 한다.
+          # 상한 3중: 최대 20건, 제목 80자, 전체 1900자 (Discord content 제한 2000자).
+          jq --arg date "$KST_DATE" --arg since "$SINCE" '
+            def clip($n): if (. | length) > $n then .[:$n] + "…" else . end;
+            (map(select(.mergedAt >= $since)) | sort_by(.mergedAt)) as $prs
+            | ($prs | length) as $n
+            | 20 as $max
+            | ($prs[0:$max]
+               | map("• [#\(.number)](<\(.url)>) \(.title | clip(80)) — @\(.author.login // "ghost")")
+               | join("\n")) as $lines
+            | (if $n == 0 then "오늘은 머지된 PR이 없습니다."
+               elif $n > $max then $lines + "\n… 외 \($n - $max)건"
+               else $lines end) as $body
+            | "📅 **\($date)** 데일리 — main 머지 \($n)건\n\n\($body)"
+            | { content: clip(1900) }
+          ' prs.json > payload.json
+          cat payload.json
+
+          # 4xx/5xx면 응답 본문을 로그에 남기고 워크플로를 실패시킨다.
+          # 조용히 성공하면 알림이 끊긴 걸 며칠 뒤에나 알게 된다.
+          curl --silent --show-error --fail-with-body \
+            -H "Content-Type: application/json" \
+            --data-binary @payload.json \
+            "$DISCORD_WEBHOOK_URL"
