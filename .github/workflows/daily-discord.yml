@@ -38,26 +38,58 @@ jobs:
           # 제목의 따옴표·백슬래시·줄바꿈·이모지에서 JSON이 깨진다.
           # gh의 정렬은 생성일 내림차순이므로 mergedAt으로 다시 정렬한다.
           # URL을 <>로 감싸 Discord가 PR마다 미리보기 카드를 붙이지 않게 한다.
-          # 상한 3중: 최대 20건, 제목 80자, 전체 1900자 (Discord content 제한 2000자).
-          jq --arg date "$KST_DATE" --arg since "$SINCE" '
+          #
+          # Discord content는 2000자가 한계다. 잘라서 버리는 대신 줄 단위로
+          # 1880자씩 묶어 여러 메시지로 나눈다(꼬리에 붙는 페이지 표시분 여유).
+          # 한 줄은 제목 80자 clip 덕에 한도를 넘지 못하므로 어떤 입력에도 안전하다.
+          # payload 하나당 한 줄(JSONL)로 쓴다.
+          jq -c --arg date "$KST_DATE" --arg since "$SINCE" '
             def clip($n): if (. | length) > $n then .[:$n] + "…" else . end;
-            (map(select(.mergedAt >= $since)) | sort_by(.mergedAt)) as $prs
+            { "Aleexender": "김정훈", "dongkdc": "김동찬", "kyerimrim": "김예림" } as $names
+            | ["Aleexender", "dongkdc", "kyerimrim"] as $team
+            | (map(select(.mergedAt >= $since)) | sort_by(.mergedAt)) as $prs
             | ($prs | length) as $n
-            | 20 as $max
-            | ($prs[0:$max]
-               | map("• [#\(.number)](<\(.url)>) \(.title | clip(80)) — @\(.author.login // "ghost")")
-               | join("\n")) as $lines
-            | (if $n == 0 then "오늘은 머지된 PR이 없습니다."
-               elif $n > $max then $lines + "\n… 외 \($n - $max)건"
-               else $lines end) as $body
-            | "📅 **\($date)** 데일리 — main 머지 \($n)건\n\n\($body)"
-            | { content: clip(1900) }
-          ' prs.json > payload.json
-          cat payload.json
+            # 팀원 3명은 0건이어도 항상 보여주고, 그 외 기여자는 뒤에 덧붙인다.
+            | ($team + ($prs | map(.author.login // "ghost") | unique
+                        | map(select(. as $l | $team | index($l) | not)))) as $logins
+            # 사람별 섹션을 줄 배열로 평탄화한다(섹션 사이 빈 줄 포함).
+            | ($logins | map(
+                . as $login
+                | ($prs | map(select((.author.login // "ghost") == $login))) as $mine
+                | ["**\($names[$login] // $login)** (\($mine | length)건)"]
+                  + ($mine | map("• [#\(.number)](<\(.url)>) \(.title | clip(80))"))
+                  + [""]
+              ) | add | .[0:-1]) as $body
+            | (["📅 **\($date)** 데일리 — main 머지 \($n)건", ""] + $body) as $lines
+            | (reduce $lines[] as $l ([[]];
+                if ((.[-1] | join("\n") | length) + 1 + ($l | length)) <= 1880
+                then (.[0:-1] + [.[-1] + [$l]])
+                else (. + [[$l]])
+                end
+              ) | map(join("\n"))) as $chunks
+            # 대량 머지·봇 폭주로 채널이 도배되는 것만 막는다. 5개 ≈ PR 120건.
+            | (if ($chunks | length) > 5
+               then ($chunks[0:5] | (.[4] |= . + "\n… 이하 생략"))
+               else $chunks
+               end) as $pages
+            | ($pages | length) as $total
+            | $pages
+            | to_entries[]
+            | { content: (.value + (if $total > 1 then "\n(\(.key + 1)/\($total))" else "" end)) }
+          ' prs.json > payloads.jsonl
+          cat payloads.jsonl
 
           # 4xx/5xx면 응답 본문을 로그에 남기고 워크플로를 실패시킨다.
           # 조용히 성공하면 알림이 끊긴 걸 며칠 뒤에나 알게 된다.
-          curl --silent --show-error --fail-with-body \
-            -H "Content-Type: application/json" \
-            --data-binary @payload.json \
-            "$DISCORD_WEBHOOK_URL"
+          # 메시지 사이 sleep은 웹훅 레이트리밋(채널당 5회/5초)을 피하려는 것이다.
+          TOTAL=$(wc -l < payloads.jsonl)
+          echo "전송할 메시지: ${TOTAL}건"
+          SENT=0
+          while IFS= read -r payload; do
+            SENT=$((SENT + 1))
+            printf '%s' "$payload" | curl --silent --show-error --fail-with-body \
+              -H "Content-Type: application/json" \
+              --data-binary @- \
+              "$DISCORD_WEBHOOK_URL"
+            if [ "$SENT" -lt "$TOTAL" ]; then sleep 1; fi
+          done < payloads.jsonl
