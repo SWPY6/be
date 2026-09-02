@@ -2,9 +2,12 @@ name: Daily Discord Digest
 
 on:
   schedule:
-    # 22:00 KST = 13:00 UTC (KST는 UTC+9, 서머타임 없음).
-    # GitHub schedule은 고부하 시 지연될 수 있어 정시 도착을 보장하지 않는다.
-    - cron: "0 13 * * *"
+    # 22:02 KST = 13:02 UTC (KST는 UTC+9, 서머타임 없음).
+    # 정각은 전 세계 cron이 몰려 지연이 잦으므로 몇 분 비켜 놓았다.
+    # 그래도 GitHub schedule은 정시 도착을 보장하지 않는다. 실제로 첫 실행이
+    # 3시간 54분 밀려 자정을 넘긴 적이 있어, 대상 날짜는 실행 시각이 아니라
+    # 아래 오프셋으로 정한다.
+    - cron: "2 13 * * *"
   workflow_dispatch:
 
 jobs:
@@ -16,18 +19,27 @@ jobs:
       pull-requests: read
 
     steps:
-      - name: 오늘 머지된 PR을 Discord로 전송
+      - name: 대상일에 머지된 PR을 Discord로 전송
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
           set -euo pipefail
 
-          # KST 기준 오늘 날짜와, 그날 00:00(KST)에 해당하는 UTC 시각.
+          # 대상 날짜는 "실행 시각 - 11시간"의 KST 날짜다.
+          # 실행 시각을 그대로 쓰면, cron이 자정을 넘겨 지연됐을 때 스스로를
+          # 다음날 데일리로 착각해 전날 하루치를 통째로 잃는다.
+          # 11시간을 빼두면 다음날 오전 11시까지 밀려도 올바른 날짜를 지킨다.
+          KST_DATE=$(TZ=Asia/Seoul date -d "-11 hours" +%F)
+
+          # 대상일 00:00(KST)부터 정확히 24시간을 연다. 상한이 없으면 지연 실행 때
+          # 다음날 새벽 머지분까지 섞여 들어와 하루 경계가 무너진다.
+          # KST는 서머타임이 없어 하루가 항상 86400초다.
           # 출력 포맷이 gh의 mergedAt과 같아서 문자열 비교가 곧 시각 비교가 된다.
-          KST_DATE=$(TZ=Asia/Seoul date +%F)
-          SINCE=$(date -u -d "${KST_DATE} 00:00:00+09:00" +%Y-%m-%dT%H:%M:%SZ)
-          echo "KST 날짜: ${KST_DATE} / 조회 시작(UTC): ${SINCE}"
+          SINCE_EPOCH=$(date -u -d "${KST_DATE} 00:00:00+09:00" +%s)
+          SINCE=$(date -u -d "@${SINCE_EPOCH}" +%Y-%m-%dT%H:%M:%SZ)
+          UNTIL=$(date -u -d "@$((SINCE_EPOCH + 86400))" +%Y-%m-%dT%H:%M:%SZ)
+          echo "대상 날짜(KST): ${KST_DATE} / 조회 구간(UTC): ${SINCE} ~ ${UNTIL}"
 
           # --search를 쓰면 검색 인덱스 반영 지연으로 방금 머지된 PR이 누락될 수 있다.
           # --state/--base만 쓰면 GraphQL 직접 조회라 지연이 없다. 날짜 필터는 jq가 한다.
@@ -43,11 +55,11 @@ jobs:
           # 1880자씩 묶어 여러 메시지로 나눈다(꼬리에 붙는 페이지 표시분 여유).
           # 한 줄은 제목 80자 clip 덕에 한도를 넘지 못하므로 어떤 입력에도 안전하다.
           # payload 하나당 한 줄(JSONL)로 쓴다.
-          jq -c --arg date "$KST_DATE" --arg since "$SINCE" '
+          jq -c --arg date "$KST_DATE" --arg since "$SINCE" --arg until "$UNTIL" '
             def clip($n): if (. | length) > $n then .[:$n] + "…" else . end;
             { "Aleexender": "김정훈", "dongkdc": "김동찬", "kyerimrim": "김예림" } as $names
             | ["Aleexender", "dongkdc", "kyerimrim"] as $team
-            | (map(select(.mergedAt >= $since)) | sort_by(.mergedAt)) as $prs
+            | (map(select(.mergedAt >= $since and .mergedAt < $until)) | sort_by(.mergedAt)) as $prs
             | ($prs | length) as $n
             # 팀원 3명은 0건이어도 항상 보여주고, 그 외 기여자는 뒤에 덧붙인다.
             | ($team + ($prs | map(.author.login // "ghost") | unique
