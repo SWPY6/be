@@ -44,3 +44,7 @@ tasks.named('test') {
     useJUnitPlatform()
     jvmArgs "-javaagent:${configurations.mockitoAgent.asPath}"
 }
+
+tasks.named('jar') {
+    enabled = false
+}
