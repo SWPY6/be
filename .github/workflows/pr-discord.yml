@@ -1,0 +1,59 @@
+name: PR Discord Notify
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+jobs:
+  notify:
+    # fork PR은 시크릿을 받지 못해 웹훅 전송이 실패한다. draft는 알리지 않고,
+    # Ready for review 시점에 알린다.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+
+    steps:
+      - name: 새 PR을 Discord로 전송
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_PR_WEBHOOK_URL }}
+          # PR 제목·브랜치명은 사용자가 정하는 값이다. 셸에 직접 보간하면
+          # 백틱이나 $(...)가 명령으로 실행되므로 반드시 env로 넘겨 jq --arg로 받는다.
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
+          PR_HEAD: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+
+          # payload는 반드시 jq가 만든다. 문자열을 손으로 이어붙이면
+          # 제목의 따옴표·백슬래시·줄바꿈·이모지에서 JSON이 깨진다.
+          # URL을 <>로 감싸 Discord가 미리보기 카드를 붙이지 않게 한다.
+          # 제목은 120자로 clip해 content 2000자 한계에 걸리지 않게 한다.
+          jq -n \
+            --arg number "$PR_NUMBER" \
+            --arg title "$PR_TITLE" \
+            --arg url "$PR_URL" \
+            --arg login "$PR_AUTHOR" \
+            --arg base "$PR_BASE" \
+            --arg head "$PR_HEAD" '
+            def clip($n): if (. | length) > $n then .[:$n] + "…" else . end;
+            { "Aleexender": "김정훈", "dongkdc": "김동찬", "kyerimrim": "김예림" } as $names
+            | { content: (
+                "🔔 **새 PR** — \($names[$login] // $login)\n"
+                + "[#\($number)](<\($url)>) \($title | clip(120))\n"
+                + "`\($head)` → `\($base)`"
+              ) }
+          ' > payload.json
+          cat payload.json
+
+          # 4xx/5xx면 응답 본문을 로그에 남기고 워크플로를 실패시킨다.
+          # 조용히 성공하면 알림이 끊긴 걸 며칠 뒤에나 알게 된다.
+          curl --silent --show-error --fail-with-body \
+            -H "Content-Type: application/json" \
+            --data-binary @payload.json \
+            "$DISCORD_WEBHOOK_URL"
