@@ -1,13 +1,13 @@
-package com.swyp.ploutos.news.entity;
+package com.swyp.ploutos.news;
 
 import java.time.LocalDateTime;
+
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
 @Entity
@@ -16,26 +16,28 @@ public class News {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "news_id", nullable = false)
     private Long newsId;
 
-    @Column(name = "title", length = 100)
+    @Column(nullable = false, length = 100)
     private String title;
 
-    @Lob
-    @Column(name = "url", columnDefinition = "LONGTEXT")
+    @Column(nullable = false, columnDefinition = "LONGTEXT")
     private String url;
+    
+    @Column(nullable = false, length = 100)
+    private String publisher;
 
-    @Lob
-    @Column(name = "summary", columnDefinition = "TEXT")
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String summary;
 
-    @Column(name = "category", length = 40)
+    @Column(length = 40)
     private String category;
 
-    @Column(name = "published_at")
+    @Column(nullable = false, updatable = false)
     private LocalDateTime publishedAt;
 
     protected News() {
+    	
     }
+    
 }

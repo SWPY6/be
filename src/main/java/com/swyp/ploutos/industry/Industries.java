@@ -1,4 +1,4 @@
-package com.swyp.ploutos.industry.entity;
+package com.swyp.ploutos.industry;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -8,17 +8,18 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "industry")
-public class Industry {
+@Table(name = "industries")
+public class Industries {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "industry_id", nullable = false)
-    private Integer industryId;
+    private Long industryId;
 
-    @Column(name = "industry_name", length = 50)
-    private String industryName;
+    @Column(nullable = false, length = 50)
+    private String name;
 
-    protected Industry() {
+    protected Industries() {
+    	
     }
+    
 }
