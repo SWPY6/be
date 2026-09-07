@@ -13,6 +13,7 @@ public class StockIndustries {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(nullable = false)
     private Long stockIndustryId;
 
     @Column(nullable = false)

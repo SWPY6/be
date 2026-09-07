@@ -16,8 +16,11 @@ import jakarta.persistence.Table;
 public class Users {
 
     @Id
-    @Column(length = 50)
-    private String userId;
+    @Column(nullable = false)
+    private Long userId;
+    
+    @Column(nullable = false, unique = true, length = 50)
+    private String loginId;
 
     @Column(nullable = false, unique = true)
     private String email;

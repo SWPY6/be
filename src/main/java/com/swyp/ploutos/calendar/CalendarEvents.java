@@ -16,6 +16,7 @@ public class CalendarEvents {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(nullable = false)
     private Long calendarId;
 
     @Column(nullable = false)

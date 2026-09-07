@@ -1,7 +1,8 @@
 package com.swyp.ploutos.common.enums;
 
-public enum MarketSession {
+public enum TradingSession {
 
+	DAY_MARKET,
     PRE_MARKET,
     REGULAR,
     AFTER_MARKET,

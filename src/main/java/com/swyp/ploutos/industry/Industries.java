@@ -13,6 +13,7 @@ public class Industries {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(nullable = false)
     private Long industryId;
 
     @Column(nullable = false, length = 50)

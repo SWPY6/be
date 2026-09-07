@@ -16,19 +16,20 @@ public class MarketDailyPrices {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(nullable = false)
     private Long marketDailyPriceId;
 
     @Column(nullable = false)
     private Long marketId;	// FK : Markets.marketId
     
     @Column(nullable = false)
-    private LocalDate tradingDate;
+    private LocalDate tradeAt;
 
     @Column(precision = 20, scale = 4, nullable = false)
     private BigDecimal closeValue;
 
-    @Column(precision = 10, scale = 4, nullable = false)
-    private BigDecimal changeRate;
+    @Column(nullable = false)
+    private Double changeRate;
 
     protected MarketDailyPrices() {
     	

@@ -13,6 +13,7 @@ public class StockNews {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(nullable = false)
     private Long stockNewsId;
 
     @Column(nullable = false)

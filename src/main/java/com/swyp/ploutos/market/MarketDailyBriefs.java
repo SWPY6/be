@@ -15,6 +15,7 @@ public class MarketDailyBriefs {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(nullable = false)
     private Long dailyMarketBriefId;
 
     @Column(nullable = false)

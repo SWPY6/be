@@ -5,6 +5,6 @@ public enum MarketCode {
     KOSPI,
     KOSDAQ,
     NASDAQ,
-    NYSE 
+    SP500
 
 }

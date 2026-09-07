@@ -20,6 +20,7 @@ public class Stocks {
 	
 	@Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+	@Column(nullable = false)
 	private Long stockId;
 	
     @Column(nullable = false)
@@ -30,6 +31,9 @@ public class Stocks {
 
 	@Column(nullable = false, length = 100)
 	private String name;
+	
+	@Column(length = 2100)
+	private String imgUrl;
 	
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
@@ -42,7 +46,7 @@ public class Stocks {
 	private String ceo;
 
 	@Column(nullable = false)
-	private LocalDate listingDate;
+	private LocalDate listedAt;
 	
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;

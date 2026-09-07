@@ -20,6 +20,7 @@ public class CoreIssues {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(nullable = false)
     private Long issueId;
 
     @Column(nullable = false)
