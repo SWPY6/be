@@ -1,4 +1,4 @@
-package org.example.ploutos;
+package com.swyp.ploutos;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
