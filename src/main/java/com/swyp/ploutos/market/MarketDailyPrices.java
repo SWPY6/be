@@ -28,8 +28,8 @@ public class MarketDailyPrices {
     @Column(precision = 20, scale = 4, nullable = false)
     private BigDecimal closeValue;
 
-    @Column(nullable = false)
-    private Double changeRate;
+    @Column(nullable = false, precision = 10, scale = 4)
+    private BigDecimal changeRate;
 
     protected MarketDailyPrices() {
     	

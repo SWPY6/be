@@ -3,6 +3,8 @@ package com.swyp.ploutos.issue;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import jakarta.persistence.Column;
@@ -38,9 +40,11 @@ public class CoreIssues {
     @Column(length = 30, nullable = false)
     private String sourceType;
 
+    @CreatedDate
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @LastModifiedDate
     @Column
     private LocalDateTime updatedAt;
 
