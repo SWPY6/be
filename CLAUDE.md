@@ -98,6 +98,35 @@ LLM이 흔히 저지르는 코딩 실수를 줄이기 위한 행동 지침. 이 
 - 엔티티는 작게 유지하고, `@Column`으로 테이블 정보를 명시한다.
 - 파일 끝에 개행(EOF)을 넣는다.
 
+### 엔티티 규칙
+
+- **엔티티명은 복수형, 필드명은 단수형으로 쓴다.**
+  - `Markets` 엔티티의 식별자는 `marketId`, `Stocks`의 식별자는 `stockId`
+- **`@Column`의 `name`은 쓰지 않는다.** 필드명이 길어 DB 컬럼명을 줄여야 하는 경우에만 예외로 지정한다.
+  - 컬럼명은 Spring Boot 기본 네이밍 전략이 `marketId` → `market_id`로 변환한다
+- **`length`가 255면 명시하지 않는다.** 기본값이므로 적을 필요가 없다.
+- **`LocalDateTime` 필드명은 `~At`으로 끝낸다.**
+  - `createdAt`, `updatedAt`, `publishedAt`
+
+```java
+@Entity
+@Table(name = "markets")
+public class Markets {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(nullable = false)
+    private Long marketId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private MarketCode code;
+
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+}
+```
+
 ## 개발 방식: SDD (Spec Driven Development)
 
 코드를 쓰기 전에 명세를 먼저 쓴다. 명세 없이 구현을 시작하지 않는다.
@@ -149,9 +178,28 @@ void 잔고가_있으면_결제가_성공한다() {
 }
 ```
 
+## 코드 리뷰
+
+**CI/CD가 통과한 뒤에 리뷰를 시작한다.** 빌드나 테스트가 깨진 PR은 리뷰 대상이 아니다.
+리뷰어가 컴파일 오류나 실패하는 테스트를 지적하는 데 시간을 쓰지 않게 한다.
+
 ## 빌드 & 실행
 
+### 테스트 DB
+
+테스트는 `localhost:3307`의 **테스트 전용 MySQL**에 붙는다.
+`./gradlew test` 전에 반드시 띄워야 한다. 안 띄우면 컨텍스트 로딩이 실패한다.
+
 ```bash
+docker compose up -d mysql-test
+```
+
+개발용 DB(`localhost:3306`)와는 별개 컨테이너다. 테스트가 개발 데이터를 건드리지 않는다.
+
+### 명령어
+
+```bash
+docker compose up -d mysql-test   # 테스트 DB 기동 (테스트 전 1회)
 ./gradlew build          # 빌드
 ./gradlew test           # 테스트
 ./gradlew bootRun        # 로컬 실행
