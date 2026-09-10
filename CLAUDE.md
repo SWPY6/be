@@ -187,19 +187,20 @@ void 잔고가_있으면_결제가_성공한다() {
 
 ### 테스트 DB
 
-테스트는 `localhost:3307`의 **테스트 전용 MySQL**에 붙는다.
-`./gradlew test` 전에 반드시 띄워야 한다. 안 띄우면 컨텍스트 로딩이 실패한다.
+테스트용 MySQL은 **Testcontainers**가 실행 시점에 띄운다. DB를 미리 준비할 필요 없이
+Docker만 떠 있으면 되고, 컨테이너는 테스트가 끝나면 정리된다.
 
-```bash
-docker compose up -d mysql-test
-```
+`PloutosApplicationTests`가 `mysql:8.4` 컨테이너를 띄우고 접속 정보를 `@DynamicPropertySource`로
+주입한다. 개발용 DB(`localhost:3301`)와 분리되어 개발 데이터를 건드리지 않는다.
+CI도 러너의 Docker로 같은 방식으로 돈다.
 
-개발용 DB(`localhost:3306`)와는 별개 컨테이너다. 테스트가 개발 데이터를 건드리지 않는다.
+테스트 스키마는 `ddl-auto=create`로 엔티티에서 자동 생성된다. 운영 설정은 `none`이므로
+운영 DB의 스키마를 Hibernate가 건드리지 않는다.
 
 ### 명령어
 
 ```bash
-docker compose up -d mysql-test   # 테스트 DB 기동 (테스트 전 1회)
+docker compose up -d mysql        # 로컬 실행용 DB (bootRun 전)
 ./gradlew build          # 빌드
 ./gradlew test           # 테스트
 ./gradlew bootRun        # 로컬 실행
