@@ -76,7 +76,7 @@ LLM이 흔히 저지르는 코딩 실수를 줄이기 위한 행동 지침. 이 
 
 - Java 26 (Gradle toolchain), Spring Boot 4.1.1
 - 단일 Gradle 모듈. `settings.gradle`의 `rootProject.name = 'ploutos'`
-- 베이스 패키지: `org.example.ploutos`
+- 베이스 패키지: `com.swyp.ploutos`
 - 의존성: `spring-boot-starter-security`, `spring-boot-starter-webmvc`, `mysql-connector-j`(runtime)
 - 테스트: JUnit 6 (`useJUnitPlatform`), `spring-boot-starter-webmvc-test`, `spring-boot-starter-security-test`
 
@@ -97,6 +97,35 @@ LLM이 흔히 저지르는 코딩 실수를 줄이기 위한 행동 지침. 이 
 - DTO는 `sealed interface` + `record` 조합으로 작성한다.
 - 엔티티는 작게 유지하고, `@Column`으로 테이블 정보를 명시한다.
 - 파일 끝에 개행(EOF)을 넣는다.
+
+### 엔티티 규칙
+
+- **엔티티명은 복수형, 필드명은 단수형으로 쓴다.**
+  - `Markets` 엔티티의 식별자는 `marketId`, `Stocks`의 식별자는 `stockId`
+- **`@Column`의 `name`은 쓰지 않는다.** 필드명이 길어 DB 컬럼명을 줄여야 하는 경우에만 예외로 지정한다.
+  - 컬럼명은 Spring Boot 기본 네이밍 전략이 `marketId` → `market_id`로 변환한다
+- **`length`가 255면 명시하지 않는다.** 기본값이므로 적을 필요가 없다.
+- **`LocalDateTime` 필드명은 `~At`으로 끝낸다.**
+  - `createdAt`, `updatedAt`, `publishedAt`
+
+```java
+@Entity
+@Table(name = "markets")
+public class Markets {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(nullable = false)
+    private Long marketId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private MarketCode code;
+
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+}
+```
 
 ## 개발 방식: SDD (Spec Driven Development)
 
@@ -149,9 +178,29 @@ void 잔고가_있으면_결제가_성공한다() {
 }
 ```
 
+## 코드 리뷰
+
+**CI/CD가 통과한 뒤에 리뷰를 시작한다.** 빌드나 테스트가 깨진 PR은 리뷰 대상이 아니다.
+리뷰어가 컴파일 오류나 실패하는 테스트를 지적하는 데 시간을 쓰지 않게 한다.
+
 ## 빌드 & 실행
 
+### 테스트 DB
+
+테스트용 MySQL은 **Testcontainers**가 실행 시점에 띄운다. DB를 미리 준비할 필요 없이
+Docker만 떠 있으면 되고, 컨테이너는 테스트가 끝나면 정리된다.
+
+`PloutosApplicationTests`가 `mysql:8.4` 컨테이너를 띄우고 접속 정보를 `@DynamicPropertySource`로
+주입한다. 개발용 DB(`localhost:3301`)와 분리되어 개발 데이터를 건드리지 않는다.
+CI도 러너의 Docker로 같은 방식으로 돈다.
+
+테스트 스키마는 `ddl-auto=create`로 엔티티에서 자동 생성된다. 운영 설정은 `none`이므로
+운영 DB의 스키마를 Hibernate가 건드리지 않는다.
+
+### 명령어
+
 ```bash
+docker compose up -d mysql        # 로컬 실행용 DB (bootRun 전)
 ./gradlew build          # 빌드
 ./gradlew test           # 테스트
 ./gradlew bootRun        # 로컬 실행
