@@ -65,5 +65,7 @@ jobs:
             set -e
             cd ~/be
             git pull --ff-only
+            # 이전 배포가 남긴 태그 없는 이미지를 치워 디스크가 차는 것을 막는다. 베이스 이미지는 삭제 x
+            docker image prune -f
             docker compose up --build -d
           '
