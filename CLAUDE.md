@@ -77,7 +77,7 @@ LLM이 흔히 저지르는 코딩 실수를 줄이기 위한 행동 지침. 이 
 - Java 26 (Gradle toolchain), Spring Boot 4.1.1
 - 단일 Gradle 모듈. `settings.gradle`의 `rootProject.name = 'ploutos'`
 - 베이스 패키지: `com.swyp.ploutos`
-- 의존성: `spring-boot-starter-security`, `spring-boot-starter-webmvc`, `mysql-connector-j`(runtime)
+- 의존성: `spring-boot-starter-security`, `spring-boot-starter-webmvc`, `springdoc-openapi-starter-webmvc-ui`, `mysql-connector-j`(runtime)
 - 테스트: JUnit 6 (`useJUnitPlatform`), `spring-boot-starter-webmvc-test`, `spring-boot-starter-security-test`
 
 ## 적용 범위
@@ -177,6 +177,13 @@ void 잔고가_있으면_결제가_성공한다() {
     assertThat(result.isSuccess()).isTrue();
 }
 ```
+
+## API 문서
+
+**프론트엔드와의 API 명세 소통은 Swagger(springdoc-openapi)로 한다.** 별도 문서를 따로 관리하지 않는다.
+
+- 컨트롤러 메서드에 `@Operation`, 요청·응답 DTO에 `@Schema`로 설명을 남긴다.
+- 로컬 실행 후 `/swagger-ui.html`에서 확인한다.
 
 ## 코드 리뷰
 
