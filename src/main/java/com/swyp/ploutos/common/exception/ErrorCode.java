@@ -9,7 +9,7 @@ public enum ErrorCode {
             "잘못된 입력값입니다."
     ),
 
-    STOCK_NOT_FOUND(
+    NOT_FOUND_STOCK(
             HttpStatus.NOT_FOUND,
             "종목을 찾을 수 없습니다."
     ),

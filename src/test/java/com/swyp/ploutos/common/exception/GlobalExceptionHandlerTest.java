@@ -1,9 +1,11 @@
 package com.swyp.ploutos.common.exception;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
+
+import com.swyp.ploutos.common.api.ErrorResponse;
 
 class GlobalExceptionHandlerTest {
 
@@ -15,11 +17,27 @@ class GlobalExceptionHandlerTest {
                 new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
 
         // when
-        ResponseEntity<String> response =
+        ResponseEntity<ErrorResponse> response =
                 handler.handleBusinessException(exception);
 
         // then
-        assertEquals(400, response.getStatusCode().value());
-        assertEquals("잘못된 입력값입니다.", response.getBody());
+        assertThat(response.getStatusCode().value()).isEqualTo(400);
+        assertThat(response.getBody())
+                .extracting(ErrorResponse::code, ErrorResponse::message)
+                .containsExactly("INVALID_INPUT_VALUE", "잘못된 입력값입니다.");
+    }
+
+    @Test
+    void 처리되지_않은_예외가_발생하면_500_응답을_반환한다() {
+        // given
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        RuntimeException exception = new RuntimeException("boom");
+
+        // when
+        ResponseEntity<ErrorResponse> response = handler.handleException(exception);
+
+        // then
+        assertThat(response.getStatusCode().value()).isEqualTo(500);
+        assertThat(response.getBody().code()).isEqualTo("INTERNAL_SERVER_ERROR");
     }
 }
