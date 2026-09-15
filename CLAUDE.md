@@ -77,7 +77,7 @@ LLM이 흔히 저지르는 코딩 실수를 줄이기 위한 행동 지침. 이 
 - Java 26 (Gradle toolchain), Spring Boot 4.1.1
 - 단일 Gradle 모듈. `settings.gradle`의 `rootProject.name = 'ploutos'`
 - 베이스 패키지: `com.swyp.ploutos`
-- 의존성: `spring-boot-starter-security`, `spring-boot-starter-webmvc`, `springdoc-openapi-starter-webmvc-ui`, `mysql-connector-j`(runtime)
+- 의존성: `spring-boot-starter-security`, `spring-boot-starter-webmvc`, `spring-boot-starter-data-jpa`, `spring-boot-starter-validation`, `springdoc-openapi-starter-webmvc-ui`, `mysql-connector-j`(runtime)
 - 테스트: JUnit 6 (`useJUnitPlatform`), `spring-boot-starter-webmvc-test`, `spring-boot-starter-security-test`
 
 ## 적용 범위
@@ -177,6 +177,17 @@ void 잔고가_있으면_결제가_성공한다() {
     assertThat(result.isSuccess()).isTrue();
 }
 ```
+
+## API 규약
+
+자세한 내용은 `docs/SPEC-api-base.md`. 요약:
+
+- 경로는 `/api/v1/{resources}`(복수형). 컨트롤러는 `XxxController`, `XxxService`만 주입받는다.
+- 성공 응답은 `ApiResponse.of(data)`로 감싼다 → `{ "data": ... }`. 바디 없는 응답은 204.
+- 실패 응답은 `GlobalExceptionHandler`가 `{ "code", "message", "errors": [{field, reason}] }`로 통일한다. 컨트롤러에서 예외를 잡지 않는다.
+- 비즈니스 오류는 `ErrorCode`에 항목을 추가하고 `Precondition.validate(condition, errorCode)`로 던진다. 이름은 `NOT_FOUND_` `NOT_ALLOWED_` `ALREADY_EXIST_` `INVALID_` 접두사를 쓴다.
+- 메서드명은 `search` `detail` `create` `update` `delete`. 상태코드는 목록·단건·수정 200, 생성 201, 삭제 204.
+- DTO는 `{도메인}/dto/XxxRequest`·`XxxResponse` 안에 `Filter` `Create` `Update` / `Search` `Detail` record를 중첩한다.
 
 ## API 문서
 
