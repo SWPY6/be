@@ -9,7 +9,7 @@ class BusinessExceptionTest {
     @Test
     void 에러코드를_전달하면_비즈니스예외가_생성된다() {
         // given
-        ErrorCode errorCode = ErrorCode.INVALID_INPUT_VALUE;
+        ErrorCode errorCode = CommonErrorCode.INVALID_INPUT_VALUE;
 
         // when
         BusinessException exception = new BusinessException(errorCode);

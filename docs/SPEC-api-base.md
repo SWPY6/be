@@ -49,7 +49,12 @@ HTTP 상태코드로 실패를 구분하고, 바디는 항상 아래 세 필드�
 
 ## 에러 코드
 
-`ErrorCode` enum 하나에 모은다. 각 항목은 `HttpStatus`와 한국어 메시지를 가진다.
+`ErrorCode`는 인터페이스다. 각 구현체는 `HttpStatus`와 한국어 메시지를 가진다.
+
+- `common/exception/CommonErrorCode` — 도메인에 속하지 않는 코드(`INVALID_INPUT_VALUE`, `INTERNAL_SERVER_ERROR`)
+- `{도메인}/XxxErrorCode` — 해당 도메인의 코드. 도메인 패키지가 소유한다 (`stock/StockErrorCode`의 `NOT_FOUND_STOCK`)
+
+`common`은 도메인 코드를 알지 않는다. 새 도메인은 자기 enum을 추가하고 `common`을 건드리지 않는다.
 
 이름은 접두사로 종류를 드러낸다.
 
@@ -76,7 +81,7 @@ HTTP 상태코드로 실패를 구분하고, 바디는 항상 아래 세 필드�
 
 ## 인수 기준
 
-1. 컨트롤러가 `BusinessException(NOT_FOUND_STOCK)`을 던지면 404와 `{code: "NOT_FOUND_STOCK", message, errors: []}`가 온다.
+1. 컨트롤러가 `BusinessException(errorCode)`를 던지면 `errorCode.status()`와 `{code: 이름, message, errors: []}`가 온다.
 2. `@Valid` 검증에 실패하면 400과 `errors[]`에 필드명·사유가 온다.
 3. 본문이 잘못된 JSON이면 400이 온다.
 4. 없는 경로를 요청하면 404와 같은 모양의 JSON 바디가 온다.

@@ -185,7 +185,7 @@ void 잔고가_있으면_결제가_성공한다() {
 - 경로는 `/api/v1/{resources}`(복수형). 컨트롤러는 `XxxController`, `XxxService`만 주입받는다.
 - 성공 응답은 `ApiResponse.of(data)`로 감싼다 → `{ "data": ... }`. 바디 없는 응답은 204.
 - 실패 응답은 `GlobalExceptionHandler`가 `{ "code", "message", "errors": [{field, reason}] }`로 통일한다. 컨트롤러에서 예외를 잡지 않는다.
-- 비즈니스 오류는 `ErrorCode`에 항목을 추가하고 `Precondition.validate(condition, errorCode)`로 던진다. 이름은 `NOT_FOUND_` `NOT_ALLOWED_` `ALREADY_EXIST_` `INVALID_` 접두사를 쓴다.
+- 비즈니스 오류는 해당 도메인의 `XxxErrorCode`(공통은 `CommonErrorCode`)에 항목을 추가하고 `Precondition.validate(condition, errorCode)`로 던진다. 이름은 `NOT_FOUND_` `NOT_ALLOWED_` `ALREADY_EXIST_` `INVALID_` 접두사를 쓴다.
 - 메서드명은 `search` `detail` `create` `update` `delete`. 상태코드는 목록·단건·수정 200, 생성 201, 삭제 204.
 - DTO는 `{도메인}/dto/XxxRequest`·`XxxResponse` 안에 `Filter` `Create` `Update` / `Search` `Detail` record를 중첩한다.
 
