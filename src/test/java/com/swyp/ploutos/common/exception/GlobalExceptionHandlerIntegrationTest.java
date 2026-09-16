@@ -11,6 +11,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
+import org.springframework.test.web.servlet.assertj.MockMvcTester.MockMvcRequestBuilder;
+import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,8 +31,14 @@ class GlobalExceptionHandlerIntegrationTest {
 
     @Test
     void 비즈니스예외가_발생하면_에러코드_상태와_JSON_바디를_반환한다() {
-        // when & then
-        assertThat(mvc.get().uri("/fixture/business"))
+        // given
+        MockMvcRequestBuilder request = mvc.get().uri("/fixture/business");
+
+        // when
+        MvcTestResult result = request.exchange();
+
+        // then
+        assertThat(result)
                 .hasStatus(HttpStatus.BAD_REQUEST)
                 .bodyJson()
                 .hasPathSatisfying("$.code", code -> code.assertThat().isEqualTo("INVALID_INPUT_VALUE"))
@@ -40,12 +48,18 @@ class GlobalExceptionHandlerIntegrationTest {
 
     @Test
     void 필드검증에_실패하면_400과_필드에러목록을_반환한다() {
-        // when & then
-        assertThat(mvc.post().uri("/fixture")
+        // given
+        MockMvcRequestBuilder request = mvc.post().uri("/fixture")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"name": ""}
-                        """))
+                        """);
+
+        // when
+        MvcTestResult result = request.exchange();
+
+        // then
+        assertThat(result)
                 .hasStatus(HttpStatus.BAD_REQUEST)
                 .bodyJson()
                 .hasPathSatisfying("$.code", code -> code.assertThat().isEqualTo("INVALID_INPUT_VALUE"))
@@ -54,10 +68,16 @@ class GlobalExceptionHandlerIntegrationTest {
 
     @Test
     void 본문이_잘못된_JSON이면_400을_반환한다() {
-        // when & then
-        assertThat(mvc.post().uri("/fixture")
+        // given
+        MockMvcRequestBuilder request = mvc.post().uri("/fixture")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{not json"))
+                .content("{not json");
+
+        // when
+        MvcTestResult result = request.exchange();
+
+        // then
+        assertThat(result)
                 .hasStatus(HttpStatus.BAD_REQUEST)
                 .bodyJson()
                 .hasPathSatisfying("$.code", code -> code.assertThat().isEqualTo("BAD_REQUEST"));
@@ -65,8 +85,14 @@ class GlobalExceptionHandlerIntegrationTest {
 
     @Test
     void 없는_경로를_요청하면_404_JSON_바디를_반환한다() {
-        // when & then
-        assertThat(mvc.get().uri("/nope"))
+        // given
+        MockMvcRequestBuilder request = mvc.get().uri("/nope");
+
+        // when
+        MvcTestResult result = request.exchange();
+
+        // then
+        assertThat(result)
                 .hasStatus(HttpStatus.NOT_FOUND)
                 .bodyJson()
                 .hasPathSatisfying("$.code", code -> code.assertThat().isEqualTo("NOT_FOUND"));
@@ -74,8 +100,14 @@ class GlobalExceptionHandlerIntegrationTest {
 
     @Test
     void 처리되지_않은_예외가_발생하면_500을_반환한다() {
-        // when & then
-        assertThat(mvc.get().uri("/fixture/boom"))
+        // given
+        MockMvcRequestBuilder request = mvc.get().uri("/fixture/boom");
+
+        // when
+        MvcTestResult result = request.exchange();
+
+        // then
+        assertThat(result)
                 .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
                 .bodyJson()
                 .hasPathSatisfying("$.code", code -> code.assertThat().isEqualTo("INTERNAL_SERVER_ERROR"));
