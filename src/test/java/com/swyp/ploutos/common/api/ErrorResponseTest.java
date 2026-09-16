@@ -8,6 +8,7 @@ import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 
+import com.swyp.ploutos.common.exception.CommonErrorCode;
 import com.swyp.ploutos.common.exception.ErrorCode;
 
 class ErrorResponseTest {
@@ -15,14 +16,14 @@ class ErrorResponseTest {
     @Test
     void 에러코드로_만들면_코드는_enum_이름이고_필드에러는_비어있다() {
         // given
-        ErrorCode errorCode = ErrorCode.NOT_FOUND_STOCK;
+        ErrorCode errorCode = CommonErrorCode.INVALID_INPUT_VALUE;
 
         // when
         ErrorResponse response = ErrorResponse.of(errorCode);
 
         // then
-        assertThat(response.code()).isEqualTo("NOT_FOUND_STOCK");
-        assertThat(response.message()).isEqualTo("종목을 찾을 수 없습니다.");
+        assertThat(response.code()).isEqualTo("INVALID_INPUT_VALUE");
+        assertThat(response.message()).isEqualTo("잘못된 입력값입니다.");
         assertThat(response.errors()).isEmpty();
     }
 
@@ -33,7 +34,7 @@ class ErrorResponseTest {
         bindingResult.addError(new FieldError("request", "name", "must not be blank"));
 
         // when
-        ErrorResponse response = ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE, bindingResult);
+        ErrorResponse response = ErrorResponse.of(CommonErrorCode.INVALID_INPUT_VALUE, bindingResult);
 
         // then
         assertThat(response.code()).isEqualTo("INVALID_INPUT_VALUE");

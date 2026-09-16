@@ -32,7 +32,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleException(Exception e) {
         log.error("처리되지 않은 예외", e);
-        ErrorCode errorCode = ErrorCode.INTERNAL_SERVER_ERROR;
+        ErrorCode errorCode = CommonErrorCode.INTERNAL_SERVER_ERROR;
 
         return ResponseEntity
                 .status(errorCode.status())
@@ -46,7 +46,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             HttpStatusCode status,
             WebRequest request
     ) {
-        ErrorCode errorCode = ErrorCode.INVALID_INPUT_VALUE;
+        ErrorCode errorCode = CommonErrorCode.INVALID_INPUT_VALUE;
 
         return ResponseEntity
                 .status(errorCode.status())

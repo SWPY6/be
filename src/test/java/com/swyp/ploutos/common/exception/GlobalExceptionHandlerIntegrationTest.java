@@ -30,11 +30,11 @@ class GlobalExceptionHandlerIntegrationTest {
     @Test
     void 비즈니스예외가_발생하면_에러코드_상태와_JSON_바디를_반환한다() {
         // when & then
-        assertThat(mvc.get().uri("/fixture/not-found"))
-                .hasStatus(HttpStatus.NOT_FOUND)
+        assertThat(mvc.get().uri("/fixture/business"))
+                .hasStatus(HttpStatus.BAD_REQUEST)
                 .bodyJson()
-                .hasPathSatisfying("$.code", code -> code.assertThat().isEqualTo("NOT_FOUND_STOCK"))
-                .hasPathSatisfying("$.message", message -> message.assertThat().isEqualTo("종목을 찾을 수 없습니다."))
+                .hasPathSatisfying("$.code", code -> code.assertThat().isEqualTo("INVALID_INPUT_VALUE"))
+                .hasPathSatisfying("$.message", message -> message.assertThat().isEqualTo("잘못된 입력값입니다."))
                 .hasPathSatisfying("$.errors", errors -> errors.assertThat().asInstanceOf(InstanceOfAssertFactories.LIST).isEmpty());
     }
 
@@ -87,9 +87,9 @@ class GlobalExceptionHandlerIntegrationTest {
         record CreateRequest(@NotBlank String name) {
         }
 
-        @GetMapping("/fixture/not-found")
-        void notFound() {
-            throw new BusinessException(ErrorCode.NOT_FOUND_STOCK);
+        @GetMapping("/fixture/business")
+        void business() {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE);
         }
 
         @GetMapping("/fixture/boom")

@@ -14,7 +14,7 @@ class GlobalExceptionHandlerTest {
         // given
         GlobalExceptionHandler handler = new GlobalExceptionHandler();
         BusinessException exception =
-                new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+                new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE);
 
         // when
         ResponseEntity<ErrorResponse> response =
