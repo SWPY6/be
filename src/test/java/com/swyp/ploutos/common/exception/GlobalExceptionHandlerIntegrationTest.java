@@ -1,9 +1,13 @@
 package com.swyp.ploutos.common.exception;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +19,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @WebMvcTest
@@ -43,7 +49,7 @@ class GlobalExceptionHandlerIntegrationTest {
                         MediaType.APPLICATION_JSON
                 ))
                 .andExpect(jsonPath("$.code")
-                        .value("INVALID_INPUT_VALUE"))
+                		.value("INVALID_INPUT_VALUE"))	/* 200: .value("NOT_FOUND")) */                       
                 .andExpect(jsonPath("$.message")
                         .value("잘못된 입력값입니다."))
                 .andExpect(jsonPath("$.errors").isArray())
@@ -57,7 +63,12 @@ class GlobalExceptionHandlerIntegrationTest {
 
         // when & then
         mockMvc.perform(get(path))
+        	// 일부러 200을 기대
+        	//	.andExpect(status().isOk())
+        
+        		// 400
                 .andExpect(status().isNotFound())
+                
                 .andExpect(content().contentTypeCompatibleWith(
                         MediaType.APPLICATION_JSON
                 ))
@@ -72,11 +83,55 @@ class GlobalExceptionHandlerIntegrationTest {
     @RestController
     static class TestController {
 
+        record CreateRequest(
+                @NotBlank String name
+        ) {
+        }
+
         @GetMapping("/test/business-error")
         void businessError() {
             throw new BusinessException(
                     ErrorCode.INVALID_INPUT_VALUE
             );
         }
+
+        @PostMapping("/test/validation")
+        void validation(
+                @Valid @RequestBody CreateRequest request
+        ) {
+        }
     }
+    
+    @Test
+    void 필드검증에_실패하면_400과_필드오류를_반환한다() throws Exception {
+        // given
+        String requestBody = """
+                {
+                  "name": ""
+                }
+                """;
+        // when & then
+        mockMvc.perform(post("/test/validation")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+        
+        		// 일부러 200을 기대
+        		//.andExpect(status().isOk())
+        		
+        		// 400
+        		.andExpect(status().isBadRequest())
+        		
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_JSON
+                ))
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.message")
+                        .value("잘못된 입력값입니다."))
+                .andExpect(jsonPath("$.errors[0].field")
+                        .value("name"))
+                .andExpect(jsonPath("$.errors[0].reason")
+                        .exists());
+    }
+    
 }
