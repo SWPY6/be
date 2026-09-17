@@ -49,7 +49,7 @@ class GlobalExceptionHandlerIntegrationTest {
                         MediaType.APPLICATION_JSON
                 ))
                 .andExpect(jsonPath("$.code")
-                		.value("INVALID_INPUT_VALUE"))	/* 200: .value("NOT_FOUND")) */                       
+                		.value("INVALID_INPUT_VALUE"))               
                 .andExpect(jsonPath("$.message")
                         .value("잘못된 입력값입니다."))
                 .andExpect(jsonPath("$.errors").isArray())
@@ -63,10 +63,6 @@ class GlobalExceptionHandlerIntegrationTest {
 
         // when & then
         mockMvc.perform(get(path))
-        	// 일부러 200을 기대
-        	//	.andExpect(status().isOk())
-        
-        		// 400
                 .andExpect(status().isNotFound())
                 
                 .andExpect(content().contentTypeCompatibleWith(
@@ -79,7 +75,35 @@ class GlobalExceptionHandlerIntegrationTest {
                 .andExpect(jsonPath("$.errors").isArray())
                 .andExpect(jsonPath("$.errors").isEmpty());
     }
-
+    
+    @Test
+    void 필드검증에_실패하면_400과_필드오류를_반환한다() throws Exception {
+        // given
+        String requestBody = """
+                {
+                  "name": ""
+                }
+                """;
+        // when & then
+        mockMvc.perform(post("/test/validation")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+        
+        		.andExpect(status().isBadRequest())
+        		
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_JSON
+                ))
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.message")
+                        .value("잘못된 입력값입니다."))
+                .andExpect(jsonPath("$.errors[0].field")
+                        .value("name"))
+                .andExpect(jsonPath("$.errors[0].reason")
+                        .exists());
+    }
+    
     @RestController
     static class TestController {
 
@@ -100,38 +124,6 @@ class GlobalExceptionHandlerIntegrationTest {
                 @Valid @RequestBody CreateRequest request
         ) {
         }
-    }
-    
-    @Test
-    void 필드검증에_실패하면_400과_필드오류를_반환한다() throws Exception {
-        // given
-        String requestBody = """
-                {
-                  "name": ""
-                }
-                """;
-        // when & then
-        mockMvc.perform(post("/test/validation")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestBody))
-        
-        		// 일부러 200을 기대
-        		//.andExpect(status().isOk())
-        		
-        		// 400
-        		.andExpect(status().isBadRequest())
-        		
-                .andExpect(content().contentTypeCompatibleWith(
-                        MediaType.APPLICATION_JSON
-                ))
-                .andExpect(jsonPath("$.code")
-                        .value("INVALID_INPUT_VALUE"))
-                .andExpect(jsonPath("$.message")
-                        .value("잘못된 입력값입니다."))
-                .andExpect(jsonPath("$.errors[0].field")
-                        .value("name"))
-                .andExpect(jsonPath("$.errors[0].reason")
-                        .exists());
     }
     
 }

@@ -52,6 +52,7 @@ public record ErrorResponse(
 			
 	        String field,
 	        String reason
+	        
 	) {
 		
 	}
