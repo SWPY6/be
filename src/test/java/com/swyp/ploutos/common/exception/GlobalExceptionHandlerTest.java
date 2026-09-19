@@ -24,8 +24,8 @@ class GlobalExceptionHandlerTest {
 
 	    // then
 	    assertEquals(400, response.getStatusCode().value());
-	    assertEquals("INVALID_INPUT_VALUE", response.getBody().code());
-	    assertEquals("잘못된 입력값입니다.", response.getBody().message());
-	    assertEquals(List.of(), response.getBody().errors());
+	    assertEquals("P001", response.getBody().error().code());
+	    assertEquals("잘못된 입력값입니다.", response.getBody().error().message());
+	    assertEquals(List.of(), response.getBody().error().errors());
 	}
 }
