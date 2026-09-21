@@ -33,7 +33,8 @@ jobs:
       - name: Checkout PR
         uses: actions/checkout@v6
         with:
-          fetch-depth: 1
+          # git diff origin/<base>...HEAD 로 변경분을 보려면 base 브랜치 이력이 필요하다.
+          fetch-depth: 0
 
       - name: Claude review
         uses: anthropics/claude-code-action@v1
@@ -47,6 +48,7 @@ jobs:
 
             너는 이 저장소의 코드 리뷰어다. 코드를 수정하지 말고 리뷰만 한다.
             PR 브랜치는 이미 현재 작업 디렉터리에 체크아웃되어 있다.
+            변경 내용은 `git diff origin/${{ github.event.pull_request.base.ref }}...HEAD`로 확인한다.
             모든 코멘트는 한국어로 쓴다.
 
             ## 리뷰 기준
@@ -132,7 +134,13 @@ jobs:
             - 파일을 수정하거나 커밋·푸시하지 않는다.
             - PR을 승인하거나 변경 요청 리뷰를 제출하지 않는다.
             - 빌드나 테스트를 실행하지 않는다. 정적 리뷰만 한다.
+          # --max-turns: claude-code-action이 실행 후 result.num_turns(툴 결과 1건당 1)를
+          # 이 값과 비교해 초과하면 성공한 리뷰도 실패로 바꾼다(업스트림 이슈 #1795).
+          # 실제 round 수가 아니라 툴 호출 수 기준이므로 넉넉히 둔다. 폭주는 timeout-minutes가 막는다.
+          # 업스트림 PR #1806이 병합되면 30 수준으로 되돌릴 수 있다.
+          # Bash(git diff/log): action의 시스템 프롬프트가 git diff로 변경분을 보라고 지시하므로
+          # 허용하지 않으면 권한 거부가 반복되며 턴을 낭비한다. 둘 다 읽기 전용이다.
           claude_args: |
             --model claude-sonnet-5
-            --max-turns 30
-            --allowedTools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment"
+            --max-turns 100
+            --allowedTools "Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),mcp__github_inline_comment__create_inline_comment"
