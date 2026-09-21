@@ -27,10 +27,7 @@ public record ErrorResponse(ErrorDetail error) {
         List<FieldError> errors = bindingResult
                 .getFieldErrors()
                 .stream()
-                .map(error -> new FieldError(
-                        error.getField(),
-                        error.getDefaultMessage()
-                ))
+                .map(error -> new FieldError(error.getField()))
                 .toList();
 
         return new ErrorResponse(new ErrorDetail(
@@ -51,10 +48,9 @@ public record ErrorResponse(ErrorDetail error) {
     }
     
 	public record FieldError(
-			
-	        String field,
-	        String reason
-	        
+
+	        String field
+
 	) {
 		
 	}
