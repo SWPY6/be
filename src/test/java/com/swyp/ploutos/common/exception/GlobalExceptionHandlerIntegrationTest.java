@@ -26,6 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @WebMvcTest
@@ -112,7 +113,65 @@ class GlobalExceptionHandlerIntegrationTest {
                 .andExpect(jsonPath("$.error.errors[0].field")
                         .value("name"))
                 .andExpect(jsonPath("$.error.errors[0].reason")
-                        .exists());
+                        .doesNotExist());
+    }
+
+    @Test
+    void 잘못된_JSON을_요청하면_400과_P001을_반환한다() throws Exception {
+        // given
+        String requestBody = """
+                {
+                  "name": "삼성전자",
+                }
+                """;
+
+        // when & then
+        mockMvc.perform(post("/test/validation")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("P001"))
+                .andExpect(jsonPath("$.error.message").value("잘못된 입력값입니다."))
+                .andExpect(jsonPath("$.error.errors").doesNotExist());
+    }
+
+    @Test
+    void 필수_파라미터를_누락하면_400과_P001을_반환한다() throws Exception {
+        // when & then
+        mockMvc.perform(get("/test/request-parameter"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("P001"))
+                .andExpect(jsonPath("$.error.message").value("잘못된 입력값입니다."));
+    }
+
+    @Test
+    void 파라미터_타입이_일치하지_않으면_400과_P001을_반환한다() throws Exception {
+        // when & then
+        mockMvc.perform(get("/test/request-parameter")
+                        .param("count", "not-a-number"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("P001"))
+                .andExpect(jsonPath("$.error.message").value("잘못된 입력값입니다."));
+    }
+
+    @Test
+    void 지원하지_않는_HTTP_메서드를_요청하면_405와_P004를_반환한다() throws Exception {
+        // when & then
+        mockMvc.perform(post("/test/success"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.error.code").value("P004"))
+                .andExpect(jsonPath("$.error.message").value("지원하지 않는 HTTP 메서드입니다."));
+    }
+
+    @Test
+    void 지원하지_않는_미디어_타입을_요청하면_415와_P005를_반환한다() throws Exception {
+        // when & then
+        mockMvc.perform(post("/test/validation")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("삼성전자"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.error.code").value("P005"))
+                .andExpect(jsonPath("$.error.message").value("지원하지 않는 미디어 타입입니다."));
     }
     
     @Test
@@ -142,14 +201,14 @@ class GlobalExceptionHandlerIntegrationTest {
     }
 
     @Test
-    void 예상하지_못한_예외가_발생하면_500과_P004를_반환한다() throws Exception {
+    void 예상하지_못한_예외가_발생하면_500과_P500를_반환한다() throws Exception {
         // given
         String path = "/test/unexpected-error";
 
         // when & then
         mockMvc.perform(get(path))
                 .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.error.code").value("P004"))
+                .andExpect(jsonPath("$.error.code").value("P500"))
                 .andExpect(jsonPath("$.error.message").value("서버 내부 오류가 발생했습니다."))
                 .andExpect(jsonPath("$.data").doesNotExist());
     }
@@ -188,6 +247,10 @@ class GlobalExceptionHandlerIntegrationTest {
         void validation(
                 @Valid @RequestBody CreateRequest request
         ) {
+        }
+
+        @GetMapping("/test/request-parameter")
+        void requestParameter(@RequestParam("count") Integer count) {
         }
     }
     

@@ -21,10 +21,22 @@ public enum ErrorCode {
             "P003", "NoResourceFoundException",
             "요청한 리소스를 찾을 수 없습니다."
     ),
+    
+    METHOD_NOT_ALLOWED(
+            HttpStatus.METHOD_NOT_ALLOWED,
+            "P004", "MethodNotAllowedException",
+            "지원하지 않는 HTTP 메서드입니다."
+    ),
+
+    UNSUPPORTED_MEDIA_TYPE(
+            HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+            "P005", "UnsupportedMediaTypeException",
+            "지원하지 않는 미디어 타입입니다."
+    ),
 
     INTERNAL_SERVER_ERROR(
             HttpStatus.INTERNAL_SERVER_ERROR,
-            "P004", "InternalServerErrorException",
+            "P500", "InternalServerErrorException",
             "서버 내부 오류가 발생했습니다."
     );
 
