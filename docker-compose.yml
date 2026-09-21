@@ -30,5 +30,30 @@ services:
     ports:
       - "8080:8080"
 
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot-webroot:/var/www/certbot:ro
+
+  # 평소에는 뜨지 않는다. 인증서를 발급·갱신할 때만 아래처럼 직접 실행한다.
+  #   docker compose run --rm certbot renew --webroot -w /var/www/certbot
+  certbot:
+    image: certbot/certbot:latest
+    profiles:
+      - tools
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+
 volumes:
   mysql-data:
+  letsencrypt:
+  certbot-webroot:
