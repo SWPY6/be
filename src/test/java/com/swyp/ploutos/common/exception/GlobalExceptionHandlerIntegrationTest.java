@@ -11,12 +11,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInfo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.MockMvcPrint;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
@@ -30,11 +27,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @WebMvcTest
-@AutoConfigureMockMvc(
-        addFilters = false,
-        print = MockMvcPrint.SYSTEM_OUT,
-        printOnlyOnFailure = false
-)
+@AutoConfigureMockMvc(addFilters = false)
 @Import({
         GlobalExceptionHandler.class,
         GlobalExceptionHandlerIntegrationTest.TestController.class
@@ -47,11 +40,6 @@ class GlobalExceptionHandlerIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @BeforeEach
-    void 테스트_이름_출력(TestInfo testInfo) {
-        System.out.println("\n===== " + testInfo.getDisplayName() + " =====");
-    }
-    
     @Test
     void 비즈니스예외가_발생하면_상태코드와_JSON을_반환한다() throws Exception {
         // given
@@ -100,9 +88,7 @@ class GlobalExceptionHandlerIntegrationTest {
         mockMvc.perform(post("/test/validation")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
-        
-        		.andExpect(status().isBadRequest())
-        		
+                .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(
                         MediaType.APPLICATION_JSON
                 ))
@@ -201,14 +187,14 @@ class GlobalExceptionHandlerIntegrationTest {
     }
 
     @Test
-    void 예상하지_못한_예외가_발생하면_500과_P500를_반환한다() throws Exception {
+    void 예상하지_못한_예외가_발생하면_500과_P006를_반환한다() throws Exception {
         // given
         String path = "/test/unexpected-error";
 
         // when & then
         mockMvc.perform(get(path))
                 .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.error.code").value("P500"))
+                .andExpect(jsonPath("$.error.code").value("P006"))
                 .andExpect(jsonPath("$.error.message").value("서버 내부 오류가 발생했습니다."))
                 .andExpect(jsonPath("$.data").doesNotExist());
     }

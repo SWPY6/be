@@ -2,7 +2,6 @@ package com.swyp.ploutos.common.exception;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
@@ -36,9 +35,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleNoResourceFoundException(
             NoResourceFoundException exception
     ) {
+        ErrorCode errorCode = ErrorCode.RESOURCE_NOT_FOUND;
+
         return ResponseEntity
-                .status(HttpStatus.NOT_FOUND)
-                .body(ErrorResponse.of(ErrorCode.RESOURCE_NOT_FOUND));
+                .status(errorCode.status())
+                .body(ErrorResponse.of(errorCode));
     }
     
     @ExceptionHandler(MethodArgumentNotValidException.class)

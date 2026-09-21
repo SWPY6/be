@@ -46,13 +46,7 @@ public record ErrorResponse(ErrorDetail error) {
             @JsonInclude(JsonInclude.Include.NON_EMPTY) List<FieldError> errors
     ) {
     }
-    
-	public record FieldError(
 
-	        String field
-
-	) {
-		
-	}
-	
+    public record FieldError(String field) {
+    }
 }

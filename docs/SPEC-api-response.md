@@ -48,7 +48,7 @@
 | 필드 | 필수 | 설명 |
 | --- | --- | --- |
 | `error.name` | O | `ErrorCode`에 정의된 오류 이름. 실제 Java 예외 클래스명과 다를 수 있다. |
-| `error.code` | O | 오류 구분 코드. 4xx는 `P001`부터, 5xx는 `P500`부터 채번한다. |
+| `error.code` | O | 오류 구분 코드. HTTP 상태와 무관하게 `P001`부터 순번으로 채번한다. |
 | `error.message` | O | 공통 안내 메시지 |
 | `error.errors` | 조건부 | 필드 검증 오류 목록. 없으면 생략 |
 | `error.errors[].field` | O | 검증에 실패한 필드명 |
@@ -87,7 +87,7 @@
 | 404 | `P003` | `NoResourceFoundException` | 요청한 리소스를 찾을 수 없습니다. | 매핑되지 않은 경로 요청 |
 | 405 | `P004` | `MethodNotAllowedException` | 지원하지 않는 HTTP 메서드입니다. | 지원하지 않는 HTTP 메서드 요청 |
 | 415 | `P005` | `UnsupportedMediaTypeException` | 지원하지 않는 미디어 타입입니다. | 지원하지 않는 `Content-Type` 요청 |
-| 500 | `P500` | `InternalServerErrorException` | 서버 내부 오류가 발생했습니다. | 핸들러에 전달된 그 밖의 모든 `Exception` |
+| 500 | `P006` | `InternalServerErrorException` | 서버 내부 오류가 발생했습니다. | 핸들러에 전달된 그 밖의 모든 `Exception` |
 
 ### 예외 → 응답 매핑
 
@@ -101,7 +101,7 @@
 | `NoResourceFoundException` | 404 | `P003` | 생략 |
 | `HttpRequestMethodNotSupportedException` | 405 | `P004` | 생략 |
 | `HttpMediaTypeNotSupportedException` | 415 | `P005` | 생략 |
-| 그 외 `Exception` | 500 | `P500` | 생략 (원인은 로그) |
+| 그 외 `Exception` | 500 | `P006` | 생략 (원인은 로그) |
 
 ## 명령어
 
@@ -160,7 +160,7 @@ Precondition.require(stock != null, ErrorCode.STOCK_NOT_FOUND);
 | 4 | `BusinessException(STOCK_NOT_FOUND)`는 404 / `P002`이며 `name`·`code`·`message`가 채워진다. | `주식이_없으면_필수_오류코드와_이름을_반환한다` |
 | 5 | 없는 경로는 404 / `P003`이다. | `없는_경로를_요청하면_404와_JSON을_반환한다` |
 | 6 | 필드 검증 실패는 400 / `P001`이며 `errors[].field`만 포함하고 `reason`은 없다. | `필드검증에_실패하면_400과_필드오류를_반환한다` |
-| 7 | 예상하지 못한 예외는 500 / `P500`이며 `data`가 없고 상세 원인을 노출하지 않는다. | `예상하지_못한_예외가_발생하면_500과_P500를_반환한다` |
+| 7 | 예상하지 못한 예외는 500 / `P006`이며 `data`가 없고 상세 원인을 노출하지 않는다. | `예상하지_못한_예외가_발생하면_500과_P006를_반환한다` |
 | 8 | `Precondition.require`는 조건이 거짓일 때만 `BusinessException`을 던진다. | `PreconditionTest` |
 | 9 | 잘못된 JSON 요청은 400 / `P001`이며 `errors`가 없다. | `잘못된_JSON을_요청하면_400과_P001을_반환한다` |
 | 10 | 필수 파라미터를 누락하면 400 / `P001`이다. | `필수_파라미터를_누락하면_400과_P001을_반환한다` |

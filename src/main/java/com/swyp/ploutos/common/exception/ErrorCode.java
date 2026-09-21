@@ -36,7 +36,7 @@ public enum ErrorCode {
 
     INTERNAL_SERVER_ERROR(
             HttpStatus.INTERNAL_SERVER_ERROR,
-            "P500", "InternalServerErrorException",
+            "P006", "InternalServerErrorException",
             "서버 내부 오류가 발생했습니다."
     );
 
@@ -60,12 +60,10 @@ public enum ErrorCode {
         return errorName;
     }
 
-    //getter
     public HttpStatus status() {
         return status;
     }
 
-    //getter
     public String message() {
         return message;
     }
