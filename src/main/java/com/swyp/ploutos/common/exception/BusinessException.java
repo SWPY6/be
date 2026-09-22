@@ -1,5 +1,8 @@
 package com.swyp.ploutos.common.exception;
 
+import lombok.Getter;
+
+@Getter
 public class BusinessException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
@@ -11,7 +14,4 @@ public class BusinessException extends RuntimeException {
         this.errorCode = errorCode;
     }
 
-    public ErrorCode errorCode() {
-        return errorCode;
-    }
 }
