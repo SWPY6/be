@@ -90,13 +90,37 @@ LLM이 흔히 저지르는 코딩 실수를 줄이기 위한 행동 지침. 이 
 
 - 객체지향과 SOLID를 준수한다. 의존성은 생성자를 통해 외부에서 주입한다.
 - 인터페이스는 필요한 부분만 노출한다.
-- **`@Getter`/`@Setter` 금지. `@Data` 금지.** 접근자를 일괄 생성하지 않는다. 정말 필요한 값만 의도가 드러나는 메서드로 노출하고, 가능하면 값을 꺼내 판단하지 말고 객체가 판단하게 한다.
+- **Lombok에서 `@Setter`는 금지한다.** `lombok.config`가 컴파일 에러로 막는다. `@Data`도 setter를 만들기 때문에 함께 막힌다. 나머지(`@RequiredArgsConstructor`, `@Getter`, `@Builder` 등)는 필요하면 쓴다.
+- **`@Getter`는 클래스 단위로 붙인다.** 노출을 정말 막아야 하는 필드에만 `@Getter(AccessLevel.NONE)`을 쓴다.
+- 접근자가 있는 것과 그 값을 꺼내 판단하는 것은 다른 문제다. 접근자가 있어도 `stock.listedAt().isAfter(x)`처럼 쓰지 말고 `stock.listedAfter(x)` 같은 도메인 메서드를 만들어 객체가 판단하게 한다.
+- 접근자 이름은 `get` 없이 `ticker()` 형태다. `lombok.config`의 `lombok.accessors.fluent = true`가 이 규칙을 강제하며, record의 접근자와 스타일이 같다.
+- 같은 타입의 빈이 여러 개일 수 있는 의존성(`RestClient` 등)은 필드명을 빈 이름과 맞추거나 생성자를 직접 쓴다. Lombok은 JDK 업그레이드의 병목이 될 수 있으므로 JDK를 올릴 때 호환 버전을 먼저 확인한다.
 - Setter를 쓰지 않는다. 객체는 생성 시점에 완전한 상태여야 하며, 상태 변경은 의도가 드러나는 도메인 메서드로 한다.
+- 정적 팩토리는 생성 경로가 둘 이상이거나 생성 규칙이 있을 때만 쓴다. 경로가 하나면 `public` 생성자로 충분하다.
 - 디미터 법칙을 지킨다. Low Coupling / High Cohesion.
 - **`else` 금지.** early return / guard clause를 적극 사용해 중첩을 없앤다.
 - DTO는 `sealed interface` + `record` 조합으로 작성한다.
 - 엔티티는 작게 유지하고, `@Column`으로 테이블 정보를 명시한다.
 - 파일 끝에 개행(EOF)을 넣는다.
+
+### 패키지 구조
+
+기능 모듈(`stock`, `market`, `stock/price`, `stock/quote` …)은 아래 레이아웃을 따른다. 도메인은 모듈 루트에 두고 하위 폴더를 만들지 않는다.
+
+| 위치 | 담는 것 | 의존 가능 |
+| --- | --- | --- |
+| 모듈 루트 | 엔티티, 값 객체, 도메인 규칙(정책) | `common`, 다른 모듈의 루트 |
+| `repository` | `JpaRepository` | 모듈 루트 |
+| `service` | 애플리케이션 서비스, 모듈이 노출하는 계약(`~Reader`), 서비스가 요구하는 포트(`~Provider`) | 모듈 루트, 자기 모듈 `repository`, 다른 모듈의 `service`·루트 |
+| `kis` | 포트의 외부 구현(어댑터)과 외부 응답 DTO | 자기 모듈 `service`·루트, `external.*` |
+| `controller` | 컨트롤러, 요청·응답 DTO | 자기 모듈 `service`·루트 |
+
+`external`(외부 연동 인프라)과 `common`은 기능 모듈이 아니므로 이 레이아웃을 따르지 않는다.
+
+- 스테레오타입은 위치에 맞춘다: `service` 패키지의 애플리케이션 서비스는 `@Service`, 어댑터(`kis`, `redis` 등)와 도메인 정책은 `@Component`, 설정은 `@Configuration`. `@Repository`는 스프링 데이터가 붙여 주므로 직접 쓰지 않는다. (셋 다 스프링 동작은 같고, 읽는 사람에게 역할을 알려 주는 표시다.)
+- **패키지는 가시성 경계다.** 다른 층·모듈이 써야 하는 계약만 `public`으로 두고, Spring만 생성하는 구현체(`Jpa~Reader`, `~Service`, `Kis~Provider`)와 외부 응답 DTO는 package-private로 둔다. Spring은 비공개 클래스도 빈으로 만든다.
+- 리포지토리는 **자기 기능 모듈 안에서만** 쓴다. 다른 모듈의 데이터가 필요하면 그 모듈의 `service` 인터페이스를 쓴다.
+- 가시성으로 표현할 수 없는 방향 규칙은 `src/test/java/com/swyp/ploutos/architecture/ArchitectureTest`가 강제한다. 새 경계를 정하면 규칙을 여기에 추가한다.
 
 ### 엔티티 규칙
 
