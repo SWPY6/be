@@ -6,7 +6,10 @@ import java.time.LocalDateTime;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import com.swyp.ploutos.common.enums.Exchange;
 import com.swyp.ploutos.common.enums.StockStatus;
+
+import lombok.Getter;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -17,6 +20,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+@Getter
 @Entity
 @Table(name = "stocks")
 public class Stocks {
@@ -42,6 +46,10 @@ public class Stocks {
 	@Column(nullable = false, length = 20)
 	private StockStatus status;
 
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 10)
+	private Exchange exchange;
+
 	@Column(nullable = false)
 	private Long floatShares;
 
@@ -60,8 +68,24 @@ public class Stocks {
 	private LocalDateTime updatedAt;
 
 	protected Stocks() {
-		
+
 	    }
 
+	public Stocks(Long marketId, String ticker, String name, String imgUrl, StockStatus status,
+			Exchange exchange, Long floatShares, String ceo, LocalDate listedAt) {
+		this.marketId = marketId;
+		this.ticker = ticker;
+		this.name = name;
+		this.imgUrl = imgUrl;
+		this.status = status;
+		this.exchange = exchange;
+		this.floatShares = floatShares;
+		this.ceo = ceo;
+		this.listedAt = listedAt;
+	}
+
+	public boolean listedAfter(LocalDate date) {
+		return listedAt.isAfter(date);
+	}
 }
 
