@@ -17,9 +17,12 @@ DB_NAME=<이름>
 DB_USER=<이름>
 DB_PASSWORD=<비밀번호>
 DB_ROOT_PASSWORD=<루트 비밀번호>
+KIS_APP_KEY=<한국투자증권 Open API 앱키>
+KIS_APP_SECRET=<한국투자증권 Open API 앱시크릿>
 ```
 
-값은 팀에 문의한다.
+값은 팀에 문의한다. `KIS_APP_KEY`·`KIS_APP_SECRET`이 없으면 앱이 기동 시점에 실패한다.
+Redis 접속 정보(`REDIS_HOST`, `REDIS_PORT`)는 docker-compose가 넣어 주고, IDE에서 띄울 때는 기본값 `localhost:6379`를 쓴다.
 
 ## 테스트
 
@@ -30,9 +33,11 @@ Docker만 떠 있으면 된다.
 ./gradlew test
 ```
 
-`PloutosApplicationTests`가 `mysql:8.4` 컨테이너를 띄우고 접속 정보를 `@DynamicPropertySource`로
-주입한다. 컨테이너는 테스트가 끝나면 정리되므로 개발용 DB(`localhost:3301`)와 완전히 분리된다.
+`PloutosApplicationTests`가 `mysql:8.4`와 `redis:7-alpine` 컨테이너를 띄우고 접속 정보를 `@DynamicPropertySource`로
+주입한다. 컨테이너는 테스트가 끝나면 정리되므로 개발용 DB(`localhost:3301`)·Redis(`localhost:6379`)와 완전히 분리된다.
 포트도 자동 매핑이라 로컬 포트와 충돌하지 않는다.
+
+테스트는 실제 KIS를 호출하지 않는다. `src/test/resources/application.properties`의 더미 앱키로 설정 바인딩만 통과시킨다.
 
 Docker가 떠 있지 않으면 컨테이너 기동 단계에서 실패한다. 테스트가 갑자기 깨지면 이것부터 확인한다.
 
@@ -46,14 +51,14 @@ Docker가 떠 있지 않으면 컨테이너 기동 단계에서 실패한다. �
 ## 로컬 실행
 
 ```bash
-docker compose up -d --build     # mysql + app
+docker compose up -d --build     # mysql + redis + app
 curl -i http://localhost:8080/   # Spring Security가 걸려 있어 401이 정상
 ```
 
-앱만 IDE에서 띄우려면 DB만 먼저 올린다.
+앱만 IDE에서 띄우려면 DB와 Redis만 먼저 올린다.
 
 ```bash
-docker compose up -d mysql
+docker compose up -d mysql redis
 ./gradlew bootRun
 ```
 
