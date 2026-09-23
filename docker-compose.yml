@@ -46,6 +46,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      KIS_BASE_URL: ${KIS_BASE_URL:-https://openapivts.koreainvestment.com:29443}
       KIS_APP_KEY: ${KIS_APP_KEY}
       KIS_APP_SECRET: ${KIS_APP_SECRET}
     ports:

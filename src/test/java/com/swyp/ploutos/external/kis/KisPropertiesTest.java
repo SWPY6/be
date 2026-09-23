@@ -11,10 +11,20 @@ class KisPropertiesTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(KisClientConfig.class);
 
+    private static final String BASE_URL = "https://kis.test";
+
+    @Test
+    void base_url이_없으면_기동에_실패한다() {
+        // when & then
+        assertThatThrownBy(() -> new KisProperties(" ", "key", "secret"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("ploutos.kis.base-url");
+    }
+
     @Test
     void 앱키가_없으면_기동에_실패한다() {
         // when & then
-        assertThatThrownBy(() -> new KisProperties("", "secret"))
+        assertThatThrownBy(() -> new KisProperties(BASE_URL, "", "secret"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("ploutos.kis.app-key");
     }
@@ -22,7 +32,7 @@ class KisPropertiesTest {
     @Test
     void 시크릿이_없으면_기동에_실패한다() {
         // when & then
-        assertThatThrownBy(() -> new KisProperties("key", null))
+        assertThatThrownBy(() -> new KisProperties(BASE_URL, "key", null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("ploutos.kis.app-secret");
     }
@@ -31,6 +41,7 @@ class KisPropertiesTest {
     void 환경변수로_앱키와_시크릿을_바인딩한다() {
         // given
         ApplicationContextRunner configured = runner.withPropertyValues(
+                "ploutos.kis.base-url=" + BASE_URL,
                 "ploutos.kis.app-key=my-key",
                 "ploutos.kis.app-secret=my-secret"
         );
@@ -38,6 +49,7 @@ class KisPropertiesTest {
         // when & then
         configured.run(context -> {
             KisProperties properties = context.getBean(KisProperties.class);
+            assertThat(properties.baseUrl()).isEqualTo(BASE_URL);
             assertThat(properties.appKey()).isEqualTo("my-key");
             assertThat(properties.appSecret()).isEqualTo("my-secret");
         });
@@ -47,6 +59,7 @@ class KisPropertiesTest {
     void 앱키_없이_컨텍스트를_띄우면_실패한다() {
         // given
         ApplicationContextRunner configured = runner.withPropertyValues(
+                "ploutos.kis.base-url=" + BASE_URL,
                 "ploutos.kis.app-secret=my-secret"
         );
 

@@ -6,11 +6,12 @@
 
 ## 내가 세운 전제
 
-1. 실전 서버(`https://openapi.koreainvestment.com:9443`)와 실전 앱키를 쓴다. 모의투자 서버는 쓰지 않는다.
-2. 앱키·시크릿은 환경변수 `KIS_APP_KEY`, `KIS_APP_SECRET`로 주입한다 (기존 `DB_*` 패턴).
-3. 애플리케이션 인스턴스는 1대다. 토큰 캐시는 메모리에 둔다.
-4. HTTP 클라이언트는 Spring `RestClient`를 쓴다. `spring-boot-starter-restclient`가 클래스패스에 없어 자동 구성이 없으므로 `RestClient.Builder`를 설정 클래스에서 직접 만든다. 의존성은 추가하지 않는다.
-5. 호출 한도(실전 초당 20건)를 넘지 않도록 하는 것은 호출자(캐시·저장)의 책임이다. 이 모듈은 제한기를 두지 않는다.
+1. 도메인과 앱키 종류는 **반드시 짝이 맞아야 한다.** 모의투자 키로 실전 도메인을 호출하면 일부 API(해외 현재가상세 `HHDFS76200200` 등)가 "실전투자 도메인은 모의투자 앱키로 호출하실 수 없습니다"로 거부된다. 통과하는 API도 있지만 게이트웨이가 API마다 검사를 다르게 적용할 뿐이라 기대면 안 된다.
+2. 기본값은 **모의투자 도메인**(`https://openapivts.koreainvestment.com:29443`)이다. 시세 조회만 하므로 모의투자로 충분하며, 우리가 쓰는 4개 API가 모두 정상 동작함을 실측으로 확인했다. 실전 앱키를 쓸 때 `KIS_BASE_URL`만 바꾼다.
+3. 앱키·시크릿은 환경변수 `KIS_APP_KEY`, `KIS_APP_SECRET`로 주입한다 (기존 `DB_*` 패턴).
+4. 애플리케이션 인스턴스는 1대다. 토큰 캐시는 메모리에 둔다.
+5. HTTP 클라이언트는 Spring `RestClient`를 쓴다. `spring-boot-starter-restclient`가 클래스패스에 없어 자동 구성이 없으므로 `RestClient.Builder`를 설정 클래스에서 직접 만든다. 의존성은 추가하지 않는다.
+6. 호출 한도(실전 초당 20건)를 넘지 않도록 하는 것은 호출자(캐시·저장)의 책임이다. 이 모듈은 제한기를 두지 않는다.
 
 ## 목표
 
@@ -32,12 +33,13 @@
 
 ### 설정
 
-| 프로퍼티 | 환경변수 | 설명 |
-| --- | --- | --- |
-| `ploutos.kis.app-key` | `KIS_APP_KEY` | 앱키 |
-| `ploutos.kis.app-secret` | `KIS_APP_SECRET` | 앱시크릿 |
+| 프로퍼티 | 환경변수 | 기본값 | 설명 |
+| --- | --- | --- | --- |
+| `ploutos.kis.base-url` | `KIS_BASE_URL` | `https://openapivts.koreainvestment.com:29443` (모의투자) | 실전은 `https://openapi.koreainvestment.com:9443` |
+| `ploutos.kis.app-key` | `KIS_APP_KEY` | — | 앱키 |
+| `ploutos.kis.app-secret` | `KIS_APP_SECRET` | — | 앱시크릿 |
 
-base-url은 실전 주소로 고정한다. 값이 비어 있으면 애플리케이션 기동에 실패한다(잘못된 배포를 빨리 드러낸다).
+셋 중 하나라도 비어 있으면 애플리케이션 기동에 실패한다(잘못된 배포를 빨리 드러낸다).
 
 ### 토큰
 
@@ -154,7 +156,7 @@ DomesticPriceResponse body = kisApiClient.get(
 ## 경계
 
 - **항상:** 앱키·시크릿은 환경변수로만 주입한다. KIS 실패는 `MARKET_DATA_UNAVAILABLE`로만 던진다. 커밋 전 `./gradlew test`.
-- **먼저 묻기:** 의존성 추가(`spring-boot-starter-restclient`, 재시도·서킷브레이커 라이브러리), 호출 제한기 도입, 모의투자 서버 전환, 타임아웃 값 변경.
+- **먼저 묻기:** 의존성 추가(`spring-boot-starter-restclient`, 재시도·서킷브레이커 라이브러리), 호출 제한기 도입, 타임아웃 값 변경.
 - **절대 안 함:** 앱키·시크릿·토큰을 로그·응답·저장소에 남기기, 테스트에서 실제 KIS 호출, 토큰을 매 요청마다 발급.
 
 ## 성공 기준
@@ -170,10 +172,12 @@ DomesticPriceResponse body = kisApiClient.get(
 | 7 | 토큰 만료 오류(`EGW00123`)를 받으면 재발급 후 1회 재시도한다. | `토큰_만료_오류를_받으면_재발급_후_한_번_재시도한다` |
 | 8 | 재시도도 실패하면 예외를 던지고 더 재시도하지 않는다. | `재시도도_실패하면_예외를_던진다` |
 | 9 | `P007`은 502와 `MarketDataUnavailableException`, 고정 메시지로 응답된다. | `GlobalExceptionHandlerIntegrationTest.시세를_불러올_수_없으면_502와_P007을_반환한다` |
-| 10 | 앱키·시크릿이 비어 있으면 기동에 실패한다. | `KisPropertiesTest.앱키가_없으면_기동에_실패한다` |
+| 10 | base-url·앱키·시크릿이 비어 있으면 기동에 실패한다. | `KisPropertiesTest.base_url이_없으면_기동에_실패한다`, `앱키가_없으면_기동에_실패한다` |
 
 ## 미해결 질문
 
 - 국내 시장 분류 코드를 `J`(KRX)로 고정할지 `UN`(KRX+NXT 통합)으로 할지. "직전 정규장 종가" 문구에 따라 `J`로 가정한다.
+- 모의투자 도메인의 호출 한도. 실전은 초당 20건인데 모의투자 수치는 확인하지 못했다. 캐시 TTL 설계가 이 값을 전제로 한다.
+- 모의투자 계정은 참가 기간이 있어 만료되면 키가 막힌다. 운영 전환 시점에 실전 키로 바꾼다.
 - 호출 한도(초당 20건) 초과 시 KIS가 주는 오류 코드 — 구현 중 실측해 재시도 대상에 넣을지 결정한다.
 - 인스턴스가 2대 이상이 되면 토큰 캐시를 Redis로 옮길지. 시세 캐시(`stock-quote`)는 Redis를 쓰기로 했지만 토큰은 이번 범위에서 메모리에 둔다. 인스턴스마다 따로 발급하면 1분 1회 제한에 걸릴 수 있다.

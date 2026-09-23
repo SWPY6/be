@@ -54,7 +54,7 @@ class KisAccessTokenProviderTest {
         clock = new MutableClock(NOW);
         provider = new CachedKisAccessTokenProvider(
                 builder.build(),
-                new KisProperties("my-key", "my-secret"),
+                new KisProperties(BASE_URL, "my-key", "my-secret"),
                 clock
         );
     }
