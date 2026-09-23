@@ -17,10 +17,13 @@ services:
       timeout: 5s
       retries: 10
 
-  # 현재가 캐시. 재시작하면 비어도 되는 데이터라 볼륨을 두지 않는다.
+  # 현재가 캐시. 재시작하면 비어도 되는 데이터라 볼륨도 스냅샷도 두지 않는다.
+  # 메모리에 상한을 두고, 상한에 닿으면 오래된 키부터 버린다(allkeys-lru).
+  # 캐시가 비워져도 시세 조회는 외부 API를 직접 호출해 정상 동작한다.
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
     ports:
       - "6379:6379"
     healthcheck:

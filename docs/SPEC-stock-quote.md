@@ -71,6 +71,7 @@
 
 - 의존성: `spring-boot-starter-data-redis` (Lettuce). `build.gradle`에 추가한다.
 - `docker-compose.yml`에 `redis:7-alpine` 서비스를 추가하고 `app`이 이에 의존한다. `.env`에 `REDIS_HOST`, `REDIS_PORT`를 추가한다.
+- Redis는 메모리 상한 128MB에 `allkeys-lru` 축출 정책으로 띄운다. 상한이 없으면 메모리가 무한정 늘어 서버가 위험해진다. 축출된 키는 캐시 미스와 같으므로 KIS를 한 번 더 호출할 뿐 기능은 정상이다. 스냅샷(RDB)은 끈다 — 재시작하면 비어도 되는 캐시다.
 - 테스트는 `PloutosApplicationTests`가 MySQL과 같은 방식으로 `GenericContainer("redis:7-alpine")`를 띄우고 `@DynamicPropertySource`로 접속 정보를 주입한다. 별도 Testcontainers 모듈은 필요 없다.
 
 ### 노출 인터페이스

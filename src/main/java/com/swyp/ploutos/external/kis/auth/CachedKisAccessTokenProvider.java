@@ -60,7 +60,7 @@ class CachedKisAccessTokenProvider implements KisAccessTokenProvider {
     private void issue() {
         KisTokenResponse response = requestToken();
         if (response == null || response.accessToken() == null) {
-            log.warn("KIS 토큰 응답에 access_token 이 없습니다.");
+            log.error("KIS 토큰 응답에 access_token 이 없습니다.");
             throw new BusinessException(ErrorCode.MARKET_DATA_UNAVAILABLE);
         }
         token = response.accessToken();
@@ -82,7 +82,7 @@ class CachedKisAccessTokenProvider implements KisAccessTokenProvider {
                     .retrieve()
                     .body(KisTokenResponse.class);
         } catch (RestClientException e) {
-            log.warn("KIS 토큰 발급에 실패했습니다: {}", e.getMessage());
+            log.error("KIS 토큰 발급에 실패했습니다: {}", e.getMessage());
             throw new BusinessException(ErrorCode.MARKET_DATA_UNAVAILABLE);
         }
     }

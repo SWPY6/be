@@ -39,7 +39,7 @@ class RestClientKisApiClient implements KisApiClient {
                 return response;
             }
         }
-        log.warn("KIS 응답 실패 tr_id={} msg_cd={} msg1={}", trId, response.msgCd(), response.msg1());
+        log.error("KIS 응답 실패 tr_id={} msg_cd={} msg1={}", trId, response.msgCd(), response.msg1());
         throw new BusinessException(ErrorCode.MARKET_DATA_UNAVAILABLE);
     }
 
@@ -63,12 +63,12 @@ class RestClientKisApiClient implements KisApiClient {
                     .onStatus(HttpStatusCode::isError, (request, response) -> { })
                     .body(responseType);
             if (body == null) {
-                log.warn("KIS 응답 본문이 비어 있습니다 tr_id={}", trId);
+                log.error("KIS 응답 본문이 비어 있습니다 tr_id={}", trId);
                 throw new BusinessException(ErrorCode.MARKET_DATA_UNAVAILABLE);
             }
             return body;
         } catch (RestClientException e) {
-            log.warn("KIS 호출에 실패했습니다 tr_id={}: {}", trId, e.getMessage());
+            log.error("KIS 호출에 실패했습니다 tr_id={}: {}", trId, e.getMessage());
             throw new BusinessException(ErrorCode.MARKET_DATA_UNAVAILABLE);
         }
     }
