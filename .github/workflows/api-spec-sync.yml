@@ -1,0 +1,181 @@
+name: API Spec Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/SPEC-*.md"
+  schedule:
+    # 5시간마다 도는 안전망이다. push 트리거를 놓친 변경을 잡는다.
+    # 정각은 전 세계 cron이 몰려 지연이 잦으므로 몇 분 비켜 놓았다.
+    - cron: "7 */5 * * *"
+  workflow_dispatch:
+
+# Notion 페이지를 지우고 다시 쓰는 도중에 끊기면 페이지가 반쯤 빈 채로 남는다.
+# 실행이 겹치면 취소하지 않고 순서대로 끝까지 돌린다.
+concurrency:
+  group: api-spec-sync
+  cancel-in-progress: false
+
+env:
+  # API 명세서 부모 페이지. 비밀값이 아니므로 시크릿에 두지 않는다.
+  NOTION_API_SPEC_PAGE_ID: 3e4e8ef654f6806989b2ce1f226bfdb6
+  RESULT_FILE: api-spec-sync-result.json
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # 마지막 동기화 커밋과 비교하려면 이력이 필요하다.
+          fetch-depth: 0
+
+      - name: 마지막 동기화 이후 SPEC 변경 여부 확인
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+
+          # push·수동 실행은 항상 동기화한다. cron만 변경이 없으면 Claude를 부르지 않는다.
+          if [ "$EVENT_NAME" != "schedule" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          LAST_SHA=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow api-spec-sync.yml \
+            --branch main --status success --limit 1 --json headSha -q '.[0].headSha // ""')
+
+          if [ -z "$LAST_SHA" ]; then
+            echo "성공한 동기화 이력이 없다 → 동기화한다."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # force push 등으로 LAST_SHA가 이력에 없으면 diff가 실패한다. 그때도 동기화한다.
+          if git diff --quiet "$LAST_SHA" HEAD -- 'docs/SPEC-*.md' 2>/dev/null; then
+            echo "마지막 동기화(${LAST_SHA}) 이후 SPEC 변경 없음 → skip"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "마지막 동기화(${LAST_SHA}) 이후 SPEC 변경 있음 → 동기화한다."
+          echo "run=true" >> "$GITHUB_OUTPUT"
+
+      - name: Claude로 Notion 명세 동기화
+        if: steps.check.outputs.run == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --model claude-sonnet-5
+            --mcp-config '{"mcpServers":{"notion":{"command":"npx","args":["-y","@notionhq/notion-mcp-server@2.5.2"],"env":{"NOTION_TOKEN":"${{ secrets.NOTION_TOKEN }}"}}}}'
+            --allowedTools "mcp__notion,Read,Glob,Grep,Write"
+          prompt: |
+            너는 API 명세 동기화 봇이다. 저장소의 명세가 원본이고, Notion은 프론트엔드가 보는 사본이다.
+            저장소 코드와 문서는 수정하지 않는다. Notion 페이지와 결과 파일만 쓴다.
+
+            ## 대상
+            - `docs/SPEC-*.md` 중 `## API 계약` 절이 있는 파일만 대상이다. 없는 파일은 무시한다.
+            - 각 파일에서 `## API 계약` 절(다음 `## ` 제목 전까지)만 동기화한다. 다른 절은 옮기지 않는다.
+            - 원본 커밋: ${{ github.sha }}
+
+            ## Notion
+            - 부모 페이지 ID: ${{ env.NOTION_API_SPEC_PAGE_ID }}
+            - 대상 파일마다 부모 페이지 바로 아래에 파일명(확장자 제외, 예: `SPEC-stock-quote`)을 제목으로 하는 하위 페이지가 하나 있다.
+              없으면 새로 만든다.
+            - 하위 페이지 본문 구성:
+              1. 첫 줄: `원본: docs/<파일명> @ <원본 커밋 앞 7자리>`
+              2. 그 아래: `## API 계약` 절의 내용. 제목은 heading, 표는 table, JSON 예시는 language가 json인 code 블록으로 옮긴다.
+                 rich_text 하나는 2000자 제한이 있으므로 긴 JSON은 여러 rich_text 조각으로 나눠 한 code 블록에 담는다.
+
+            ## 변경 판단
+            - Notion 하위 페이지의 현재 내용과 md의 `## API 계약` 절을 비교한다.
+            - 첫 줄(원본 커밋 표기), 문구 다듬기, 서식·공백 차이는 변경으로 보지 않는다.
+            - 변경으로 보는 것: 엔드포인트(메서드·경로)·요청 파라미터, 응답 필드 추가·삭제·이름·타입·의미 변경,
+              HTTP 상태 코드·오류 코드, 성공·실패 JSON 예시의 구조 변경, 새로 생긴 API 페이지.
+            - 변경이 있는 페이지만 기존 본문 블록을 모두 지우고 위 구성으로 다시 쓴다. 변경이 없는 페이지는 건드리지 않는다.
+
+            ## 결과 파일
+            작업이 끝나면 저장소 루트에 `${{ env.RESULT_FILE }}`를 Write 도구로 쓴다. 형식은 JSON 배열이다.
+            ```json
+            [
+              {
+                "spec": "SPEC-stock-quote",
+                "url": "https://www.notion.so/...",
+                "changes": ["응답에 `changeRate` 필드 추가", "오류 코드 `STOCK_NOT_FOUND` 추가"]
+              }
+            ]
+            ```
+            - 변경된(또는 새로 만든) 페이지만 담는다. `changes`는 프론트엔드 개발자가 읽을 한국어 한 줄 요약들이다.
+            - 새 페이지면 `changes`에 `새 API 명세 추가` 한 줄을 넣는다.
+            - 변경이 하나도 없으면 `[]`를 쓴다.
+            - Notion 작업이 하나라도 실패하면 결과 파일을 쓰지 말고 무엇이 실패했는지 출력한 뒤 끝낸다.
+
+      - name: 변경 내용을 Discord로 전송
+        if: steps.check.outputs.run == 'true'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_API_SPEC_WEBHOOK_URL }}
+          SHORT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          # 결과 파일이 없으면 Claude가 동기화를 끝내지 못한 것이다. 조용히 넘어가지 않고 실패시킨다.
+          if [ ! -f "$RESULT_FILE" ]; then
+            echo "::error::${RESULT_FILE}가 없다. Claude 동기화 단계의 로그를 확인한다."
+            exit 1
+          fi
+          jq -e 'type == "array"' "$RESULT_FILE" > /dev/null
+          cat "$RESULT_FILE"
+
+          if [ "$(jq 'length' "$RESULT_FILE")" -eq 0 ]; then
+            echo "Notion과 명세가 같다 → Discord 전송 없음"
+            exit 0
+          fi
+
+          # payload는 반드시 jq가 만든다. 문자열을 손으로 이어붙이면
+          # 따옴표·백슬래시·줄바꿈·이모지에서 JSON이 깨진다.
+          # URL을 <>로 감싸 Discord가 미리보기 카드를 붙이지 않게 한다.
+          # content 2000자 한계는 줄 단위로 1880자씩 묶어 여러 메시지로 나눈다.
+          jq -c --arg sha "${SHORT_SHA:0:7}" '
+            def clip($n): if (. | length) > $n then .[:$n] + "…" else . end;
+            (map(
+                ["**\(.spec)** — <\(.url)>"]
+                + (.changes | map("• " + (. | clip(200))))
+                + [""]
+              ) | add | .[0:-1]) as $body
+            | (["📘 **API 명세 최신화** (main @ `\($sha)`)", ""] + $body) as $lines
+            | (reduce $lines[] as $l ([[]];
+                if ((.[-1] | join("\n") | length) + 1 + ($l | length)) <= 1880
+                then (.[0:-1] + [.[-1] + [$l]])
+                else (. + [[$l]])
+                end
+              ) | map(join("\n"))) as $pages
+            | ($pages | length) as $total
+            | $pages
+            | to_entries[]
+            | { content: (.value + (if $total > 1 then "\n(\(.key + 1)/\($total))" else "" end)) }
+          ' "$RESULT_FILE" > payloads.jsonl
+          cat payloads.jsonl
+
+          # 4xx/5xx면 응답 본문을 로그에 남기고 워크플로를 실패시킨다.
+          # 메시지 사이 sleep은 웹훅 레이트리밋(채널당 5회/5초)을 피하려는 것이다.
+          TOTAL=$(wc -l < payloads.jsonl)
+          SENT=0
+          while IFS= read -r payload; do
+            SENT=$((SENT + 1))
+            printf '%s' "$payload" | curl --silent --show-error --fail-with-body \
+              -H "Content-Type: application/json" \
+              --data-binary @- \
+              "$DISCORD_WEBHOOK_URL"
+            if [ "$SENT" -lt "$TOTAL" ]; then sleep 1; fi
+          done < payloads.jsonl
