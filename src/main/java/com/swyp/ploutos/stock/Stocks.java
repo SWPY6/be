@@ -16,9 +16,13 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 @Entity
-@Table(name = "stocks")
+@Table(
+		name = "stocks",
+		uniqueConstraints = @UniqueConstraint(name = "uk_stocks_ticker", columnNames = "ticker")
+)
 public class Stocks {
 	
 	@Id
