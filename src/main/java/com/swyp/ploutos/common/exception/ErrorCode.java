@@ -2,6 +2,9 @@ package com.swyp.ploutos.common.exception;
 
 import org.springframework.http.HttpStatus;
 
+import lombok.Getter;
+
+@Getter
 public enum ErrorCode {
 
     INVALID_INPUT_VALUE(
@@ -38,6 +41,12 @@ public enum ErrorCode {
             HttpStatus.INTERNAL_SERVER_ERROR,
             "P006", "InternalServerErrorException",
             "서버 내부 오류가 발생했습니다."
+    ),
+
+    MARKET_DATA_UNAVAILABLE(
+            HttpStatus.BAD_GATEWAY,
+            "P007", "MarketDataUnavailableException",
+            "시세 정보를 불러올 수 없습니다."
     );
 
     private final HttpStatus status;
@@ -50,21 +59,5 @@ public enum ErrorCode {
         this.code = code;
         this.errorName = errorName;
         this.message = message;
-    }
-
-    public String code() {
-        return code;
-    }
-
-    public String errorName() {
-        return errorName;
-    }
-
-    public HttpStatus status() {
-        return status;
-    }
-
-    public String message() {
-        return message;
     }
 }

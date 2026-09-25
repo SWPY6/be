@@ -187,6 +187,21 @@ class GlobalExceptionHandlerIntegrationTest {
     }
 
     @Test
+    void 시세를_불러올_수_없으면_502와_P007을_반환한다() throws Exception {
+        // given
+        String path = "/test/market-data-error";
+
+        // when & then
+        mockMvc.perform(get(path))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.error.name").value("MarketDataUnavailableException"))
+                .andExpect(jsonPath("$.error.code").value("P007"))
+                .andExpect(jsonPath("$.error.message").value("시세 정보를 불러올 수 없습니다."))
+                .andExpect(jsonPath("$.error.errors").doesNotExist())
+                .andExpect(jsonPath("$.data").doesNotExist());
+    }
+
+    @Test
     void 예상하지_못한_예외가_발생하면_500과_P006를_반환한다() throws Exception {
         // given
         String path = "/test/unexpected-error";
@@ -215,6 +230,11 @@ class GlobalExceptionHandlerIntegrationTest {
         @GetMapping("/test/unexpected-error")
         void unexpectedError() {
             throw new IllegalStateException("내부 상세 오류");
+        }
+
+        @GetMapping("/test/market-data-error")
+        void marketDataError() {
+            throw new BusinessException(ErrorCode.MARKET_DATA_UNAVAILABLE);
         }
 
         record CreateRequest(
