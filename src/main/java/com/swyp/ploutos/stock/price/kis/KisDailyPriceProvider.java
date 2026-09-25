@@ -36,7 +36,7 @@ class KisDailyPriceProvider implements DailyPriceProvider {
 
     @Override
     public List<DailyPrice> fetch(StockWithMarket stock, LocalDate from, LocalDate to) {
-        if (stock.exchange().isDomestic()) {
+        if (stock.isDomestic()) {
             return fetchDomestic(stock.ticker(), from, to);
         }
         return fetchOverseas(exchangeCode(stock.exchange()), stock.ticker(), from, to);
@@ -106,7 +106,7 @@ class KisDailyPriceProvider implements DailyPriceProvider {
 
     private static List<DailyPrice> within(List<DailyPrice> prices, LocalDate from, LocalDate to) {
         return prices.stream()
-                .filter(price -> !price.tradeAt().isBefore(from) && !price.tradeAt().isAfter(to))
+                .filter(price -> price.tradedBetween(from, to))
                 .toList();
     }
 }
