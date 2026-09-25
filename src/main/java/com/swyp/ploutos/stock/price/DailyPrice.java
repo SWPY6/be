@@ -11,4 +11,12 @@ public record DailyPrice(
         BigDecimal close,
         long volume
 ) {
+
+    public boolean tradedOn(LocalDate date) {
+        return tradeAt.equals(date);
+    }
+
+    public boolean tradedBetween(LocalDate from, LocalDate to) {
+        return !tradeAt.isBefore(from) && !tradeAt.isAfter(to);
+    }
 }

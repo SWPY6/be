@@ -30,7 +30,7 @@ class KisQuoteProvider implements QuoteProvider {
 
     @Override
     public Quote fetch(StockWithMarket stock) {
-        if (stock.exchange().isDomestic()) {
+        if (stock.isDomestic()) {
             return fetchDomestic(stock);
         }
         return fetchOverseas(stock);
@@ -55,7 +55,7 @@ class KisQuoteProvider implements QuoteProvider {
 
     /** 시세를 받은 시각. 시장 타임존 오프셋을 붙여 클라이언트가 몇 초 전 값인지 알게 한다. */
     private OffsetDateTime receivedAt(StockWithMarket stock) {
-        return OffsetDateTime.ofInstant(clock.instant(), stock.country().zoneId());
+        return stock.localTimeAt(clock.instant());
     }
 
     private static String exchangeCode(Exchange exchange) {

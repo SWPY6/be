@@ -1,6 +1,8 @@
 package com.swyp.ploutos.stock;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 
 import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.common.enums.Currency;
@@ -38,5 +40,14 @@ public record StockWithMarket(
 
     public Currency currency() {
         return market.currency();
+    }
+
+    public boolean isDomestic() {
+        return exchange().isDomestic();
+    }
+
+    /** 주어진 시점을 이 종목 시장의 현지 시각으로 바꾼다. */
+    public OffsetDateTime localTimeAt(Instant instant) {
+        return OffsetDateTime.ofInstant(instant, country().zoneId());
     }
 }
