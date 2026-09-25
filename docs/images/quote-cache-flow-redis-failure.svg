@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="494" viewBox="0 0 1280 494">
+<rect width="1280" height="494" fill="#ffffff"/>
+<text x="36" y="44" font-size="24" font-weight="800" fill="#1c2b4a" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">현재가 캐시 — Redis 장애 흐름</text>
+<text x="36" y="70" font-size="14" fill="#5f6b7a" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">RedisQuoteCache가 DataAccessException을 P007로 바꿔 던진다 → 유저 요청도 스케줄러도 KIS를 부르지 않는다</text>
+<line x1="1084" y1="38" x2="1106" y2="38" stroke="#e03131" stroke-width="2"/><g stroke="#e03131" stroke-width="3" stroke-linecap="round"><line x1="1110" y1="32" x2="1122" y2="44"/><line x1="1110" y1="44" x2="1122" y2="32"/></g>
+<text x="1130" y="43" font-size="13" fill="#343a40" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">Redis 오류</text>
+<line x1="1002" y1="38" x2="1036" y2="38" stroke="#495057" stroke-width="2" stroke-dasharray="7 5"/><path d="M1040 38 L1030 33 L1030 43 Z" fill="#495057"/>
+<text x="1048" y="43" font-size="13" fill="#343a40" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">반환</text>
+<line x1="920" y1="38" x2="954" y2="38" stroke="#1c2b4a" stroke-width="2"/><path d="M958 38 L948 33 L948 43 Z" fill="#1c2b4a"/>
+<text x="966" y="43" font-size="13" fill="#343a40" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">호출</text>
+<line x1="150" y1="150" x2="150" y2="474" stroke="#868e96" stroke-width="1.5" stroke-dasharray="4 6" opacity="0.6"/>
+<rect x="30" y="96" width="240" height="56" rx="10" fill="#f1f3f5" stroke="#868e96" stroke-width="2"/><text x="150" y="121" font-size="16" font-weight="700" fill="#1c2b4a" text-anchor="middle" font-family="'SF Mono',Menlo,Consolas,monospace">StockQuoteService</text><text x="150" y="142" font-size="12.5" fill="#5f6b7a" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">사용자 요청 처리</text>
+<line x1="450" y1="150" x2="450" y2="474" stroke="#3b6fd8" stroke-width="1.5" stroke-dasharray="4 6" opacity="0.6"/>
+<rect x="330" y="96" width="240" height="56" rx="10" fill="#e7f0ff" stroke="#3b6fd8" stroke-width="2"/><text x="450" y="121" font-size="16" font-weight="700" fill="#1c2b4a" text-anchor="middle" font-family="'SF Mono',Menlo,Consolas,monospace">RedisQuoteCache</text><text x="450" y="142" font-size="12.5" fill="#5f6b7a" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">캐시 어댑터</text>
+<line x1="800" y1="150" x2="800" y2="474" stroke="#d9480f" stroke-width="1.5" stroke-dasharray="4 6" opacity="0.6"/>
+<rect x="680" y="96" width="240" height="56" rx="10" fill="#ffecec" stroke="#d9480f" stroke-width="2"/><text x="800" y="121" font-size="16" font-weight="700" fill="#1c2b4a" text-anchor="middle" font-family="'SF Mono',Menlo,Consolas,monospace">Redis</text><text x="800" y="142" font-size="12.5" fill="#5f6b7a" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">저장소</text>
+<line x1="1130" y1="150" x2="1130" y2="474" stroke="#2f9e44" stroke-width="1.5" stroke-dasharray="4 6" opacity="0.6"/>
+<rect x="1010" y="96" width="240" height="56" rx="10" fill="#e9f7ef" stroke="#2f9e44" stroke-width="2"/><text x="1130" y="121" font-size="16" font-weight="700" fill="#1c2b4a" text-anchor="middle" font-family="'SF Mono',Menlo,Consolas,monospace">KisQuoteProvider</text><text x="1130" y="142" font-size="12.5" fill="#5f6b7a" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">KIS 현재가 API</text>
+<line x1="150" y1="212" x2="442" y2="212" stroke="#1c2b4a" stroke-width="2"/>
+<path d="M448 212 L436 206 L436 218 Z" fill="#1c2b4a"/>
+<circle cx="166" cy="199" r="10" fill="#1c2b4a"/><text x="166" y="203" font-size="11" font-weight="700" fill="#fff" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">1</text>
+<text x="182" y="204" font-size="14" fill="#1c2b4a" text-anchor="start" font-family="'SF Mono',Menlo,Consolas,monospace">markActive(stockId)</text>
+<line x1="450" y1="256" x2="774" y2="256" stroke="#e03131" stroke-width="2"/>
+<g stroke="#e03131" stroke-width="3" stroke-linecap="round"><line x1="777" y1="249" x2="791" y2="263"/><line x1="777" y1="263" x2="791" y2="249"/></g>
+<circle cx="466" cy="243" r="10" fill="#e03131"/><text x="466" y="247" font-size="11" font-weight="700" fill="#fff" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">2</text>
+<text x="482" y="248" font-size="14" fill="#e03131" text-anchor="start" font-family="'SF Mono',Menlo,Consolas,monospace">ZADD quote:active ...</text>
+<line x1="450" y1="300" x2="158" y2="300" stroke="#e03131" stroke-width="2" stroke-dasharray="7 5"/>
+<path d="M152 300 L164 294 L164 306 Z" fill="#e03131"/>
+<circle cx="434" cy="287" r="10" fill="#e03131"/><text x="434" y="291" font-size="11" font-weight="700" fill="#fff" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">3</text>
+<text x="418" y="292" font-size="14" fill="#e03131" text-anchor="end" font-family="'SF Mono',Menlo,Consolas,monospace">BusinessException(P007)</text>
+<rect x="48" y="328" width="250.5" height="30" rx="6" fill="#fff9db" stroke="#f0c419" stroke-width="1.5"/><text x="173.25" y="348" font-size="13" fill="#5c4a00" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">502 P007 응답 — KIS 호출 없음</text>
+<rect x="382.0" y="372" width="486.0" height="30" rx="6" fill="#fff9db" stroke="#f0c419" stroke-width="1.5"/><text x="625.0" y="392" font-size="13" fill="#5c4a00" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">스케줄러: tryRefreshLeadership()가 P007 → 이번 주기를 건너뛴다</text>
+<rect x="403.75" y="416" width="442.5" height="30" rx="6" fill="#fff9db" stroke="#f0c419" stroke-width="1.5"/><text x="625.0" y="436" font-size="13" fill="#5c4a00" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">unlock()만은 실패해도 던지지 않는다 — 락 TTL 3초로 풀린다</text>
+</svg>
