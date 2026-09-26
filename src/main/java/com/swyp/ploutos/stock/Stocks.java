@@ -19,10 +19,16 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 @Getter
 @Entity
-@Table(name = "stocks")
+@Table(
+		name = "stocks",
+		// 같은 종목이 여러 시장에 상장될 수 있어(예: AAPL 이 NASDAQ·S&P500) 시장까지 묶어야 유일하다.
+		// ticker 를 앞에 두면 종목코드 단독 조회도 이 인덱스를 쓸 수 있다.
+		uniqueConstraints = @UniqueConstraint(name = "uk_stocks_ticker_market", columnNames = {"ticker", "market_id"})
+)
 public class Stocks {
 	
 	@Id
