@@ -48,7 +48,7 @@ public final class DailyPrices {
     /** 해당 거래일의 봉을 뺀다. 당일 진행 중 봉을 저장·집계에서 제외할 때 쓴다. */
     public DailyPrices without(LocalDate tradeAt) {
         return new DailyPrices(prices.stream()
-                .filter(price -> !price.tradeAt().equals(tradeAt))
+                .filter(price -> !price.tradedOn(tradeAt))
                 .toList());
     }
 
