@@ -68,4 +68,5 @@ jobs:
             # 이전 배포가 남긴 태그 없는 이미지를 치워 디스크가 차는 것을 막는다. 베이스 이미지는 삭제 x
             docker image prune -f
             docker compose up --build -d
+            docker compose exec -T nginx nginx -s reload # 설정을 다시 읽게 해 새 IP를 잡는다.
           '
