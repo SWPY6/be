@@ -30,6 +30,10 @@ public record StockWithMarket(
         return stock.name();
     }
 
+    public String imgUrl() {
+        return stock.imgUrl();
+    }
+
     public Exchange exchange() {
         return stock.exchange();
     }
