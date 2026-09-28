@@ -17,9 +17,11 @@ public interface StockDailyPriceRepository extends JpaRepository<StockDailyPrice
 
     List<StockDailyPrices> findByStockIdOrderByTradeAtDesc(Long stockId, Limit limit);
 
-    Optional<StockDailyPrices> findFirstByStockIdOrderByTradeAtAsc(Long stockId);
+    @Query("select min(p.tradeAt) from StockDailyPrices p where p.stockId = :stockId")
+    Optional<LocalDate> findEarliestTradeAt(@Param("stockId") Long stockId);
 
-    Optional<StockDailyPrices> findFirstByStockIdOrderByTradeAtDesc(Long stockId);
+    @Query("select max(p.tradeAt) from StockDailyPrices p where p.stockId = :stockId")
+    Optional<LocalDate> findLatestTradeAt(@Param("stockId") Long stockId);
 
     @Query("select p.tradeAt from StockDailyPrices p where p.stockId = :stockId and p.tradeAt between :from and :to")
     List<LocalDate> findTradeAtsBetween(@Param("stockId") Long stockId, @Param("from") LocalDate from, @Param("to") LocalDate to);

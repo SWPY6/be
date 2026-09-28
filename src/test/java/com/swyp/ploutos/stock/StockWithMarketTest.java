@@ -2,7 +2,10 @@ package com.swyp.ploutos.stock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.Test;
 
@@ -39,6 +42,37 @@ class StockWithMarketTest {
         assertThat(stock.exchange()).isEqualTo(Exchange.NYSE);
         assertThat(stock.country()).isEqualTo(Country.US);
         assertThat(stock.currency()).isEqualTo(Currency.USD);
+    }
+
+    @Test
+    void 시점을_시장_현지_시각으로_바꾼다() {
+        // given
+        StockWithMarket stock = stock(Exchange.NYSE, Country.US, Currency.USD);
+        Instant instant = Instant.parse("2026-07-01T14:00:00Z");
+
+        // when
+        OffsetDateTime result = stock.localTimeAt(instant);
+
+        // then
+        assertThat(result).isEqualTo(OffsetDateTime.of(2026, 7, 1, 10, 0, 0, 0, ZoneOffset.ofHours(-4)));
+    }
+
+    @Test
+    void 거래소가_KRX면_국내_종목이다() {
+        // given
+        StockWithMarket stock = stock(Exchange.KRX, Country.KR, Currency.KRW);
+
+        // when & then
+        assertThat(stock.isDomestic()).isTrue();
+    }
+
+    @Test
+    void 거래소가_해외면_국내_종목이_아니다() {
+        // given
+        StockWithMarket stock = stock(Exchange.NASDAQ, Country.US, Currency.USD);
+
+        // when & then
+        assertThat(stock.isDomestic()).isFalse();
     }
 
     private static StockWithMarket stock(Exchange exchange, Country country, Currency currency) {

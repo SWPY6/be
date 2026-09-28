@@ -103,12 +103,19 @@ class StockDailyPriceRepositoryTest {
         ));
 
         // when
-        LocalDate earliest = repository.findFirstByStockIdOrderByTradeAtAsc(STOCK_ID).orElseThrow().toDailyPrice().tradeAt();
-        LocalDate latest = repository.findFirstByStockIdOrderByTradeAtDesc(STOCK_ID).orElseThrow().toDailyPrice().tradeAt();
+        LocalDate earliest = repository.findEarliestTradeAt(STOCK_ID).orElseThrow();
+        LocalDate latest = repository.findLatestTradeAt(STOCK_ID).orElseThrow();
 
         // then
         assertThat(earliest).isEqualTo(LocalDate.of(2026, 8, 11));
         assertThat(latest).isEqualTo(LocalDate.of(2026, 8, 13));
+    }
+
+    @Test
+    void 저장된_일봉이_없으면_가장_이른_거래일과_가장_늦은_거래일이_비어_있다() {
+        // when & then
+        assertThat(repository.findEarliestTradeAt(STOCK_ID)).isEmpty();
+        assertThat(repository.findLatestTradeAt(STOCK_ID)).isEmpty();
     }
 
     @Test

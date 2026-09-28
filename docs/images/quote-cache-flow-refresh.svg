@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="950" viewBox="0 0 1280 950">
+<rect width="1280" height="950" fill="#ffffff"/>
+<text x="36" y="44" font-size="24" font-weight="800" fill="#1c2b4a" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">현재가 갱신 — 스케줄러</text>
+<text x="36" y="70" font-size="14" fill="#5f6b7a" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">10초 fixed delay · 최근 60초 안에 조회된 종목만 · 한 스레드에서 순차 호출</text>
+<line x1="1162" y1="38" x2="1196" y2="38" stroke="#495057" stroke-width="2" stroke-dasharray="7 5"/><path d="M1200 38 L1190 33 L1190 43 Z" fill="#495057"/>
+<text x="1208" y="43" font-size="13" fill="#343a40" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">반환</text>
+<line x1="1080" y1="38" x2="1114" y2="38" stroke="#1c2b4a" stroke-width="2"/><path d="M1118 38 L1108 33 L1108 43 Z" fill="#1c2b4a"/>
+<text x="1126" y="43" font-size="13" fill="#343a40" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">호출</text>
+<rect x="36" y="282" width="1208" height="616" rx="8" fill="#f4f8ff" stroke="#91a7d8" stroke-width="1.5"/>
+<path d="M36 290 Q36 282 44 282 L94 282 L94 300 L86 308 L36 308 Z" fill="#dbe6fb" stroke="#91a7d8" stroke-width="1.5"/><text x="65" y="300" font-size="13" font-weight="700" fill="#343a40" text-anchor="middle" font-family="'SF Mono',Menlo,Consolas,monospace">alt</text><text x="106" y="301" font-size="14" font-weight="700" fill="#343a40" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">[다른 인스턴스가 갱신 중]</text>
+<line x1="36" y1="366" x2="1244" y2="366" stroke="#91a7d8" stroke-width="1.5" stroke-dasharray="8 6"/><text x="48" y="386" font-size="14" font-weight="700" fill="#343a40" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">[리더 락 획득]</text>
+<rect x="52" y="620" width="1176" height="260" rx="8" fill="#fff8e6" stroke="#e0a800" stroke-width="1.5"/>
+<path d="M52 628 Q52 620 60 620 L110 620 L110 638 L102 646 L52 646 Z" fill="#ffe9a8" stroke="#e0a800" stroke-width="1.5"/><text x="81" y="638" font-size="13" font-weight="700" fill="#343a40" text-anchor="middle" font-family="'SF Mono',Menlo,Consolas,monospace">loop</text><text x="122" y="639" font-size="14" font-weight="700" fill="#343a40" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">[활성 종목마다 순차로]</text>
+<line x1="150" y1="150" x2="150" y2="930" stroke="#868e96" stroke-width="1.5" stroke-dasharray="4 6" opacity="0.6"/>
+<rect x="30" y="96" width="240" height="56" rx="10" fill="#f1f3f5" stroke="#868e96" stroke-width="2"/><text x="150" y="121" font-size="16" font-weight="700" fill="#1c2b4a" text-anchor="middle" font-family="'SF Mono',Menlo,Consolas,monospace">QuoteRefresher</text><text x="150" y="142" font-size="12.5" fill="#5f6b7a" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">@Scheduled</text>
+<line x1="450" y1="150" x2="450" y2="930" stroke="#3b6fd8" stroke-width="1.5" stroke-dasharray="4 6" opacity="0.6"/>
+<rect x="330" y="96" width="240" height="56" rx="10" fill="#e7f0ff" stroke="#3b6fd8" stroke-width="2"/><text x="450" y="121" font-size="16" font-weight="700" fill="#1c2b4a" text-anchor="middle" font-family="'SF Mono',Menlo,Consolas,monospace">RedisQuoteCache</text><text x="450" y="142" font-size="12.5" fill="#5f6b7a" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">캐시 어댑터</text>
+<line x1="800" y1="150" x2="800" y2="930" stroke="#d9480f" stroke-width="1.5" stroke-dasharray="4 6" opacity="0.6"/>
+<rect x="680" y="96" width="240" height="56" rx="10" fill="#ffecec" stroke="#d9480f" stroke-width="2"/><text x="800" y="121" font-size="16" font-weight="700" fill="#1c2b4a" text-anchor="middle" font-family="'SF Mono',Menlo,Consolas,monospace">Redis</text><text x="800" y="142" font-size="12.5" fill="#5f6b7a" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">저장소</text>
+<line x1="1130" y1="150" x2="1130" y2="930" stroke="#2f9e44" stroke-width="1.5" stroke-dasharray="4 6" opacity="0.6"/>
+<rect x="1010" y="96" width="240" height="56" rx="10" fill="#e9f7ef" stroke="#2f9e44" stroke-width="2"/><text x="1130" y="121" font-size="16" font-weight="700" fill="#1c2b4a" text-anchor="middle" font-family="'SF Mono',Menlo,Consolas,monospace">KisQuoteProvider</text><text x="1130" y="142" font-size="12.5" fill="#5f6b7a" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">KIS 현재가 API</text>
+<line x1="150" y1="212" x2="442" y2="212" stroke="#1c2b4a" stroke-width="2"/>
+<path d="M448 212 L436 206 L436 218 Z" fill="#1c2b4a"/>
+<circle cx="166" cy="199" r="10" fill="#1c2b4a"/><text x="166" y="203" font-size="11" font-weight="700" fill="#fff" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">1</text>
+<text x="182" y="204" font-size="14" fill="#1c2b4a" text-anchor="start" font-family="'SF Mono',Menlo,Consolas,monospace">tryRefreshLeadership()</text>
+<line x1="450" y1="256" x2="792" y2="256" stroke="#1c2b4a" stroke-width="2"/>
+<path d="M798 256 L786 250 L786 262 Z" fill="#1c2b4a"/>
+<circle cx="466" cy="243" r="10" fill="#1c2b4a"/><text x="466" y="247" font-size="11" font-weight="700" fill="#fff" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">2</text>
+<text x="482" y="248" font-size="14" fill="#1c2b4a" text-anchor="start" font-family="'SF Mono',Menlo,Consolas,monospace">SET quote:refresh:lock 1 NX EX 9</text>
+<line x1="450" y1="338" x2="158" y2="338" stroke="#495057" stroke-width="2" stroke-dasharray="7 5"/>
+<path d="M152 338 L164 332 L164 344 Z" fill="#495057"/>
+<circle cx="434" cy="325" r="10" fill="#495057"/><text x="434" y="329" font-size="11" font-weight="700" fill="#fff" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">3</text>
+<text x="418" y="330" font-size="14" fill="#495057" text-anchor="end" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">false → 이번 주기 종료</text>
+<line x1="450" y1="418" x2="158" y2="418" stroke="#495057" stroke-width="2" stroke-dasharray="7 5"/>
+<path d="M152 418 L164 412 L164 424 Z" fill="#495057"/>
+<circle cx="434" cy="405" r="10" fill="#495057"/><text x="434" y="409" font-size="11" font-weight="700" fill="#fff" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">4</text>
+<text x="418" y="410" font-size="14" fill="#495057" text-anchor="end" font-family="'SF Mono',Menlo,Consolas,monospace">true</text>
+<line x1="150" y1="462" x2="442" y2="462" stroke="#1c2b4a" stroke-width="2"/>
+<path d="M448 462 L436 456 L436 468 Z" fill="#1c2b4a"/>
+<circle cx="166" cy="449" r="10" fill="#1c2b4a"/><text x="166" y="453" font-size="11" font-weight="700" fill="#fff" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">5</text>
+<text x="182" y="454" font-size="14" fill="#1c2b4a" text-anchor="start" font-family="'SF Mono',Menlo,Consolas,monospace">activeStockIds()</text>
+<line x1="450" y1="506" x2="792" y2="506" stroke="#1c2b4a" stroke-width="2"/>
+<path d="M798 506 L786 500 L786 512 Z" fill="#1c2b4a"/>
+<circle cx="466" cy="493" r="10" fill="#1c2b4a"/><text x="466" y="497" font-size="11" font-weight="700" fill="#fff" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">6</text>
+<text x="482" y="498" font-size="14" fill="#1c2b4a" text-anchor="start" font-family="'SF Mono',Menlo,Consolas,monospace">ZREMRANGEBYSCORE quote:active -inf (now-60s)</text>
+<line x1="450" y1="550" x2="792" y2="550" stroke="#1c2b4a" stroke-width="2"/>
+<path d="M798 550 L786 544 L786 556 Z" fill="#1c2b4a"/>
+<circle cx="466" cy="537" r="10" fill="#1c2b4a"/><text x="466" y="541" font-size="11" font-weight="700" fill="#fff" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">7</text>
+<text x="482" y="542" font-size="14" fill="#1c2b4a" text-anchor="start" font-family="'SF Mono',Menlo,Consolas,monospace">ZRANGE quote:active 0 -1</text>
+<line x1="450" y1="594" x2="158" y2="594" stroke="#495057" stroke-width="2" stroke-dasharray="7 5"/>
+<path d="M152 594 L164 588 L164 600 Z" fill="#495057"/>
+<circle cx="434" cy="581" r="10" fill="#495057"/><text x="434" y="585" font-size="11" font-weight="700" fill="#fff" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">8</text>
+<text x="418" y="586" font-size="14" fill="#495057" text-anchor="end" font-family="'SF Mono',Menlo,Consolas,monospace">[stockId, ...]</text>
+<line x1="150" y1="676" x2="1122" y2="676" stroke="#1c2b4a" stroke-width="2"/>
+<path d="M1128 676 L1116 670 L1116 682 Z" fill="#1c2b4a"/>
+<circle cx="166" cy="663" r="10" fill="#1c2b4a"/><text x="166" y="667" font-size="11" font-weight="700" fill="#fff" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">9</text>
+<text x="182" y="668" font-size="14" fill="#1c2b4a" text-anchor="start" font-family="'SF Mono',Menlo,Consolas,monospace">fetch(stock)</text>
+<line x1="1130" y1="720" x2="158" y2="720" stroke="#495057" stroke-width="2" stroke-dasharray="7 5"/>
+<path d="M152 720 L164 714 L164 726 Z" fill="#495057"/>
+<circle cx="1114" cy="707" r="10" fill="#495057"/><text x="1114" y="711" font-size="11" font-weight="700" fill="#fff" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">10</text>
+<text x="1098" y="712" font-size="14" fill="#495057" text-anchor="end" font-family="'SF Mono',Menlo,Consolas,monospace">Quote</text>
+<line x1="150" y1="764" x2="442" y2="764" stroke="#1c2b4a" stroke-width="2"/>
+<path d="M448 764 L436 758 L436 770 Z" fill="#1c2b4a"/>
+<circle cx="166" cy="751" r="10" fill="#1c2b4a"/><text x="166" y="755" font-size="11" font-weight="700" fill="#fff" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">11</text>
+<text x="182" y="756" font-size="14" fill="#1c2b4a" text-anchor="start" font-family="'SF Mono',Menlo,Consolas,monospace">put(stockId, quote)</text>
+<line x1="450" y1="808" x2="792" y2="808" stroke="#1c2b4a" stroke-width="2"/>
+<path d="M798 808 L786 802 L786 814 Z" fill="#1c2b4a"/>
+<circle cx="466" cy="795" r="10" fill="#1c2b4a"/><text x="466" y="799" font-size="11" font-weight="700" fill="#fff" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">12</text>
+<text x="482" y="800" font-size="14" fill="#1c2b4a" text-anchor="start" font-family="'SF Mono',Menlo,Consolas,monospace">SET quote:{stockId} {json} EX 30</text>
+<rect x="449.5" y="836" width="351.0" height="30" rx="6" fill="#fff9db" stroke="#f0c419" stroke-width="1.5"/><text x="625.0" y="856" font-size="13" fill="#5c4a00" text-anchor="middle" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">한 종목이 실패해도 로그만 남기고 다음 종목으로</text>
+</svg>

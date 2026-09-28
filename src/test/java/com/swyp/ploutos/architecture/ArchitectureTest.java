@@ -23,7 +23,7 @@ class ArchitectureTest {
     private static final String KIS = EXTERNAL + ".kis";
     private static final String KIS_AUTH = KIS + ".auth";
     private static final String JPA_REPOSITORY = "org.springframework.data.jpa.repository.JpaRepository";
-    private static final List<String> LAYERS = List.of("repository", "service", "kis", "controller");
+    private static final List<String> LAYERS = List.of("repository", "service", "kis", "redis", "controller");
 
     private static CompiledClasses compiled;
 

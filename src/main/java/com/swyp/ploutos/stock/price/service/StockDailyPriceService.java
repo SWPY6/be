@@ -58,8 +58,8 @@ class StockDailyPriceService implements DailyPriceReader {
         Long stockId = stock.stockId();
         LocalDate today = policy.today(stock.country());
         StoredRange stored = new StoredRange(
-                repository.findFirstByStockIdOrderByTradeAtAsc(stockId).map(p -> p.toDailyPrice().tradeAt()),
-                repository.findFirstByStockIdOrderByTradeAtDesc(stockId).map(p -> p.toDailyPrice().tradeAt())
+                repository.findEarliestTradeAt(stockId),
+                repository.findLatestTradeAt(stockId)
         );
         if (policy.covers(stored, from, stock, today)) {
             return;
