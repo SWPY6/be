@@ -14,13 +14,12 @@ import lombok.RequiredArgsConstructor;
  */
 @Service
 @RequiredArgsConstructor
-class StockQuoteDetailService implements StockQuoteDetailReader {
+public class StockQuoteDetailService {
 
     private final StockReader stockReader;
     private final QuoteReader quoteReader;
     private final DailyPriceReader dailyPriceReader;
 
-    @Override
     public StockQuoteDetail read(Long stockId) {
         StockWithMarket stock = stockReader.read(stockId);
         Quote quote = quoteReader.read(stockId);

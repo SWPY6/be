@@ -140,8 +140,8 @@ public interface QuoteReader {
 - `QuoteCache`(포트): `Optional<Quote> find(Long stockId)`, `void put(Long stockId, Quote quote)`, `boolean tryLock(Long stockId)`, `void unlock(Long stockId)`. `void markActive(Long stockId)`, `List<Long> activeStockIds()`, `boolean tryRefreshLeadership()`. 구현 `RedisQuoteCache`가 `StringRedisTemplate`로 키·TTL·NX 락·활성 종목 ZSET을 다룬다. Redis 접근 실패(`DataAccessException`)는 `BusinessException(MARKET_DATA_UNAVAILABLE)`으로 바꿔 던진다. 저장된 값을 읽지 못하면(`JacksonException`) 캐시 미스로 본다.
 - `StockQuoteService`: 종목 조회(없으면 `STOCK_NOT_FOUND`) → 활성 표시 → 캐시 → 미스 시 락 → provider → 저장 → 락 해제. `QuoteReader` 구현체.
 - `QuoteRefresher`: `@Scheduled`로 활성 종목을 갱신한다. `@EnableScheduling`은 `common/config/SchedulingConfig`에 둔다.
-- `StockQuoteDetailReader`(계약): `StockQuoteDetail read(Long stockId)`. 구현 `StockQuoteDetailService`가 `StockReader`(종목명·티커) → `QuoteReader`(시세) → `DailyPriceReader.averageVolume20d`(거래량 배수) 순으로 모은다. 종목을 먼저 확인하므로 없는 종목이면 시세를 조회하지 않는다.
-- `StockQuoteController`: `GET /api/v1/stocks/{stockId}/quote` → `ApiResult<StockQuoteResponse>`. `StockQuoteDetailReader` 하나만 의존한다(컨트롤러는 자기 모듈의 `service`에만 의존).
+- `StockQuoteDetailService`: `StockQuoteDetail read(Long stockId)`. `StockReader`(종목명·티커) → `QuoteReader`(시세) → `DailyPriceReader.averageVolume20d`(거래량 배수) 순으로 모은다. 종목을 먼저 확인하므로 없는 종목이면 시세를 조회하지 않는다.
+- `StockQuoteController`: `GET /api/v1/stocks/{stockId}/quote` → `ApiResult<StockQuoteResponse>`. `StockQuoteDetailService` 하나만 의존한다(컨트롤러는 자기 모듈의 `service`에만 의존).
 
 ## API 계약
 
@@ -249,7 +249,7 @@ Run: ./gradlew bootRun
 
 ```
 src/main/java/com/swyp/ploutos/stock/quote/            → Quote, PriceTiming
-src/main/java/com/swyp/ploutos/stock/quote/service/    → QuoteReader, QuoteProvider, QuoteCache, StockQuoteService, QuoteRefresher, StockQuoteDetailReader, StockQuoteDetail, StockQuoteDetailService
+src/main/java/com/swyp/ploutos/stock/quote/service/    → QuoteReader, QuoteProvider, QuoteCache, StockQuoteService, QuoteRefresher, StockQuoteDetail, StockQuoteDetailService
 src/main/java/com/swyp/ploutos/stock/quote/kis/        → KisQuoteProvider, KIS 응답 DTO
 src/main/java/com/swyp/ploutos/stock/quote/redis/      → RedisQuoteCache
 src/main/java/com/swyp/ploutos/stock/quote/controller/ → StockQuoteController, StockQuoteResponse

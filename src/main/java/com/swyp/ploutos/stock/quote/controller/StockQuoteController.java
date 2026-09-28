@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.swyp.ploutos.common.response.ApiResult;
 import com.swyp.ploutos.common.response.ErrorResponse;
-import com.swyp.ploutos.stock.quote.service.StockQuoteDetailReader;
+import com.swyp.ploutos.stock.quote.service.StockQuoteDetailService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -23,7 +23,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 class StockQuoteController {
 
-    private final StockQuoteDetailReader stockQuoteDetailReader;
+    private final StockQuoteDetailService stockQuoteDetailService;
 
     @Operation(
             summary = "현재가·주요 지표 조회",
@@ -56,6 +56,6 @@ class StockQuoteController {
     ApiResult<StockQuoteResponse> quote(
             @Parameter(description = "종목 ID", example = "1") @PathVariable Long stockId
     ) {
-        return ApiResult.of(StockQuoteResponse.from(stockQuoteDetailReader.read(stockId)));
+        return ApiResult.of(StockQuoteResponse.from(stockQuoteDetailService.read(stockId)));
     }
 }

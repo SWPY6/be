@@ -24,7 +24,7 @@ import com.swyp.ploutos.common.exception.ErrorCode;
 import com.swyp.ploutos.stock.quote.PriceTiming;
 import com.swyp.ploutos.stock.quote.Quote;
 import com.swyp.ploutos.stock.quote.service.StockQuoteDetail;
-import com.swyp.ploutos.stock.quote.service.StockQuoteDetailReader;
+import com.swyp.ploutos.stock.quote.service.StockQuoteDetailService;
 
 @WebMvcTest(StockQuoteController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -36,7 +36,7 @@ class StockQuoteControllerTest {
     private JpaMetamodelMappingContext jpaMappingContext;
 
     @MockitoBean
-    private StockQuoteDetailReader stockQuoteDetailReader;
+    private StockQuoteDetailService stockQuoteDetailService;
 
     @Autowired
     private MockMvc mockMvc;
@@ -44,7 +44,7 @@ class StockQuoteControllerTest {
     @Test
     void 주요_지표_8종을_한_응답에_담는다() throws Exception {
         // given
-        given(stockQuoteDetailReader.read(STOCK_ID)).willReturn(domestic(new BigDecimal("0.95")));
+        given(stockQuoteDetailService.read(STOCK_ID)).willReturn(domestic(new BigDecimal("0.95")));
 
         // when & then
         mockMvc.perform(get("/api/v1/stocks/{stockId}/quote", STOCK_ID))
@@ -70,7 +70,7 @@ class StockQuoteControllerTest {
     @Test
     void 국내_종목은_실시간으로_표시한다() throws Exception {
         // given
-        given(stockQuoteDetailReader.read(STOCK_ID)).willReturn(domestic(new BigDecimal("0.95")));
+        given(stockQuoteDetailService.read(STOCK_ID)).willReturn(domestic(new BigDecimal("0.95")));
 
         // when & then
         mockMvc.perform(get("/api/v1/stocks/{stockId}/quote", STOCK_ID))
@@ -81,7 +81,7 @@ class StockQuoteControllerTest {
     @Test
     void 미국_종목은_실시간으로_표시한다() throws Exception {
         // given
-        given(stockQuoteDetailReader.read(STOCK_ID)).willReturn(overseas());
+        given(stockQuoteDetailService.read(STOCK_ID)).willReturn(overseas());
 
         // when & then
         mockMvc.perform(get("/api/v1/stocks/{stockId}/quote", STOCK_ID))
@@ -95,7 +95,7 @@ class StockQuoteControllerTest {
     @Test
     void 평균_거래량이_없으면_배수는_null이다() throws Exception {
         // given
-        given(stockQuoteDetailReader.read(STOCK_ID)).willReturn(domestic(null));
+        given(stockQuoteDetailService.read(STOCK_ID)).willReturn(domestic(null));
 
         // when & then 키는 남고 값만 null이다
         mockMvc.perform(get("/api/v1/stocks/{stockId}/quote", STOCK_ID))
@@ -107,7 +107,7 @@ class StockQuoteControllerTest {
     @Test
     void 없는_종목이면_404와_P002를_반환한다() throws Exception {
         // given
-        given(stockQuoteDetailReader.read(STOCK_ID)).willThrow(new BusinessException(ErrorCode.STOCK_NOT_FOUND));
+        given(stockQuoteDetailService.read(STOCK_ID)).willThrow(new BusinessException(ErrorCode.STOCK_NOT_FOUND));
 
         // when & then
         mockMvc.perform(get("/api/v1/stocks/{stockId}/quote", STOCK_ID))
@@ -118,7 +118,7 @@ class StockQuoteControllerTest {
     @Test
     void 시세_조회에_실패하면_502와_P007을_반환한다() throws Exception {
         // given
-        given(stockQuoteDetailReader.read(STOCK_ID))
+        given(stockQuoteDetailService.read(STOCK_ID))
                 .willThrow(new BusinessException(ErrorCode.MARKET_DATA_UNAVAILABLE));
 
         // when & then
