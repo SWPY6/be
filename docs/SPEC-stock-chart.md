@@ -63,7 +63,7 @@
 - `ChartPeriod`(enum): `ONE_MONTH("1M")` … `ONE_YEAR("1Y")`, `from(LocalDate today)`, 기본값 `ONE_MONTH`.
 - `Chart`(값 객체): 확정 봉 목록 + `Optional<Quote>` + 평균 거래량을 받아 `candles`, `from`, `to`, `asOf`를 만든다. 당일 봉 결합 규칙을 여기 둔다.
 - `StockChartService`: 종목 조회(없으면 `STOCK_NOT_FOUND`) → `DailyPriceReader` → `QuoteReader` → `Chart`.
-- `StockChartController`: `GET /api/v1/stocks/{stockId}/chart` → `ApiResponse<StockChartResponse>`.
+- `StockChartController`: `GET /api/v1/stocks/{stockId}/chart` → `ApiResult<StockChartResponse>`.
 
 ## API 계약
 
