@@ -37,6 +37,17 @@ class StockQuoteService implements QuoteReader {
     public Quote read(Long stockId) {
         StockWithMarket stock = stockReader.read(stockId);
         cache.markActive(stockId);
+        return quoteOf(stockId, stock);
+    }
+
+    @Override
+    public Quote readWithoutTracking(Long stockId) {
+        StockWithMarket stock = stockReader.read(stockId);
+        return quoteOf(stockId, stock);
+    }
+
+    // 종목 확인과 갱신 대상 표시만 두 메서드가 다르고, 캐시·락·외부 호출은 같다.
+    private Quote quoteOf(Long stockId, StockWithMarket stock) {
         Optional<Quote> cached = cache.find(stockId);
         if (cached.isPresent()) {
             return cached.get();
