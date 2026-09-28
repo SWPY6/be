@@ -26,7 +26,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-@WebMvcTest
+// 대상을 아래 TestController 로 한정한다. 지정하지 않으면 웹 계층의 모든 컨트롤러를 로드하는데,
+// 그 컨트롤러들의 @Service 의존은 @WebMvcTest 범위 밖이라 컨텍스트 기동이 실패한다.
+@WebMvcTest(GlobalExceptionHandlerIntegrationTest.TestController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @Import({
         GlobalExceptionHandler.class,
