@@ -140,7 +140,8 @@ public interface QuoteReader {
 - `QuoteCache`(포트): `Optional<Quote> find(Long stockId)`, `void put(Long stockId, Quote quote)`, `boolean tryLock(Long stockId)`, `void unlock(Long stockId)`. `void markActive(Long stockId)`, `List<Long> activeStockIds()`, `boolean tryRefreshLeadership()`. 구현 `RedisQuoteCache`가 `StringRedisTemplate`로 키·TTL·NX 락·활성 종목 ZSET을 다룬다. Redis 접근 실패(`DataAccessException`)는 `BusinessException(MARKET_DATA_UNAVAILABLE)`으로 바꿔 던진다. 저장된 값을 읽지 못하면(`JacksonException`) 캐시 미스로 본다.
 - `StockQuoteService`: 종목 조회(없으면 `STOCK_NOT_FOUND`) → 활성 표시 → 캐시 → 미스 시 락 → provider → 저장 → 락 해제. `QuoteReader` 구현체.
 - `QuoteRefresher`: `@Scheduled`로 활성 종목을 갱신한다. `@EnableScheduling`은 `common/config/SchedulingConfig`에 둔다.
-- `StockQuoteController`: `GET /api/v1/stocks/{stockId}/quote` → `ApiResponse<StockQuoteResponse>`. `averageVolume20d`를 `DailyPriceReader`에서 읽어 배수를 채운다.
+- `StockQuoteDetailReader`(계약): `StockQuoteDetail read(Long stockId)`. 구현 `StockQuoteDetailService`가 `StockReader`(종목명·티커) → `QuoteReader`(시세) → `DailyPriceReader.averageVolume20d`(거래량 배수) 순으로 모은다. 종목을 먼저 확인하므로 없는 종목이면 시세를 조회하지 않는다.
+- `StockQuoteController`: `GET /api/v1/stocks/{stockId}/quote` → `ApiResult<StockQuoteResponse>`. `StockQuoteDetailReader` 하나만 의존한다(컨트롤러는 자기 모듈의 `service`에만 의존).
 
 ## API 계약
 
@@ -248,7 +249,7 @@ Run: ./gradlew bootRun
 
 ```
 src/main/java/com/swyp/ploutos/stock/quote/            → Quote, PriceTiming
-src/main/java/com/swyp/ploutos/stock/quote/service/    → QuoteReader, QuoteProvider, QuoteCache, StockQuoteService, QuoteRefresher
+src/main/java/com/swyp/ploutos/stock/quote/service/    → QuoteReader, QuoteProvider, QuoteCache, StockQuoteService, QuoteRefresher, StockQuoteDetailReader, StockQuoteDetail, StockQuoteDetailService
 src/main/java/com/swyp/ploutos/stock/quote/kis/        → KisQuoteProvider, KIS 응답 DTO
 src/main/java/com/swyp/ploutos/stock/quote/redis/      → RedisQuoteCache
 src/main/java/com/swyp/ploutos/stock/quote/controller/ → StockQuoteController, StockQuoteResponse
@@ -324,6 +325,8 @@ public BigDecimal changeRate() {
 | 26 | 리더 락을 못 잡으면 갱신하지 않는다. | `리더_락을_못_잡으면_갱신하지_않는다` |
 | 27 | 한 종목 갱신이 실패해도 나머지 종목은 갱신한다. | `한_종목이_실패해도_나머지는_갱신한다` |
 | 28 | 주기 시작 시 Redis에 접근할 수 없으면 그 주기를 건너뛴다. | `캐시_저장소_장애면_이번_주기를_건너뛴다` |
+| 29 | `stockId`가 정수가 아니면 400 / `P001`. | `StockQuoteControllerTest.종목_ID가_정수가_아니면_400과_P001을_반환한다` |
+| 30 | 종목 정보·시세·거래량 배수를 한 번에 모으고, 없는 종목이면 시세를 조회하지 않는다. | `StockQuoteDetailServiceTest.종목_정보와_시세를_함께_돌려준다`, `평균_거래량이_있으면_배수를_계산한다`, `없는_종목이면_시세를_조회하지_않고_예외를_던진다` |
 
 ## 미해결 질문
 
