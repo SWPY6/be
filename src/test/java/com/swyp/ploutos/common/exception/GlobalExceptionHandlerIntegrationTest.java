@@ -3,7 +3,7 @@ package com.swyp.ploutos.common.exception;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import java.util.Map;
-import com.swyp.ploutos.common.response.ApiResponse;
+import com.swyp.ploutos.common.response.ApiResult;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-@WebMvcTest
+@WebMvcTest(GlobalExceptionHandlerIntegrationTest.TestController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @Import({
         GlobalExceptionHandler.class,
@@ -218,8 +218,8 @@ class GlobalExceptionHandlerIntegrationTest {
     static class TestController {
 
         @GetMapping("/test/success")
-        ApiResponse<Map<String, Object>> success() {
-            return ApiResponse.of(Map.of("id", 10, "name", "삼성전자"));
+        ApiResult<Map<String, Object>> success() {
+            return ApiResult.of(Map.of("id", 10, "name", "삼성전자"));
         }
 
         @GetMapping("/test/stock-error")
