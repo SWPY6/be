@@ -12,4 +12,7 @@ public interface IndustryReader {
 
     /** 산업 코드에 대응하는 산업. 시드가 없으면 예외를 던진다. */
     Industries read(IndustryCode code);
+
+    /** 산업에 매핑된 종목 식별자. 매핑이 없으면 빈 목록. 국가 구분은 하지 않는다. */
+    List<Long> readStockIds(Long industryId);
 }
