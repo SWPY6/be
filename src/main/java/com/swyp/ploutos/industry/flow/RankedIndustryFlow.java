@@ -1,0 +1,27 @@
+package com.swyp.ploutos.industry.flow;
+
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.util.List;
+
+import com.swyp.ploutos.common.enums.IndustryCode;
+
+/**
+ * 순위가 붙은 산업 흐름. 저장된 스냅샷({@link IndustryFlows})에 산업 코드와 조회 시점에 매긴
+ * 순위를 더한 읽기 전용 표현이다. 순위와 산업 코드를 저장하지 않으므로 이 타입이 필요하다.
+ *
+ * @param calculatedAt 시장 현지 시각. 아직 한 번도 계산되지 않은 산업은 {@code null}이다
+ */
+public record RankedIndustryFlow(
+        IndustryCode code,
+        int rank,
+        BigDecimal avgChangeRate,
+        int stockCount,
+        List<MajorStock> majorStocks,
+        OffsetDateTime calculatedAt
+) {
+
+    public String displayName() {
+        return code.displayName();
+    }
+}
