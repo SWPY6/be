@@ -19,13 +19,17 @@ DB_PASSWORD=<비밀번호>
 DB_ROOT_PASSWORD=<루트 비밀번호>
 KIS_APP_KEY=<한국투자증권 Open API 앱키>
 KIS_APP_SECRET=<한국투자증권 Open API 앱시크릿>
+NAVER_API_HUB_CLIENT_ID=<NAVER API HUB Client ID>
+NAVER_API_HUB_CLIENT_SECRET=<NAVER API HUB Client Secret>
 ```
 
 `KIS_BASE_URL`은 생략하면 모의투자 도메인(`https://openapivts.koreainvestment.com:29443`)을 쓴다.
 실전 앱키를 쓸 때만 `KIS_BASE_URL=https://openapi.koreainvestment.com:9443`을 추가한다.
 앱키 종류와 도메인이 어긋나면 일부 API가 거부된다.
 
-값은 팀에 문의한다. `KIS_APP_KEY`·`KIS_APP_SECRET`이 없으면 앱이 기동 시점에 실패한다.
+네이버 키는 뉴스 검색용 NAVER API HUB(네이버 클라우드) 키다. 다른 네이버 API 제품의 키와 섞어 쓰지 않는다.
+
+값은 팀에 문의한다. `KIS_APP_KEY`·`KIS_APP_SECRET`·`NAVER_API_HUB_CLIENT_ID`·`NAVER_API_HUB_CLIENT_SECRET`이 없으면 앱이 기동 시점에 실패한다.
 Redis 접속 정보(`REDIS_HOST`, `REDIS_PORT`)는 docker-compose가 넣어 주고, IDE에서 띄울 때는 기본값 `localhost:6379`를 쓴다.
 
 ## 테스트
