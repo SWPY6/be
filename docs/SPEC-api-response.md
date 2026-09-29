@@ -21,9 +21,9 @@
 
 ### 성공
 
-- 반환할 데이터를 `ApiResponse<T>`의 `data`에 담는다. 목록도 `data`에 담고, 빈 목록은 `{"data": []}`다.
+- 반환할 데이터를 `ApiResult<T>`의 `data`에 담는다. 목록도 `data`에 담고, 빈 목록은 `{"data": []}`다.
 - 성공 응답에는 `error`가 없다.
-- `ApiResponse`는 HTTP 상태를 설정하지 않는다. 200이 아닌 상태가 필요하면 컨트롤러가 `ResponseEntity`로 지정한다.
+- `ApiResult`는 HTTP 상태를 설정하지 않는다. 200이 아닌 상태가 필요하면 컨트롤러가 `ResponseEntity`로 지정한다.
 
 ```json
 { "data": { "id": 10, "name": "삼성전자" } }
@@ -35,7 +35,7 @@
 - 반환할 데이터가 없는 수정·삭제 성공은 `204 No Content`로 응답하며 본문을 포함하지 않는다.
 - `{"data": null}` 형식은 사용하지 않는다.
 
-상태 코드는 컨트롤러가 `ResponseEntity`로 지정하는 규약이다. 공통 코드(`ApiResponse`)가 강제하지 않으므로 각 API의 테스트에서 검증한다.
+상태 코드는 컨트롤러가 `ResponseEntity`로 지정하는 규약이다. 공통 코드(`ApiResult`)가 강제하지 않으므로 각 API의 테스트에서 검증한다.
 
 ### 실패
 
@@ -117,9 +117,9 @@ Run: ./gradlew bootRun
 ## 프로젝트 구조
 
 ```
-src/main/java/com/swyp/ploutos/common/response/    → ApiResponse, ErrorResponse
+src/main/java/com/swyp/ploutos/common/response/    → ApiResult, ErrorResponse
 src/main/java/com/swyp/ploutos/common/exception/   → ErrorCode, BusinessException, Precondition, GlobalExceptionHandler
-src/test/java/com/swyp/ploutos/common/response/    → ApiResponseTest
+src/test/java/com/swyp/ploutos/common/response/    → ApiResultTest
 src/test/java/com/swyp/ploutos/common/exception/   → 예외·핸들러 테스트
 ```
 
@@ -131,7 +131,7 @@ src/test/java/com/swyp/ploutos/common/exception/   → 예외·핸들러 테스�
 
 ```java
 // 성공
-return ApiResponse.of(result);
+return ApiResult.of(result);
 
 // 실패
 throw new BusinessException(ErrorCode.STOCK_NOT_FOUND);
@@ -141,7 +141,7 @@ Precondition.require(stock != null, ErrorCode.STOCK_NOT_FOUND);
 ## 테스트 전략
 
 - JUnit 6, BDD(`// given` `// when` `// then`), 테스트명은 한글 `조건_결과`.
-- 단위 테스트: `ApiResponseTest`, `BusinessExceptionTest`, `PreconditionTest`, `GlobalExceptionHandlerTest` — 스프링 컨텍스트 없이 검증한다.
+- 단위 테스트: `ApiResultTest`, `BusinessExceptionTest`, `PreconditionTest`, `GlobalExceptionHandlerTest` — 스프링 컨텍스트 없이 검증한다.
 - 통합 테스트: `GlobalExceptionHandlerIntegrationTest` — `@WebMvcTest` + MockMvc로 실제 JSON 본문과 상태 코드를 검증한다. 보안 필터는 비활성화(`addFilters = false`)하므로 인증·인가 응답은 검증하지 않는다.
 - 새 `ErrorCode`를 추가하면 그 코드의 HTTP 상태·`error.code`·`error.message`를 검증하는 테스트를 함께 추가한다.
 
@@ -155,7 +155,7 @@ Precondition.require(stock != null, ErrorCode.STOCK_NOT_FOUND);
 
 | # | 인수 기준 | 검증 테스트 |
 | --- | --- | --- |
-| 1 | `ApiResponse.of(data)`는 `data`를 그대로 담는다. | `ApiResponseTest.데이터를_전달하면_응답에_담긴다` |
+| 1 | `ApiResult.of(data)`는 `data`를 그대로 담는다. | `ApiResultTest.데이터를_전달하면_응답에_담긴다` |
 | 2 | 성공 응답은 HTTP 200, `{"data": ...}`이며 `status`와 `error`가 없다. | `성공하면_종목정보를_data에_담아_반환한다` |
 | 3 | `BusinessException(INVALID_INPUT_VALUE)`는 400 / `P001`이며 `errors`가 없다. | `비즈니스예외가_발생하면_상태코드와_JSON을_반환한다` |
 | 4 | `BusinessException(STOCK_NOT_FOUND)`는 404 / `P002`이며 `name`·`code`·`message`가 채워진다. | `주식이_없으면_필수_오류코드와_이름을_반환한다` |

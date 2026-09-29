@@ -3,7 +3,7 @@ package com.swyp.ploutos.common.exception;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import java.util.Map;
-import com.swyp.ploutos.common.response.ApiResponse;
+import com.swyp.ploutos.common.response.ApiResult;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -26,8 +26,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-// 대상을 아래 TestController 로 한정한다. 지정하지 않으면 웹 계층의 모든 컨트롤러를 로드하는데,
-// 그 컨트롤러들의 @Service 의존은 @WebMvcTest 범위 밖이라 컨텍스트 기동이 실패한다.
 @WebMvcTest(GlobalExceptionHandlerIntegrationTest.TestController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @Import({
@@ -220,8 +218,8 @@ class GlobalExceptionHandlerIntegrationTest {
     static class TestController {
 
         @GetMapping("/test/success")
-        ApiResponse<Map<String, Object>> success() {
-            return ApiResponse.of(Map.of("id", 10, "name", "삼성전자"));
+        ApiResult<Map<String, Object>> success() {
+            return ApiResult.of(Map.of("id", 10, "name", "삼성전자"));
         }
 
         @GetMapping("/test/stock-error")

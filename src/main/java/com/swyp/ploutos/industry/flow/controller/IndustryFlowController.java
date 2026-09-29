@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.swyp.ploutos.common.enums.Country;
-import com.swyp.ploutos.common.response.ApiResponse;
+import com.swyp.ploutos.common.response.ApiResult;
 import com.swyp.ploutos.industry.flow.service.IndustryFlowReader;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -38,13 +38,13 @@ class IndustryFlowController {
                     폴링 주기는 1분을 권장한다.
                     """)
     @GetMapping("/flows")
-    ApiResponse<List<IndustryFlowResponse>> readFlows(
+    ApiResult<List<IndustryFlowResponse>> readFlows(
             @Parameter(description = "국내(KR) 또는 해외(US). 화면의 시장 토글", example = "KR")
             @RequestParam(defaultValue = "KR") Country country) {
 
         List<IndustryFlowResponse> flows = industryFlowReader.read(country).stream()
                 .map(IndustryFlowResponse::from)
                 .toList();
-        return ApiResponse.of(flows);
+        return ApiResult.of(flows);
     }
 }

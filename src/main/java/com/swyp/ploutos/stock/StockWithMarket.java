@@ -26,6 +26,10 @@ public record StockWithMarket(
         return stock.ticker();
     }
 
+    public String name() {
+        return stock.name();
+    }
+
     public Exchange exchange() {
         return stock.exchange();
     }

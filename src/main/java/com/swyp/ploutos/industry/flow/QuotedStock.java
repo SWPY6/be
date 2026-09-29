@@ -20,7 +20,7 @@ public record QuotedStock(
     }
 
     public String name() {
-        return stock.stock().name();
+        return stock.name();
     }
 
     public Country country() {
