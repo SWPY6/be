@@ -67,7 +67,10 @@ public interface DailyPriceReader {
 - 100건씩 페이지를 반복한다. 국내는 `FID_INPUT_DATE_1/2`를 100거래일 단위로 뒤로 옮기고, 해외는 `BYMD`를 받은 마지막 행의 전날로 옮긴다. 응답이 비면 멈춘다.
 - `(stockId, tradeAt)`이 이미 있으면 건너뛴다. 갱신하지 않는다.
 - **당일 행은 저장하지 않는다.** KIS 일봉 응답의 첫 행이 오늘이면 버린다.
-- 공휴일에는 (b)가 거짓이 되어 한 번 더 호출하지만 새 행이 없어 무해하다. 같은 종목에 대한 동기화 시도는 **하루 1회**로 제한한다(메모리에 `stockId → 마지막 시도일` 기록).
+- 공휴일에는 (b)가 거짓이 되어 한 번 더 호출하지만 새 행이 없어 무해하다. 같은 종목에 대한 동기화 시도는 **하루 1회**로 제한한다
+  (메모리에 `stockId → (마지막 시도일, 그날 시도한 가장 이른 from)` 기록).
+  **단 그날 시도한 것보다 더 이른 `from`을 요구하면 그 구간을 위해 한 번 더 허용한다.** 조회 구간은 요청마다 다르므로,
+  시도일만 보고 막으면 짧은 구간을 먼저 조회한 날에는 더 넓은 구간을 다음 날까지 채우지 못한다.
 - KIS 호출이 실패하면 `MARKET_DATA_UNAVAILABLE`이 그대로 위로 올라간다. 부분 저장된 행은 남긴다(다음 요청에서 이어서 채운다).
 
 ### KIS 파라미터 매핑
@@ -93,7 +96,7 @@ public interface DailyPriceReader {
 
 - `DailyPriceProvider`(포트): `List<DailyPrice> fetch(StockWithMarket stock, LocalDate from, LocalDate to)`. 구현 `KisDailyPriceProvider`가 `Stocks.exchange`로 국내/해외 API를 고르고 페이지를 반복한다.
 - `StockDailyPriceRepository`(JPA): 구간 조회, 최근 N건 조회, `(stockId, tradeAt)` 존재 확인.
-- `StockDailyPriceSyncPolicy`: "덮는다" 판정과 하루 1회 제한. `Clock`을 주입받는다.
+- `StockDailyPriceSyncPolicy`: "덮는다" 판정과 하루 1회 제한(시작일까지 함께 본다). `Clock`을 주입받는다.
 - `DailyPriceReader` 구현이 위 셋을 조합한다.
 
 ## 명령어
@@ -157,6 +160,7 @@ public Optional<Long> averageVolumeOfLast(int days) {
 | 3 | 상장일이 `from`보다 늦으면 그 앞 구간은 덮은 것으로 본다. | `StockDailyPriceSyncPolicyTest.상장일이_시작일보다_늦으면_덮은_것으로_본다` |
 | 4 | 토·일에는 직전 금요일을 마지막 거래일로 본다. | `주말이면_직전_금요일을_마지막_거래일로_본다` |
 | 5 | 같은 종목의 동기화는 하루 1회만 시도한다. | `같은_종목의_동기화는_하루_한_번만_시도한다` |
+| 5-1 | 같은 날이라도 더 이른 시작일을 요청하면 다시 시도한다. | `같은_날_더_이른_시작일을_요청하면_다시_동기화한다`, `같은_날_같거나_늦은_시작일이면_다시_동기화하지_않는다` |
 | 6 | 당일 행은 저장하지 않는다. | `DailyPriceReaderTest.당일_봉은_저장하지_않는다` |
 | 7 | 이미 있는 거래일은 다시 저장하지 않는다. | `이미_있는_거래일은_다시_저장하지_않는다` |
 | 8 | 최근 20거래일 거래량의 평균을 버림으로 반환한다. | `DailyPricesTest.최근_20거래일_거래량의_평균을_반환한다` |
