@@ -14,7 +14,6 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -125,25 +124,50 @@ class IndustryFlowRefresherTest {
         // when
         refresher.refreshNext();
 
-        // then 30번도 조회했고, 평균은 성공한 둘의 것이다
+        // then 30번도 조회했고, 국내 평균은 성공한 둘의 것이다
         then(stockReader).should().read(30L);
-        then(industryFlowRepository).should().save(saved.capture());
-        assertThat(saved.getValue().stockCount()).isEqualTo(2);
-        assertThat(saved.getValue().avgChangeRate()).isEqualByComparingTo("2.00");
+        then(industryFlowRepository).should(org.mockito.Mockito.times(2)).save(saved.capture());
+        IndustryFlows domestic = savedOf(Country.KR);
+        assertThat(domestic.stockCount()).isEqualTo(2);
+        assertThat(domestic.avgChangeRate()).isEqualByComparingTo("2.00");
     }
 
     @Test
-    void 산업의_모든_종목이_실패하면_저장하지_않는다() {
-        // given
+    void 매핑된_종목의_시세를_하나도_구하지_못하면_저장하지_않는다() {
+        // given 국내 종목 둘이 매핑돼 있는데 시세 조회가 전부 실패한다
         given(industryReader.readAll()).willReturn(List.of(AUTOMOBILE));
         given(industryReader.readStockIds(1L)).willReturn(List.of(10L, 20L));
-        given(stockReader.read(any())).willThrow(new BusinessException(ErrorCode.MARKET_DATA_UNAVAILABLE));
+        stub(10L, "005380", "현대차", Country.KR, "3.00", 866);
+        stub(20L, "000270", "기아", Country.KR, "1.00", 349);
+        given(quoteReader.readWithoutTracking(any()))
+                .willThrow(new BusinessException(ErrorCode.MARKET_DATA_UNAVAILABLE));
 
         // when
         refresher.refreshNext();
 
-        // then 직전 값을 남긴다
-        then(industryFlowRepository).should(never()).save(any());
+        // then 국내는 직전 값을 남기고, 매핑이 없는 해외만 0으로 저장한다
+        then(industryFlowRepository).should(org.mockito.Mockito.times(1)).save(saved.capture());
+        assertThat(saved.getValue().country()).isEqualTo(Country.US);
+        assertThat(saved.getValue().stockCount()).isZero();
+    }
+
+    @Test
+    void 매핑된_종목이_없는_국가는_0으로_저장한다() {
+        // given 산업에 종목이 하나도 매핑돼 있지 않다
+        given(industryReader.readAll()).willReturn(List.of(AUTOMOBILE));
+        given(industryReader.readStockIds(1L)).willReturn(List.of());
+
+        // when
+        refresher.refreshNext();
+
+        // then 평균 0 · 종목 0 이 사실이므로 저장한다. calculatedAt 이 찍혀야 계산이 돌고 있음이 드러난다
+        then(industryFlowRepository).should(org.mockito.Mockito.times(2)).save(saved.capture());
+        assertThat(saved.getAllValues()).allSatisfy(flow -> {
+            assertThat(flow.stockCount()).isZero();
+            assertThat(flow.avgChangeRate()).isEqualByComparingTo("0.00");
+            assertThat(flow.majorStocks()).isEmpty();
+            assertThat(flow.calculatedAt()).isNotNull();
+        });
     }
 
     @Test
@@ -159,17 +183,15 @@ class IndustryFlowRefresherTest {
 
         // then 두 행이 저장되고 국가별로 평균이 나뉜다
         then(industryFlowRepository).should(org.mockito.Mockito.times(2)).save(saved.capture());
-        Map<Country, IndustryFlows> byCountry = saved.getAllValues().stream()
-                .collect(java.util.stream.Collectors.toMap(IndustryFlows::country, flow -> flow));
-        assertThat(byCountry.get(Country.KR).avgChangeRate()).isEqualByComparingTo("3.00");
-        assertThat(byCountry.get(Country.KR).stockCount()).isEqualTo(1);
-        assertThat(byCountry.get(Country.US).avgChangeRate()).isEqualByComparingTo("-1.00");
-        assertThat(byCountry.get(Country.US).stockCount()).isEqualTo(1);
+        assertThat(savedOf(Country.KR).avgChangeRate()).isEqualByComparingTo("3.00");
+        assertThat(savedOf(Country.KR).stockCount()).isEqualTo(1);
+        assertThat(savedOf(Country.US).avgChangeRate()).isEqualByComparingTo("-1.00");
+        assertThat(savedOf(Country.US).stockCount()).isEqualTo(1);
     }
 
     @Test
     void 계산_시각을_시장_현지_시각으로_남긴다() {
-        // given 고정 시각은 UTC 2026-09-28T01:00:07 = 서울 10:00:07
+        // given 고정 시각은 UTC 2026-09-28T01:00:07 = 서울 10:00:07 = 뉴욕 전날 21:00:07
         given(industryReader.readAll()).willReturn(List.of(AUTOMOBILE));
         given(industryReader.readStockIds(1L)).willReturn(List.of(10L));
         stub(10L, "005380", "현대차", Country.KR, "3.00", 866);
@@ -177,9 +199,10 @@ class IndustryFlowRefresherTest {
         // when
         refresher.refreshNext();
 
-        // then
-        then(industryFlowRepository).should().save(saved.capture());
-        assertThat(saved.getValue().calculatedAt()).isEqualTo("2026-09-28T10:00:07");
+        // then 같은 순간이지만 행마다 그 시장의 현지 시각으로 남는다
+        then(industryFlowRepository).should(org.mockito.Mockito.times(2)).save(saved.capture());
+        assertThat(savedOf(Country.KR).calculatedAt()).isEqualTo("2026-09-28T10:00:07");
+        assertThat(savedOf(Country.US).calculatedAt()).isEqualTo("2026-09-27T21:00:07");
     }
 
     @Test
@@ -193,6 +216,14 @@ class IndustryFlowRefresherTest {
         // then
         then(industryReader).should(never()).readStockIds(any());
         then(industryFlowRepository).should(never()).save(any());
+    }
+
+    /** 저장된 행 중 그 국가의 것. 국내·해외가 각각 한 행씩 저장되므로 첫 건이 곧 그 국가의 행이다. */
+    private IndustryFlows savedOf(Country country) {
+        return saved.getAllValues().stream()
+                .filter(flow -> flow.country() == country)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError(country + " 행이 저장되지 않았다"));
     }
 
     private void stub(Long stockId, String ticker, String name, Country country, String changeRate,
