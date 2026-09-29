@@ -98,8 +98,6 @@ class IndustryFlowRefresher {
             return;
         }
         save(industry.industryId(), country, snapshot, nowIn(country));
-        log.debug("산업 흐름을 갱신했다. industry={} country={} avg={} stocks={}",
-                industry.displayName(), country, snapshot.avgChangeRate(), snapshot.stockCount());
     }
 
     /**
@@ -133,13 +131,18 @@ class IndustryFlowRefresher {
         return quotedStocks;
     }
 
-    /** 한 종목의 실패가 나머지 종목을 막지 않게 한다. 실패한 종목은 평균에서 빠진다. */
+    /**
+     * 한 종목의 실패가 나머지 종목을 막지 않게 한다. 실패한 종목은 평균에서 빠진다.
+     *
+     * <p>여기서 로그를 남기지 않는 것은 의도다. 실패 사유는 KIS 클라이언트가 이미 기록하고,
+     * 이 자리에서 또 남기면 장애 때 대상 종목 수만큼 같은 내용이 쏟아진다. 몇 종목이 빠졌는지는
+     * 저장되는 {@code stockCount}로 드러난다.
+     */
     private Optional<QuotedStock> quote(QuoteTarget target) {
         try {
             return Optional.of(new QuotedStock(target.stock(),
                     quoteReader.readWithoutTracking(target.stockId())));
-        } catch (RuntimeException e) {
-            log.warn("종목 시세를 구하지 못해 산업 평균에서 제외한다. stockId={}", target.stockId(), e);
+        } catch (RuntimeException ignored) {
             return Optional.empty();
         }
     }
