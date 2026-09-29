@@ -23,7 +23,21 @@ env:
   RESULT_FILE: api-spec-sync-result.json
 
 jobs:
+  # claude-code-action은 push 이벤트를 지원하지 않는다(Unsupported event type: push).
+  # push가 오면 workflow_dispatch로 다시 실행시키고, 동기화는 그 실행에서 한다.
+  dispatch:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: workflow_dispatch로 다시 실행
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run api-spec-sync.yml --repo "$GITHUB_REPOSITORY" --ref main
+
   sync:
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -46,14 +60,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          # push·수동 실행은 항상 동기화한다. cron만 변경이 없으면 Claude를 부르지 않는다.
+          # 수동 실행(push로 다시 실행된 것 포함)은 항상 동기화한다. cron만 변경이 없으면 Claude를 부르지 않는다.
           if [ "$EVENT_NAME" != "schedule" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           LAST_SHA=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow api-spec-sync.yml \
-            --branch main --status success --limit 1 --json headSha -q '.[0].headSha // ""')
+            --branch main --status success --limit 20 --json headSha,event \
+            -q '[.[] | select(.event != "push")][0].headSha // ""')
 
           if [ -z "$LAST_SHA" ]; then
             echo "성공한 동기화 이력이 없다 → 동기화한다."
