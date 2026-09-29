@@ -64,7 +64,7 @@ class StockDailyPriceService implements DailyPriceReader {
         if (policy.covers(stored, from, stock, today)) {
             return;
         }
-        if (!policy.tryStartSync(stockId, today)) {
+        if (!policy.tryStartSync(stockId, from, today)) {
             return;
         }
         List<DailyPrice> fetched = provider.fetch(stock, from.minusDays(FETCH_MARGIN_DAYS), today.minusDays(1));
