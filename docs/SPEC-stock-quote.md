@@ -115,8 +115,11 @@
 ```java
 public interface QuoteReader {
     Quote read(Long stockId);
+    Quote readWithoutTracking(Long stockId);
 }
 ```
+
+`read`는 조회한 종목을 갱신 대상으로 표시해 주기마다 다시 받아온다. `readWithoutTracking`은 표시만 하지 않고 나머지(캐시 확인·락·외부 호출)는 같다 — 배치처럼 "지금 사용자가 보고 있는 종목"이 아닐 때 쓴다. 수백 종목을 훑는 쪽이 전부 갱신 대상으로 등록하면 갱신 한 바퀴가 길어져, 정작 사용자가 보고 있는 종목의 시세가 늦게 갱신된다.
 
 `Quote`는 값 객체다. 등락률·거래량 배수·단위 환산은 `Quote`의 메서드로 두어 스프링 없이 검증한다.
 
