@@ -35,14 +35,16 @@ class JpaIndustryFlowReader implements IndustryFlowReader {
                 .collect(Collectors.toMap(IndustryFlows::industryId, Function.identity()));
 
         // 평균 등락률 내림차순. 동점이면 표시명 가나다순으로 정해 순위가 매 요청 흔들리지 않게 한다.
-        List<Industries> ranked = industryReader.readAll().stream()
+        List<Industries> byChangeRate = industryReader.readAll().stream()
                 .sorted(Comparator.comparing((Industries industry) -> avgChangeRateOf(stored, industry),
                                 Comparator.reverseOrder())
                         .thenComparing(Industries::displayName))
                 .toList();
 
-        return IntStream.range(0, ranked.size())
-                .mapToObj(index -> toRanked(ranked.get(index), index + 1, stored, country))
+        // 순위는 이 순서에서 나오지만 응답에 값으로 실려 나간다. 뒤에서 순서를 바꿔도(관심 산업 고정,
+        // 동향 탭의 가나다순 필터) 각 원소가 자기 순위를 들고 다니므로 다시 매길 필요가 없다.
+        return IntStream.range(0, byChangeRate.size())
+                .mapToObj(index -> toRanked(byChangeRate.get(index), index + 1, stored, country))
                 .toList();
     }
 

@@ -53,14 +53,14 @@ class IndustryFlowControllerTest {
     private MockMvc mockMvc;
 
     @Test
-    void 산업을_순위_오름차순으로_응답한다() throws Exception {
+    void 산업을_받은_순서_그대로_응답한다() throws Exception {
         // given
         given(industryFlowReader.read(Country.KR)).willReturn(List.of(
                 flow(IndustryCode.AUTOMOBILE, 1, "1.61", 87),
                 flow(IndustryCode.CONSTRUCTION, 2, "0.45", 94),
                 flow(IndustryCode.CHEMICAL, 3, "-0.35", 41)));
 
-        // when & then
+        // when & then 순서를 정하는 책임은 리더에 있고 컨트롤러는 다시 정렬하지 않는다
         mockMvc.perform(get(PATH).param("country", "KR"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(3))
