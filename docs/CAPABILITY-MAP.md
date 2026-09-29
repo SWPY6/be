@@ -29,7 +29,7 @@
 | RQ-1003 | 차트 모양 선택 | `stock-chart` | 봉마다 OHLC를 내려주고 라인/캔들 전환은 프론트가 재요청 없이 처리 |
 | RQ-1004 | 차트 상세값 확인 | `stock-chart` | 마우스 오버 표시는 프론트. 백엔드는 날짜·OHLC 제공 |
 | RQ-1005 | 차트 범위 조절 | `stock-chart` | 확대·축소·기간 초기화는 프론트. 백엔드는 기간 전체 데이터 제공 |
-| RQ-1006 | 거래량 차트 | `stock-chart` | 봉마다 `volume`, `averageVolume20d` |
+| RQ-1006 | 거래량 차트 | `stock-chart` | 봉마다 `volume`, `averageVolume` |
 | RQ-1007 | 20거래일 평균 거래량 | `stock-daily-price` (계산), `stock-chart` (응답) | 기준선 1개(스칼라) |
 | RQ-1008 | 주요 지표 | `stock-quote` | 전일 종가, 시가, 고가, 저가, 거래량, 20거래일 평균 대비 거래량, 시가총액, 거래대금 |
 

@@ -54,4 +54,9 @@ public record StockWithMarket(
     public OffsetDateTime localTimeAt(Instant instant) {
         return OffsetDateTime.ofInstant(instant, country().zoneId());
     }
+
+    /** 주어진 시점의 이 종목 시장 현지 날짜. 차트의 "오늘"이 이 값이다. */
+    public LocalDate localDateAt(Instant instant) {
+        return localTimeAt(instant).toLocalDate();
+    }
 }
