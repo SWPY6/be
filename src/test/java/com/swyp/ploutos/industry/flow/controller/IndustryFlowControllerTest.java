@@ -27,7 +27,7 @@ import com.swyp.ploutos.common.enums.IndustryCode;
 import com.swyp.ploutos.common.exception.GlobalExceptionHandler;
 import com.swyp.ploutos.industry.flow.MajorStock;
 import com.swyp.ploutos.industry.flow.RankedIndustryFlow;
-import com.swyp.ploutos.industry.flow.service.IndustryFlowReader;
+import com.swyp.ploutos.industry.flow.service.IndustryFlowService;
 import com.swyp.ploutos.stock.quote.service.QuoteReader;
 
 @WebMvcTest(IndustryFlowController.class)
@@ -43,7 +43,7 @@ class IndustryFlowControllerTest {
     private JpaMetamodelMappingContext jpaMappingContext;
 
     @MockitoBean
-    private IndustryFlowReader industryFlowReader;
+    private IndustryFlowService industryFlowService;
 
     /** 조회가 외부 시세를 부르지 않는지 확인하려고 주입한다. 이 테스트에서는 한 번도 호출되지 않아야 한다. */
     @MockitoBean
@@ -55,7 +55,7 @@ class IndustryFlowControllerTest {
     @Test
     void 산업을_받은_순서_그대로_응답한다() throws Exception {
         // given
-        given(industryFlowReader.read(Country.KR)).willReturn(List.of(
+        given(industryFlowService.read(Country.KR)).willReturn(List.of(
                 flow(IndustryCode.AUTOMOBILE, 1, "1.61", 87),
                 flow(IndustryCode.CONSTRUCTION, 2, "0.45", 94),
                 flow(IndustryCode.CHEMICAL, 3, "-0.35", 41)));
@@ -77,20 +77,20 @@ class IndustryFlowControllerTest {
     @Test
     void 국가를_지정하지_않으면_국내를_돌려준다() throws Exception {
         // given
-        given(industryFlowReader.read(Country.KR)).willReturn(List.of(
+        given(industryFlowService.read(Country.KR)).willReturn(List.of(
                 flow(IndustryCode.AUTOMOBILE, 1, "1.61", 87)));
 
         // when & then
         mockMvc.perform(get(PATH))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].code").value("AUTOMOBILE"));
-        then(industryFlowReader).should().read(Country.KR);
+        then(industryFlowService).should().read(Country.KR);
     }
 
     @Test
     void 산업마다_계산_시각을_시장_오프셋으로_내려준다() throws Exception {
         // given
-        given(industryFlowReader.read(Country.KR)).willReturn(List.of(
+        given(industryFlowService.read(Country.KR)).willReturn(List.of(
                 flow(IndustryCode.AUTOMOBILE, 1, "1.61", 87)));
 
         // when & then
@@ -105,7 +105,7 @@ class IndustryFlowControllerTest {
     @Test
     void 대표_종목이_없으면_빈_배열을_응답한다() throws Exception {
         // given 계산된 적 없는 산업
-        given(industryFlowReader.read(Country.KR)).willReturn(List.of(
+        given(industryFlowService.read(Country.KR)).willReturn(List.of(
                 new RankedIndustryFlow(IndustryCode.AUTOMOBILE, 1, new BigDecimal("0.00"), 0,
                         List.of(), null)));
 
@@ -129,7 +129,7 @@ class IndustryFlowControllerTest {
     @Test
     void 조회는_외부_시세를_호출하지_않는다() throws Exception {
         // given
-        given(industryFlowReader.read(Country.KR)).willReturn(List.of(
+        given(industryFlowService.read(Country.KR)).willReturn(List.of(
                 flow(IndustryCode.AUTOMOBILE, 1, "1.61", 87)));
 
         // when

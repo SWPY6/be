@@ -24,7 +24,7 @@ import com.swyp.ploutos.industry.flow.repository.IndustryFlowRepository;
 import com.swyp.ploutos.industry.service.IndustryReader;
 
 @ExtendWith(MockitoExtension.class)
-class JpaIndustryFlowReaderTest {
+class IndustryFlowServiceTest {
 
     private static final LocalDateTime CALCULATED_AT = LocalDateTime.of(2026, 9, 28, 10, 0, 0);
     private static final int SEOUL_OFFSET_SECONDS = 9 * 3600;
@@ -36,7 +36,7 @@ class JpaIndustryFlowReaderTest {
     private IndustryFlowRepository industryFlowRepository;
 
     @InjectMocks
-    private JpaIndustryFlowReader flowReader;
+    private IndustryFlowService industryFlowService;
 
     @Test
     void 평균_등락률이_높은_순으로_순위를_매긴다() {
@@ -48,7 +48,7 @@ class JpaIndustryFlowReaderTest {
                 flow(1L, "1.61")));
 
         // when
-        List<RankedIndustryFlow> flows = flowReader.read(Country.KR);
+        List<RankedIndustryFlow> flows = industryFlowService.read(Country.KR);
 
         // then 가나다순을 버리고 등락률 순으로 다시 놓는다
         assertThat(flows).extracting(RankedIndustryFlow::displayName)
@@ -64,7 +64,7 @@ class JpaIndustryFlowReaderTest {
                 flow(1L, "1.00"), flow(2L, "1.00"), flow(3L, "1.00")));
 
         // when
-        List<RankedIndustryFlow> flows = flowReader.read(Country.KR);
+        List<RankedIndustryFlow> flows = industryFlowService.read(Country.KR);
 
         // then 건설 1위 · 자동차 2위 · 화학 3위
         assertThat(flows).extracting(RankedIndustryFlow::displayName)
@@ -81,7 +81,7 @@ class JpaIndustryFlowReaderTest {
         given(industryFlowRepository.findByCountry(Country.KR)).willReturn(List.of());
 
         // when
-        List<RankedIndustryFlow> flows = flowReader.read(Country.KR);
+        List<RankedIndustryFlow> flows = industryFlowService.read(Country.KR);
 
         // then
         assertThat(flows).hasSize(2);
@@ -101,7 +101,7 @@ class JpaIndustryFlowReaderTest {
         given(industryFlowRepository.findByCountry(Country.KR)).willReturn(List.of(flow(1L, "1.61")));
 
         // when
-        List<RankedIndustryFlow> flows = flowReader.read(Country.KR);
+        List<RankedIndustryFlow> flows = industryFlowService.read(Country.KR);
 
         // then 계산된 자동차가 1.61 로 앞서고, 계산 안 된 건설은 0.00 으로 뒤에 온다
         assertThat(flows.get(0).code()).isEqualTo(IndustryCode.AUTOMOBILE);

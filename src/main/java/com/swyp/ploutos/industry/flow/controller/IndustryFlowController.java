@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.common.response.ApiResult;
-import com.swyp.ploutos.industry.flow.service.IndustryFlowReader;
+import com.swyp.ploutos.industry.flow.service.IndustryFlowService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -21,7 +21,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 class IndustryFlowController {
 
-    private final IndustryFlowReader industryFlowReader;
+    private final IndustryFlowService industryFlowService;
 
     @Operation(
             summary = "오늘의 산업 흐름",
@@ -42,7 +42,7 @@ class IndustryFlowController {
             @Parameter(description = "국내(KR) 또는 해외(US). 화면의 시장 토글", example = "KR")
             @RequestParam(defaultValue = "KR") Country country) {
 
-        List<IndustryFlowResponse> flows = industryFlowReader.read(country).stream()
+        List<IndustryFlowResponse> flows = industryFlowService.read(country).stream()
                 .map(IndustryFlowResponse::from)
                 .toList();
         return ApiResult.of(flows);

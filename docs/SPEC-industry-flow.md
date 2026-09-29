@@ -239,7 +239,7 @@ Redis에 두면 앱이 뜰 때마다 비고, 첫 계산이 끝나는 3분 동안
 쪽으로 정했다.** "고정 3개 먼저, 나머지는 등락률 순"은 두 화면(오늘의 산업 흐름, 산업별 동향 탭)이
 같아야 하는 규칙이고, 프론트에 두면 화면마다 따로 구현돼 어긋난다.
 
-`IndustryFlowReader.read(country)`에는 사용자 인자가 없다. 고정은 사용자별이므로 로그인이
+`IndustryFlowService.read(country)`에는 사용자 인자가 없다. 고정은 사용자별이므로 로그인이
 들어올 때 인자를 늘리거나, 이 리더를 감싸 재배열하는 별도 리더를 둔다 — 후자가 로그인 없는 현재
 API를 그대로 살려 둘 수 있어 유력하지만 로그인 방식이 정해진 뒤 판단한다.
 
@@ -271,6 +271,11 @@ API를 그대로 살려 둘 수 있어 유력하지만 로그인 방식이 정�
 구분하지 않으면 매핑이 없는 산업은 `calculatedAt`이 영원히 `null`이라, **"배치가 고장났다"와
 구분되지 않는다.** 감시 지표를 무력화하므로 같은 문제의 다른 얼굴이다.
 
+**종목별 시세 실패는 로그를 남기지 않는다.** 실패 사유는 KIS 클라이언트가 이미 기록하므로 이 계층이
+또 남기면 같은 내용이 중복되고, 장애 때 대상 종목 수만큼(수백 줄) 쏟아져 정작 원인이 묻힌다.
+몇 종목이 빠졌는지는 저장되는 `stockCount`로 드러난다. 다만 **매핑이 없는 종목을 가리키는 경우**는
+외부 장애가 아니라 데이터가 깨진 상태이고 사람이 고쳐야 하므로, 그때만 `stockId`와 함께 WARN을 남긴다.
+
 ### 감시 — `calculatedAt`
 
 **산업별로 `calculatedAt`을 응답에 넣는다.** 스케줄러가 죽어도 API는 200을 반환하고 사용자는
@@ -289,9 +294,10 @@ API를 그대로 살려 둘 수 있어 유력하지만 로그인 방식이 정�
 
   대표 종목을 별도 테이블로 정규화하지 않는다. 개수가 2개로 고정이고 18행짜리 스냅샷이라
   조회를 두 번 하거나 조인할 값이 없다. 4개로 늘려야 하면 그때 테이블을 분리한다.
-- `IndustryFlowReader`(public 계약): `List<IndustryFlow> read(Country country)`.
-  `industry-trend`와 `industry-news`가 같은 값을 재사용한다.
-- `JpaIndustryFlowReader`(package-private): 9행을 읽어 정렬·순위 부여.
+- `IndustryFlowService`(public): `List<RankedIndustryFlow> read(Country country)`.
+  9행을 읽어 정렬·순위를 부여한다. `industry-trend`와 `industry-news`가 같은 값을 재사용한다.
+  인터페이스를 두지 않고 컨트롤러가 이 클래스에 직접 의존한다 — 구현이 하나뿐이고,
+  `stock-quote`가 `StockQuoteDetailReader` 인터페이스를 없앤 선례를 따른다.
 - `IndustryFlowCalculator`(`@Component`): 산업별 평균을 계산한다. 스프링 없이 단위 테스트한다.
 - `IndustryFlowRefresher`(`@Component`): `@Scheduled(fixedDelay)`로 깨어나 `cursor`가 가리키는
   산업 하나만 처리하고 국가별로 2행을 저장한다. 종목 호출 사이에 `1000 / calls-per-second`
@@ -404,8 +410,8 @@ Run: ./gradlew bootRun
 ```
 src/main/java/com/swyp/ploutos/industry/flow/                 → IndustryFlows(엔티티), IndustryFlow·MajorStock(값 객체)
 src/main/java/com/swyp/ploutos/industry/flow/repository/      → IndustryFlowRepository, IndustryStockRepository
-src/main/java/com/swyp/ploutos/industry/flow/service/         → IndustryFlowReader, JpaIndustryFlowReader,
-                                                                IndustryFlowCalculator, IndustryFlowRefresher
+src/main/java/com/swyp/ploutos/industry/flow/service/         → IndustryFlowService, IndustryFlowCalculator,
+                                                                IndustryFlowRefresher, IndustryFlowProperties
 src/main/java/com/swyp/ploutos/industry/flow/controller/      → IndustryFlowController, IndustryFlowResponse
 src/main/resources/application.properties                     → ploutos.industry-flow.calls-per-second,
                                                                 spring.task.scheduling.pool.size=2
@@ -414,7 +420,8 @@ src/test/java/com/swyp/ploutos/industry/flow/                  → 단위·슬�
 ```
 
 `industry/flow`를 하위 모듈로 두는 것은 `stock/price`·`stock/quote`의 선례를 따른다.
-`IndustryFlowReader`만 `public`이고 구현체는 package-private다.
+바깥이 써야 하는 `IndustryFlowService`만 `public`이고, 나머지(`IndustryFlowRefresher`,
+`IndustryFlowProperties`, 컨트롤러·응답 DTO)는 package-private다.
 
 ## 코드 스타일
 
@@ -443,7 +450,7 @@ return changeRates.stream()
   - `IndustryFlowCalculatorTest` — 단순평균, 반영 종목 0개, 일부 종목 실패 시 제외,
     같은 ticker 중복 제거, 소수 둘째 자리 반올림, **시가총액 상위 2개 선정**(동점 시 ticker 순,
     종목이 1개뿐인 경우). 가짜 `QuoteReader`를 쓴다
-  - `JpaIndustryFlowReaderTest` — 순위 부여(내림차순), 동점 시 가나다순, 9개 보장.
+  - `IndustryFlowServiceTest` — 순위 부여(내림차순), 동점 시 가나다순, 9개 보장.
     `@Mock` 리포지토리
   - `IndustryFlowRefresherTest` — 한 산업이 전부 실패하면 그 산업만 저장을 건너뛴다,
     **한 번 깨어날 때 산업 하나만 처리한다**, **`cursor`가 9를 넘으면 처음 산업으로 돌아간다**,
@@ -479,14 +486,14 @@ return changeRates.stream()
 | 7 | 시가총액이 같으면 ticker 순으로 정한다. | `시가총액이_같으면_ticker_순으로_고른다` |
 | 8 | 반영된 종목이 1개면 대표 종목도 1개다. | `반영된_종목이_하나면_대표_종목도_하나다` |
 | 9 | 대표 종목은 계산 시점의 종목명·등락률을 담는다. | `대표_종목은_계산_시점의_값을_담는다` |
-| 10 | 평균 등락률 내림차순으로 1위부터 순위를 매긴다. | `JpaIndustryFlowReaderTest.평균_등락률이_높은_순으로_순위를_매긴다` |
+| 10 | 평균 등락률 내림차순으로 1위부터 순위를 매긴다. | `IndustryFlowServiceTest.평균_등락률이_높은_순으로_순위를_매긴다` |
 | 11 | 동점이면 산업명 가나다순이 높은 순위다. | `등락률이_동점이면_산업명_가나다순으로_순위를_매긴다` |
 | 12 | 저장된 값이 없어도 9개 산업을 모두 응답한다. | `저장된_값이_없어도_9개_산업을_모두_응답한다` |
 | 13 | 매핑된 종목의 시세를 하나도 못 구하면 그 산업·국가만 저장을 건너뛴다. | `IndustryFlowRefresherTest.매핑된_종목의_시세를_하나도_구하지_못하면_저장하지_않는다` |
 | 14 | 한 번 깨어날 때 산업 하나만 처리한다. | `한_번_실행하면_산업_하나만_처리한다` |
 | 15 | 마지막 산업 다음에는 처음 산업으로 돌아간다. | `마지막_산업_다음에는_처음_산업으로_돌아간다` |
 | 16 | 한 종목이 예외를 던져도 나머지 종목을 계속 조회한다. | `한_종목이_실패해도_나머지를_계속_조회한다` |
-| 17 | 응답 배열은 9개이며 `rank` 오름차순이다. | `JpaIndustryFlowReaderTest.평균_등락률이_높은_순으로_순위를_매긴다` |
+| 17 | 응답 배열은 9개이며 `rank` 오름차순이다. | `IndustryFlowServiceTest.평균_등락률이_높은_순으로_순위를_매긴다` |
 | 18 | 산업마다 `calculatedAt`을 내려준다. | `산업마다_계산_시각을_내려준다` |
 | 19 | 대표 종목이 없는 산업은 `majorStocks`가 빈 배열이다. | `대표_종목이_없으면_빈_배열을_응답한다` |
 | 20 | `country`가 `KR`·`US`가 아니면 400 / `P001`. | `국가가_잘못되면_400과_P001을_반환한다` |
@@ -574,7 +581,7 @@ return changeRates.stream()
    가능하지만, 목업이 단순평균을 명시했고 가중 평균은 대형주 몇 개가 산업 전체를 대표하게 된다.
    요구사항이 바뀌면 검토한다.
 2. **`industry-trend`가 이 모듈을 재사용** — 산업별 동향 화면도 `평균 등락률 N위`를 표시한다.
-   `IndustryFlowReader`를 그대로 쓴다. 계산을 두 곳에 두면 같은 화면의 두 영역이 다른 순위를 보인다.
+   `IndustryFlowService`를 그대로 쓴다. 계산을 두 곳에 두면 같은 화면의 두 영역이 다른 순위를 보인다.
    그 화면은 산업당 종목을 4개 이상 보여주므로, 그때 대표 종목을 별도 테이블로 분리할지 결정한다.
 3. **갱신 실패 알림** — 지금은 `calculatedAt`으로 드러내기만 한다. 일정 시간 이상 갱신이 없으면
    경고하는 장치는 운영하며 필요해지면 붙인다.
