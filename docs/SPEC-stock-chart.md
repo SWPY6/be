@@ -1,138 +1,181 @@
 # 명세: 종목 차트 (stock-chart)
 
-종목 상세 화면의 가격 차트와 거래량 차트(RQ-1002 ~ RQ-1007)에 필요한 데이터를 제공하는 API의 명세다. 저장된 확정 일봉에 당일 진행 중 봉을 붙이고, 20거래일 평균 거래량 기준선을 함께 준다.
+종목 상세 화면의 가격 차트와 거래량 차트(RQ-1002 ~ RQ-1007)에 필요한 데이터를 제공하는 API의 명세다. 저장된 확정 일봉을 요청한 봉 단위로 집계하고, 당일 진행 중 봉을 붙인 뒤, 평균 거래량 기준선을 함께 준다.
 
 기능 맵: `CAPABILITY-MAP.md`. 의존 대상: `stock-daily-price`, `stock-quote`.
 
 ## 내가 세운 전제
 
 1. 종목 식별자는 `stockId`(Long) 경로 변수, 경로 접두어는 `/api/v1`, 인증 없음 (`SPEC-stock-quote.md`와 같다).
-2. 라인/캔들 전환(RQ-1003), 마우스 오버 표시(RQ-1004), 휠·버튼 확대·축소와 기간 초기화(RQ-1005), 범례(RQ-1007)는 **프론트엔드 렌더링 책임**이다. 백엔드는 기간 전체의 OHLCV를 한 번에 주고, 프론트는 같은 데이터로 라인(종가)과 캔들을 그린다. 그래서 차트 모양을 바꿔도 재요청이 없고 기간이 유지된다.
-3. 당일 진행 중 봉은 `stock-quote`의 현재가 캐시로 만든다. 추가 KIS 호출은 없다.
-4. "오늘"과 거래일은 시장 현지일 기준이다 — 국내 KST, 미국 America/New_York.
+2. 조회 구간(`from`·`to`)과 봉 단위(`interval`)는 **직교하는 별개의 축**이다. 하나로 합칠 수 없다 — "1개월 구간을 월봉으로"는 봉이 1개라서 차트가 성립하지 않는다.
+3. **확대·축소는 재요청을 일으킨다.** 줌 아웃하면 프론트가 `from`을 뒤로 밀어 다시 부르고, 줌 인하면 `interval`을 좁혀 다시 부른다. 라인/캔들 전환(RQ-1003), 마우스 오버 표시(RQ-1004), 범례(RQ-1007)는 여전히 프론트 렌더링 책임이며 재요청이 없다 — 응답에 종가와 OHLC가 모두 있기 때문이다.
+4. **상위 봉(주·월·분기·연봉)은 저장된 일봉을 우리가 집계해서 만든다.** KIS가 주봉·월봉 API를 제공하지만 쓰지 않는다. 봉 단위별 저장 스키마와 동기화 정책이 새로 필요하고 외부 호출이 봉 단위 배수로 늘기 때문이다.
+5. 당일 진행 중 봉은 `stock-quote`의 현재가 캐시로 만든다. 추가 KIS 호출은 없다.
+6. "오늘"과 거래일은 시장 현지일 기준이다 — 국내 KST, 미국 America/New_York.
 
 ## 목표
 
-기간을 고르면(1개월·3개월·6개월·1년) 그 기간의 거래일별 시가·고가·저가·종가·거래량과 20거래일 평균 거래량이 한 응답으로 온다. 장중에는 마지막 봉이 현재가를 반영하는 진행 중 봉이다.
+구간과 봉 단위를 지정하면 그 구간의 봉별 시가·고가·저가·종가·거래량과 평균 거래량 기준선이 한 응답으로 온다. 장중에는 마지막 봉이 현재가를 반영하는 진행 중 봉이다.
 
 ## 규칙
 
-### 기간
+### 구간과 봉 단위
 
-| `period` | 구간 |
-| --- | --- |
-| `1M` | 오늘 − 1개월 ~ |
-| `3M` | 오늘 − 3개월 ~ |
-| `6M` | 오늘 − 6개월 ~ |
-| `1Y` | 오늘 − 1년 ~ |
+| 파라미터 | 타입 | 생략 시 | 설명 |
+| --- | --- | --- | --- |
+| `from` | `LocalDate` (ISO `yyyy-MM-dd`) | `to` − 2개월 | 조회 시작일 |
+| `to` | `LocalDate` (ISO `yyyy-MM-dd`) | 시장 현지 오늘 | 조회 종료일 |
+| `interval` | `1D` \| `1W` \| `1M` \| `3M` \| `1Y` | `1D` | 봉 단위 — 일·주·월·분기·연 |
 
-- `period`를 생략하면 `1M`이다. 허용되지 않은 값이면 400 `P001`.
-- `from` = 시장 현지 오늘 − period(달력 기준). 확정 봉은 `stock-daily-price`의 `DailyPriceReader.findBetween(stockId, from, 어제)`로 읽는다. 거래일만 포함하고 오름차순이다.
+- 확정 봉은 `stock-daily-price`의 `DailyPriceReader.findBetween(stockId, from, to)`로 읽는다. 거래일만 포함하고 오름차순이다.
+- `to`를 어제가 아니라 오늘로 두는 이유: 어제로 자르면 아래 "당일 거래일이 이미 확정 봉으로 존재하면 붙이지 않는다"는 규칙이 발동할 수 없다. `stock-daily-price`가 당일 봉을 저장하지 않으므로 지금은 결과가 같고, 오늘로 두는 쪽이 그 규칙을 살린다.
+- **구간 길이 상한은 5년이다.** 넘으면 400 `P001`. 저장된 일봉이 없으면 KIS를 100건씩 페이징해 채우므로(`KisDailyPriceProvider`), 상한이 없으면 한 요청이 수십 회의 외부 호출로 번진다. 5년이면 최악 일봉 약 1250개 ≈ 13회다.
+- **기본 구간이 2개월인 이유**는 첫 조회의 KIS 페이징을 1회로 묶기 위해서다. KIS 호출은 1건당 5초에서 끊기므로(`KisClientConfig.READ_TIMEOUT`), 호출이 늘수록 한 번은 걸릴 확률이 커진다. 1년이면 3회, 2개월이면 여유 30일을 더해도 거래일 약 62개라 한 페이지로 끝난다. 더 긴 구간이 필요하면 프론트가 `from`을 명시한다.
+- **봉이 1~2개가 되는 조합은 막지 않는다.** 어떤 조합을 화면에 노출할지는 프론트 책임이다. 서버가 조합표를 들면 프론트가 바뀔 때마다 서버를 고쳐야 한다.
+
+### 집계
+
+`interval`이 `1D`가 아니면 확정 일봉을 버킷으로 묶어 봉 하나로 접는다.
+
+- 버킷 경계: 주 = ISO 주(월~일), 월 = 달력 월, 분기 = 달력 분기, 연 = 달력 연.
+- 버킷의 `tradeAt` = 그 버킷에 **실제로 포함된 첫 거래일**. 버킷의 달력상 시작일이 아니다(휴장일일 수 있다).
+- `open` = 첫 봉의 시가, `high` = 최댓값, `low` = 최솟값, `close` = 마지막 봉의 종가, `volume` = 합계.
+- **불완전 버킷도 그대로 포함한다.** `from`이 달 중간이면 첫 월봉은 며칠짜리다. 잘라내지 않는다 — 잘라내면 사용자가 요청한 구간과 응답 구간이 말없이 어긋난다.
+- 집계는 `DailyPrices`/`DailyPrice`만 입력으로 받는 순수 계산이다. 리포지토리나 `~Reader`를 참조하지 않는다(`ArchitectureTest`의 도메인→계층 금지 규칙).
 
 ### 당일 진행 중 봉
 
-- `QuoteReader.read(stockId)`로 얻은 `Quote`에서 `open`, `high`, `low`, `close = price`, `volume = 당일 누적 거래량`을 구성해 배열 끝에 붙인다. `closed: false`.
-- `Quote`의 시가가 0이면(장 시작 전, 휴장일) 붙이지 않는다. 그때 마지막 봉은 `closed: true`인 확정 봉이고 `asOf`는 `null`이다.
+- `QuoteReader.read(stockId)`로 얻은 `Quote`에서 `open`, `high`, `low`, `close = price`, `volume = 당일 누적 거래량`을 구성한다.
+- **당일 봉은 마지막 버킷에 합쳐진다.** `interval=1M`이고 오늘이 9월 29일이면 9월 월봉의 `high`/`low`/`volume`에 당일 값이 반영되고 `close`가 현재가가 된다. 그 버킷은 `closed: false`다.
+- 구현은 `Quote`를 당일자 `DailyPrice`로 한 번 변환해 일봉 목록 끝에 붙인 뒤 통째로 집계한다. 그래야 "마지막 버킷에 합치기"가 특수 분기가 되지 않고 집계 경로가 하나로 유지된다.
+- `Quote`의 시가가 0이면(장 시작 전, 휴장일) 붙이지 않는다. 그때 마지막 봉은 `closed: true`이고 `asOf`는 `null`이다.
+- 당일 봉의 거래일이 이미 확정 봉으로 존재하면(장 마감 후 동기화가 끝난 뒤) 붙이지 않는다.
 - 당일 봉은 저장하지 않는다. 캐시 TTL 안에서는 `/quote` 응답과 같은 값이 나온다.
-- 당일 봉의 `tradeAt`이 이미 확정 봉으로 존재하면(장 마감 후 동기화가 끝난 뒤) 붙이지 않는다.
 - **미국 종목의 당일 봉 `open`은 장중에 부정확할 수 있다.** KIS가 "장중 당일 시가는 상이할 수 있으며 익일 정정"이라고 명시한다. 확정 일봉은 정정된 값이므로 영향이 없다. 보정하지 않고 받은 값을 그대로 쓴다.
 
-### 20거래일 평균 거래량
+### 평균 거래량 기준선
 
-- `DailyPriceReader.averageVolume20d(stockId)` 값을 `averageVolume20d`로 준다. 확정 봉 기준이며 당일 봉은 제외다.
-- 비어 있으면 `null`.
-- 기준선 1개(스칼라)다. 프론트는 거래량 차트에 수평 점선으로 그린다.
+- `averageVolume`은 **응답에 담긴 확정 봉 중 마지막 최대 20개의 단순 평균**이다. 거래량 차트에 수평 점선으로 그리는 기준선 1개(스칼라)다.
+- 봉 단위를 따라간다. `interval=1D`면 최근 20거래일 평균, `1M`이면 최근 20개월 평균이다. 기준선과 막대의 스케일이 항상 일치한다.
+- 확정 봉이 20개 미만이면 **있는 만큼** 평균한다. 줌 인해도 기준선이 사라지지 않는 편이 낫다.
+- 확정 봉이 하나도 없으면 `null`.
+- 진행 중 봉은 제외한다. 미완성 거래량이 기준선을 끌어내리기 때문이다.
+- **응답 구간 안에서만 계산한다.** 구간 밖의 일봉을 따로 더 받아오지 않는다. `interval=1Y`로 20봉을 채우려면 20년치 일봉이 필요한데 구간 상한이 5년이라 애초에 불가능하고, 기준선 하나를 위해 상한을 넘기는 건 앞뒤가 맞지 않는다.
 
 ### 응답 구간
 
-- `from`·`to`는 실제 포함된 첫·마지막 봉의 거래일이다. 당일 봉이 있으면 `to`는 오늘이다.
+- `from`·`to`는 실제 포함된 첫·마지막 **봉의** `tradeAt`이다. 요청한 `from`·`to`와 다를 수 있다(요청 구간의 양끝이 휴장일이면).
 - `asOf`는 당일 봉의 기준 시각(`Quote.priceAt`)이다. 당일 봉이 없으면 `null`.
-- 봉이 하나도 없으면(신규 상장 직후 등) `candles: []`, `from`·`to`·`asOf`·`averageVolume20d`는 `null`.
+- 봉이 하나도 없으면(신규 상장 직후 등) `candles: []`, `from`·`to`·`asOf`·`averageVolume`은 `null`.
 
 ### 오류
 
 | 상황 | HTTP | 코드 |
 | --- | --- | --- |
-| `period`가 허용되지 않은 값 | 400 | `P001` |
+| `interval`이 허용되지 않은 값 | 400 | `P001` |
+| `from`·`to`가 `yyyy-MM-dd`로 파싱되지 않음 | 400 | `P001` |
+| `from`이 `to`보다 뒤 | 400 | `P001` |
+| 구간 길이가 5년 초과 | 400 | `P001` |
 | `stockId`가 정수가 아님 | 400 | `P001` |
 | 종목 없음 | 404 | `P002` |
 | 동기화·현재가 조회 중 KIS 실패 | 502 | `P007` |
 
+`ErrorCode`에 날짜 구간 전용 코드가 없으므로 전부 `INVALID_INPUT_VALUE`(`P001`)로 모은다. 날짜 파싱 실패는 `GlobalExceptionHandler`가 `MethodArgumentTypeMismatchException`을 이미 `P001`로 번역한다.
+
 ### 설계
 
-- `ChartPeriod`(enum): `ONE_MONTH("1M")` … `ONE_YEAR("1Y")`, `from(LocalDate today)`, 기본값 `ONE_MONTH`.
-- `Chart`(값 객체): 확정 봉 목록 + `Optional<Quote>` + 평균 거래량을 받아 `candles`, `from`, `to`, `asOf`를 만든다. 당일 봉 결합 규칙을 여기 둔다.
-- `StockChartService`: 종목 조회(없으면 `STOCK_NOT_FOUND`) → `DailyPriceReader` → `QuoteReader` → `Chart`.
+- `ChartInterval`(enum): `DAY("1D")` … `YEAR("1Y")`. `from(String code)`로 요청 문자열을 받고(기본값 `DAY`, 미허용 값이면 `INVALID_INPUT_VALUE`), `bucketStart(LocalDate)`로 그룹핑 키를 낸다.
+- `ChartRange`(값 객체): `of(from, to, today)`가 기본값 채우기와 검증(역전·상한)을 한다.
+- `Chart`(값 객체): 확정 봉 목록 + `Optional<Quote>` + `ChartInterval`을 받아 `candles`, `from`, `to`, `asOf`, `averageVolume`을 만든다. 당일 봉 결합과 집계 규칙을 여기 둔다.
+- `ChartCandle`: `of(List<DailyPrice> bucket, boolean closed)`가 버킷 하나를 봉 하나로 접는다.
+- `StockChartService`: `interval` 검증 → 종목 조회(없으면 `STOCK_NOT_FOUND`) → `ChartRange` → `DailyPriceReader` → `QuoteReader` → `Chart`. **`interval` 검증이 종목 조회보다 앞선다** — 잘못된 요청에 DB를 건드리지 않는다.
 - `StockChartController`: `GET /api/v1/stocks/{stockId}/chart` → `ApiResult<StockChartResponse>`.
 
 ## API 계약
 
 프론트엔드에 전달하는 계약이다. 봉투 규칙은 `SPEC-api-response.md`를 따른다. 구현 후에는 Swagger(`/swagger-ui.html`)가 살아 있는 문서다.
 
-### `GET /api/v1/stocks/{stockId}/chart?period=3M`
+### `GET /api/v1/stocks/{stockId}/chart`
 
-요청: 경로 변수 `stockId`(정수). 쿼리 `period` ∈ `1M` | `3M` | `6M` | `1Y`, 생략 시 `1M`. 라인/캔들 전환·확대·축소·기간 초기화는 이 응답 하나로 프론트가 처리한다 — 기간이 바뀔 때만 재요청한다. 장중에 당일 봉을 갱신하려면 `/quote`와 같은 주기로 폴링해도 된다(캐시를 공유하므로 KIS 호출이 늘지 않는다).
+요청: 경로 변수 `stockId`(정수). 쿼리 `from`·`to`(ISO 날짜), `interval`(`1D`|`1W`|`1M`|`3M`|`1Y`). 전부 선택이며 기본값은 위 표와 같다.
 
-**200 성공** (장중, 당일 봉 포함)
+화면 동작과의 대응:
+
+| 사용자 동작 | 프론트가 보내는 것 |
+| --- | --- |
+| 첫 진입(일봉) | `?` — 기본 구간 2개월 → 일봉 약 40개 |
+| 첫 진입(월봉) | `?from=2025-09-30&interval=1M` — 월봉은 기본 구간으로 3개뿐이라 `from`을 명시한다 |
+| 줌 아웃 | `from`을 뒤로 민다 — `?from=2021-09-29&interval=1M` |
+| 줌 인 | `interval`을 좁히고 구간을 줄인다 — `?from=2026-09-01&interval=1D` |
+| 라인↔캔들 전환 | **재요청 없음** (응답에 종가와 OHLC가 다 있다) |
+| 장중 갱신 | 같은 요청을 `/quote`와 같은 주기로 폴링 (캐시 공유라 KIS 호출이 늘지 않는다) |
+
+**200 성공** — 월봉, 장중 (`?from=2025-09-30&interval=1M`, 오늘 2026-09-29)
 
 ```json
 {
   "data": {
     "stockId": 1,
-    "period": "3M",
+    "interval": "1M",
     "currency": "KRW",
-    "from": "2026-05-12",
-    "to": "2026-08-12",
-    "asOf": "2026-08-12T14:31:05+09:00",
-    "averageVolume20d": 84210,
+    "from": "2025-09-30",
+    "to": "2026-09-01",
+    "asOf": "2026-09-29T14:31:05+09:00",
+    "averageVolume": 14820000,
     "candles": [
-      { "tradeAt": "2026-05-12", "open": 244280, "high": 251224, "low": 241056, "close": 248000, "volume": 245000, "closed": true },
-      { "tradeAt": "2026-05-13", "open": 248500, "high": 249900, "low": 246100, "close": 247300, "volume": 198000, "closed": true },
-      { "tradeAt": "2026-08-12", "open": 244280, "high": 251224, "low": 241056, "close": 248000, "volume": 245000, "closed": false }
+      { "tradeAt": "2025-09-30", "open": 238000, "high": 241500, "low": 237200, "close": 240100, "volume": 12760000, "closed": true },
+      { "tradeAt": "2025-10-02", "open": 240500, "high": 262300, "low": 239800, "close": 258900, "volume": 18430000, "closed": true },
+      { "tradeAt": "2026-09-01", "open": 122100, "high": 142000, "low": 112300, "close": 117700, "volume": 15982000, "closed": false }
     ]
   }
 }
 ```
 
-**200 성공** (장 시작 전·휴장일, 당일 봉 없음)
+마지막 봉의 `tradeAt`이 `2026-09-01`(9월 첫 거래일)이고 `closed`가 `false`다. 9월 한 달이 진행 중이며 `close`는 현재가, `volume`은 9월 1일부터 오늘까지의 누계다. `to`는 마지막 **봉**의 거래일이므로 오늘이 아니라 `2026-09-01`이다.
+
+**200 성공** — 일봉, 장 시작 전 (`?from=2026-09-21&to=2026-09-25&interval=1D`)
 
 ```json
 {
   "data": {
     "stockId": 1,
-    "period": "1M",
+    "interval": "1D",
     "currency": "KRW",
-    "from": "2026-07-13",
-    "to": "2026-08-11",
+    "from": "2026-09-21",
+    "to": "2026-09-25",
     "asOf": null,
-    "averageVolume20d": 84210,
+    "averageVolume": 703252,
     "candles": [
-      { "tradeAt": "2026-07-13", "open": 238000, "high": 241500, "low": 237200, "close": 240100, "volume": 176000, "closed": true },
-      { "tradeAt": "2026-08-11", "open": 239800, "high": 241000, "low": 238900, "close": 240217, "volume": 201000, "closed": true }
+      { "tradeAt": "2026-09-21", "open": 126700, "high": 128100, "low": 123500, "close": 125600, "volume": 387162, "closed": true },
+      { "tradeAt": "2026-09-22", "open": 130600, "high": 136100, "low": 125700, "close": 131300, "volume": 1023754, "closed": true },
+      { "tradeAt": "2026-09-23", "open": 130000, "high": 130000, "low": 120200, "close": 121100, "volume": 1201523, "closed": true },
+      { "tradeAt": "2026-09-25", "open": 121900, "high": 126800, "low": 118900, "close": 124600, "volume": 200570, "closed": true }
     ]
   }
 }
 ```
+
+확정 봉이 4개뿐이라 `averageVolume`은 20개가 아닌 4개의 평균이다.
 
 | 필드 | 타입 | null | 설명 |
 | --- | --- | --- | --- |
 | `stockId` | integer | X | 종목 ID |
-| `period` | string | X | 적용된 기간. 생략 요청이면 `"1M"` — 선택 상태 표시용 (RQ-1002) |
+| `interval` | `"1D"` \| `"1W"` \| `"1M"` \| `"3M"` \| `"1Y"` | X | 적용된 봉 단위. 생략 요청이면 `"1D"` — 선택 상태 표시용 |
 | `currency` | `"KRW"` \| `"USD"` | X | 가격 통화 |
 | `from` | string(date) | O | 첫 봉의 거래일. 봉이 없으면 `null` |
-| `to` | string(date) | O | 마지막 봉의 거래일. 당일 봉이 있으면 오늘. 봉이 없으면 `null` |
-| `asOf` | string(ISO-8601, 오프셋 포함) | O | 당일 봉의 기준 시각. 당일 봉이 없으면 `null` |
-| `averageVolume20d` | integer | O | 최근 20거래일 평균 거래량(확정 봉 기준) — 거래량 차트 기준선 1개 (RQ-1006·1007). 20일 미만이면 `null` |
-| `candles[]` | array | X | 거래일 오름차순. 거래일이 아닌 날은 없다. 빈 배열 가능 |
-| `candles[].tradeAt` | string(date) | X | 거래일 |
-| `candles[].open` | number | X | 시가 |
-| `candles[].high` | number | X | 고가 |
-| `candles[].low` | number | X | 저가 |
-| `candles[].close` | number | X | 종가. 라인 차트는 이 값만 쓴다 (RQ-1003·1004). 당일 봉은 현재가 |
-| `candles[].volume` | integer | X | 거래량(주) — 거래량 막대 (RQ-1006). 당일 봉은 누적 거래량 |
-| `candles[].closed` | boolean | X | `true` 확정 봉, `false` 당일 진행 중 봉(폴링하면 값이 바뀐다) |
+| `to` | string(date) | O | 마지막 봉의 거래일. 봉이 없으면 `null` |
+| `asOf` | string(ISO-8601, 오프셋 포함) | O | 진행 중 봉의 기준 시각. 진행 중 봉이 없으면 `null` |
+| `averageVolume` | integer | O | 확정 봉 중 마지막 최대 20개의 평균 거래량 — 거래량 차트 기준선 1개 (RQ-1006·1007). 확정 봉이 없으면 `null` |
+| `candles[]` | array | X | 거래일 오름차순. 빈 배열 가능 |
+| `candles[].tradeAt` | string(date) | X | 봉에 포함된 첫 거래일. `interval=1D`면 그 거래일 |
+| `candles[].open` | number | X | 시가 — 봉의 첫 거래일 시가 |
+| `candles[].high` | number | X | 고가 — 봉 구간의 최댓값 |
+| `candles[].low` | number | X | 저가 — 봉 구간의 최솟값 |
+| `candles[].close` | number | X | 종가 — 봉의 마지막 거래일 종가. 진행 중 봉은 현재가. 라인 차트는 이 값만 쓴다 (RQ-1003·1004) |
+| `candles[].volume` | integer | X | 거래량(주) — 봉 구간의 합계 (RQ-1006) |
+| `candles[].closed` | boolean | X | `true` 확정 봉, `false` 진행 중 봉(폴링하면 값이 바뀐다) |
 
-**400 잘못된 기간** (`?period=2W`)
+**400 잘못된 봉 단위** (`?interval=2W`)
 
 ```json
 {
@@ -143,6 +186,8 @@
   }
 }
 ```
+
+구간 상한 초과(`?from=2015-01-01`), 역전(`?from=2026-09-29&to=2026-09-01`), 날짜 형식 오류(`?from=notadate`)도 같은 응답이다.
 
 **404 없는 종목**
 
@@ -181,65 +226,76 @@ Run: ./gradlew bootRun
 ## 프로젝트 구조
 
 ```
-src/main/java/com/swyp/ploutos/stock/chart/            → ChartPeriod, Chart, ChartCandle
-src/main/java/com/swyp/ploutos/stock/chart/service/    → StockChartService
+src/main/java/com/swyp/ploutos/stock/chart/            → ChartInterval, ChartRange, Chart, ChartCandle
+src/main/java/com/swyp/ploutos/stock/chart/service/    → StockChartService, StockChartDetail
 src/main/java/com/swyp/ploutos/stock/chart/controller/ → StockChartController, StockChartResponse
 src/test/java/com/swyp/ploutos/stock/chart/**          → 대상과 같은 패키지에 테스트
 ```
 
 ## 코드 스타일
 
-- 응답 DTO는 `record`. `ChartCandle`은 확정 봉과 당일 봉이 같은 형태이므로 `closed` 필드 하나로 구분한다.
-- `ChartPeriod`는 요청 문자열 → enum 변환을 스스로 한다. 허용되지 않은 값은 `INVALID_INPUT_VALUE`.
+- 응답 DTO는 `record`. `ChartCandle`은 확정 봉과 진행 중 봉이 같은 형태이므로 `closed` 필드 하나로 구분한다.
+- `ChartInterval`은 요청 문자열 → enum 변환과 버킷 경계 계산을 스스로 한다. 허용되지 않은 값은 `INVALID_INPUT_VALUE`.
+- `ChartRange`는 기본값과 검증을 스스로 한다. 컨트롤러·서비스는 구간 규칙을 알지 않는다.
 - `else` 없이 guard clause. `@Getter`/`@Setter` 금지.
 - 오늘 날짜는 `Clock`과 시장 타임존으로 구한다.
 
 ```java
-// Chart — 당일 봉 결합
-private List<ChartCandle> withToday(List<ChartCandle> closed, Optional<Quote> quote) {
-    if (quote.isEmpty() || quote.get().notOpenedToday()) {
-        return closed;
-    }
-    ChartCandle today = ChartCandle.inProgress(quote.get());
-    if (closed.stream().anyMatch(c -> c.isSameDay(today))) {
-        return closed;
-    }
-    return Stream.concat(closed.stream(), Stream.of(today)).toList();
+// ChartInterval — 버킷 경계
+LocalDate bucketStart(LocalDate tradeAt) {
+    return switch (this) {
+        case DAY -> tradeAt;
+        case WEEK -> tradeAt.with(DayOfWeek.MONDAY);
+        case MONTH -> tradeAt.withDayOfMonth(1);
+        case QUARTER -> tradeAt.withDayOfMonth(1).withMonth(firstMonthOfQuarter(tradeAt));
+        case YEAR -> tradeAt.withDayOfYear(1);
+    };
 }
 ```
 
 ## 테스트 전략
 
 - JUnit 6, BDD, 한글 `조건_결과`.
-- 단위(60%): `ChartPeriod`(문자열 변환, 기본값, `from` 계산), `Chart`(당일 봉 결합, `from`/`to`/`asOf` 계산, 빈 봉 처리) — POJO. `StockChartService`는 가짜 `DailyPriceReader`·`QuoteReader`로.
-- 통합(30%): `@WebMvcTest(StockChartController)` + MockMvc로 JSON 본문·상태 코드·`period` 기본값·400.
-- E2E(10%): `@SpringBootTest`에서 KIS를 스텁하고 `GET /api/v1/stocks/{id}/chart?period=1M` 전체 흐름 1건.
+- 단위(60%): `ChartInterval`(문자열 변환, 기본값, 버킷 경계), `ChartRange`(기본값, 역전, 상한 경계), `Chart`(집계, 당일 봉 결합, `from`/`to`/`asOf`/`averageVolume` 계산, 빈 봉 처리) — POJO. `StockChartService`는 가짜 `DailyPriceReader`·`QuoteReader`로.
+- 통합(30%): `@WebMvcTest(StockChartController)` + MockMvc로 JSON 본문·상태 코드·기본값·400.
+- E2E(10%): `@SpringBootTest`에서 KIS를 스텁하고 일봉 1건 + 월봉 집계 1건.
 
 ## 경계
 
-- **항상:** 확정 봉은 `DailyPriceReader`로만 읽는다(직접 리포지토리 접근 금지). 당일 봉은 `QuoteReader`로만 만든다. 커밋 전 `./gradlew test`. 응답 형식이 바뀌면 이 명세와 Swagger를 먼저 고친다.
-- **먼저 묻기:** 기간 옵션 추가(예: `YTD`, `5Y`), 응답 필드 추가·이름 변경(프론트 계약), 이동평균 시계열 제공, 분봉 지원.
-- **절대 안 함:** 차트 API에서 KIS를 직접 호출, 당일 봉 저장, 확정 봉과 당일 봉을 다른 배열로 분리(프론트 계약 위반).
+- **항상:** 확정 봉은 `DailyPriceReader`로만 읽는다(직접 리포지토리 접근 금지). 진행 중 봉은 `QuoteReader`로만 만든다. 집계는 `stock.chart`의 순수 값 객체에서만 한다. 커밋 전 `./gradlew test`. 응답 형식이 바뀌면 이 명세와 Swagger를 먼저 고친다.
+- **먼저 묻기:** 봉 단위 추가(분봉 등), 구간 상한 변경, 응답 필드 추가·이름 변경(프론트 계약), 이동평균 시계열 제공.
+- **절대 안 함:** 차트 API에서 KIS를 직접 호출, KIS 주봉·월봉 API 사용(전제 4), 당일 봉 저장, 확정 봉과 진행 중 봉을 다른 배열로 분리(프론트 계약 위반).
 
 ## 성공 기준
 
 | # | 인수 기준 | 검증 테스트 |
 | --- | --- | --- |
-| 1 | `period`를 생략하면 1개월로 조회한다. | `StockChartControllerTest.기간을_생략하면_1개월로_조회한다` (RQ-1002) |
-| 2 | 기간을 지정하면 해당 기간의 거래일 봉만 오름차순으로 반환한다. | `ChartTest.기간을_지정하면_해당_기간의_거래일_봉만_오름차순으로_반환한다` (RQ-1002) |
-| 3 | 봉마다 시가·고가·저가·종가·거래량이 있다. | `봉마다_시가_고가_저가_종가_거래량을_포함한다` (RQ-1003·1004·1006) |
-| 4 | 장중이면 당일 진행 중 봉을 마지막에 붙이고 `closed`는 `false`다. | `장중이면_당일_진행중_봉을_마지막에_붙인다` |
-| 5 | 당일 시가가 0이면 당일 봉을 붙이지 않고 `asOf`는 `null`이다. | `당일_시가가_없으면_당일_봉을_붙이지_않는다` |
-| 6 | 당일 거래일이 이미 확정 봉으로 있으면 당일 봉을 붙이지 않는다. | `당일_봉이_이미_확정되어_있으면_붙이지_않는다` |
-| 7 | 20거래일 평균은 당일 봉을 제외한 확정 봉 기준이다. | `StockChartServiceTest.20거래일_평균은_당일_봉을_제외하고_계산한다` (RQ-1006·1007) |
-| 8 | `from`·`to`는 실제 포함된 첫·마지막 봉의 거래일이다. | `ChartTest.시작일과_종료일은_실제_포함된_봉의_거래일이다` |
-| 9 | 봉이 없으면 빈 배열과 `null` 요약값을 반환한다. | `봉이_없으면_빈_배열을_반환한다` |
-| 10 | 허용되지 않은 `period`면 400 / `P001`. | `StockChartControllerTest.잘못된_기간을_요청하면_400과_P001을_반환한다` |
-| 11 | 없는 종목이면 404 / `P002`. | `없는_종목이면_404와_P002를_반환한다` |
-| 12 | KIS 실패면 502 / `P007`. | `시세_조회에_실패하면_502와_P007을_반환한다` |
-| 13 | 차트 모양을 바꿔도 재요청 없이 같은 응답으로 라인·캔들을 그릴 수 있다(응답에 종가와 OHLC가 모두 있다). | 3번 테스트로 증명. 프론트 검증 항목 (RQ-1003) |
+| 1 | `from`·`to`를 생략하면 최근 2개월을 조회한다. | `ChartRangeTest.구간을_생략하면_오늘까지_최근_2개월이다`, `StockChartServiceTest.구간을_생략하면_오늘까지_최근_2개월을_조회한다` |
+| 2 | `interval`을 생략하면 일봉으로 조회한다. | `ChartIntervalTest.봉_단위를_생략하면_일봉이다` |
+| 3 | 구간을 지정하면 해당 구간의 거래일 봉만 오름차순으로 반환한다. | `ChartTest.구간을_지정하면_해당_구간의_거래일_봉만_오름차순으로_반환한다` (RQ-1002) |
+| 4 | 봉마다 시가·고가·저가·종가·거래량이 있다. | `ChartTest.봉마다_시가_고가_저가_종가_거래량을_포함한다` (RQ-1003·1004·1006) |
+| 5 | 월봉이면 같은 달의 일봉이 봉 하나로 묶인다. | `ChartTest.월봉이면_같은_달_봉을_하나로_묶는다` |
+| 6 | 묶인 봉의 OHLCV는 첫 시가·최댓값·최솟값·마지막 종가·합계다. | `ChartTest.묶인_봉의_시가는_첫_봉_고가는_최댓값_저가는_최솟값_종가는_마지막_봉이다`, `ChartTest.묶인_봉의_거래량은_합계다` |
+| 7 | 주봉은 월요일을 기준으로 묶는다. | `ChartTest.주봉은_월요일을_기준으로_묶는다` |
+| 8 | 구간 시작이 달 중간이면 첫 봉은 불완전한 채로 포함된다. | `ChartTest.구간_시작이_달_중간이면_첫_봉은_불완전한_채로_포함된다` |
+| 9 | 봉의 `tradeAt`은 그 봉에 실제 포함된 첫 거래일이다. | `ChartTest.묶인_봉의_거래일은_버킷의_첫_거래일이다` |
+| 10 | 장중이면 진행 중 봉이 마지막 버킷에 합쳐지고 `closed`는 `false`다. | `ChartTest.장중이면_마지막_버킷에_당일_봉이_합쳐지고_미확정이다` |
+| 11 | 당일 시가가 0이면 진행 중 봉을 붙이지 않고 `asOf`는 `null`이다. | `ChartTest.당일_시가가_없으면_당일_봉을_붙이지_않는다` |
+| 12 | 당일 거래일이 이미 확정 봉으로 있으면 진행 중 봉을 붙이지 않는다. | `ChartTest.당일_봉이_이미_확정되어_있으면_붙이지_않는다` |
+| 13 | `averageVolume`은 확정 봉만으로, 마지막 최대 20개를 평균한다. | `ChartTest.평균_거래량은_확정_봉만으로_계산한다`, `ChartTest.확정_봉이_스무개보다_적으면_있는_만큼_평균한다` |
+| 14 | `from`·`to`는 실제 포함된 첫·마지막 봉의 거래일이다. | `ChartTest.시작일과_종료일은_실제_포함된_봉의_거래일이다` |
+| 15 | 봉이 없으면 빈 배열과 `null` 요약값을 반환한다. | `ChartTest.봉이_없으면_빈_배열을_반환한다` |
+| 16 | 구간이 5년을 넘으면 400 / `P001`. | `ChartRangeTest.구간이_오년을_넘으면_예외다`, `StockChartControllerTest.구간이_5년을_넘으면_400과_P001을_반환한다` |
+| 17 | `from`이 `to`보다 뒤면 400 / `P001`. | `ChartRangeTest.시작일이_종료일보다_뒤면_예외다` |
+| 18 | 허용되지 않은 `interval`이면 400 / `P001`. | `StockChartControllerTest.잘못된_봉_단위면_400과_P001을_반환한다` |
+| 19 | 날짜 형식이 잘못되면 400 / `P001`. | `StockChartControllerTest.잘못된_날짜_형식이면_400과_P001을_반환한다` |
+| 20 | 없는 종목이면 404 / `P002`. | `StockChartControllerTest.없는_종목이면_404와_P002를_반환한다` |
+| 21 | KIS 실패면 502 / `P007`. | `StockChartControllerTest.시세_조회에_실패하면_502와_P007을_반환한다` |
+| 22 | 같은 날 더 넓은 구간을 요청하면 일봉을 다시 동기화한다. | `StockDailyPriceSyncPolicyTest.같은_날_더_이른_시작일을_요청하면_다시_동기화한다` |
+| 23 | 차트 모양을 바꿔도 재요청 없이 같은 응답으로 라인·캔들을 그릴 수 있다. | 4번 테스트로 증명. 프론트 검증 항목 (RQ-1003) |
 
 ## 미해결 질문
 
 - 개장 직후 KIS가 당일 `low`를 0으로 주는 등 이상값이 있는지 — 구현 중 실측 후 "붙이지 않는 조건"을 보강한다.
-- 미국 종목의 애프터마켓 시세가 현재가에 반영되는 경우 당일 봉을 정규장 기준으로 자를지 — 현재는 KIS 현재가를 그대로 쓴다.
+- 미국 종목의 애프터마켓 시세가 현재가에 반영되는 경우 진행 중 봉을 정규장 기준으로 자를지 — 현재는 KIS 현재가를 그대로 쓴다.
+- 구간 상한 5년이 실제 사용 패턴에 맞는지 — 프론트의 최대 줌 아웃 범위가 정해지면 다시 본다.
