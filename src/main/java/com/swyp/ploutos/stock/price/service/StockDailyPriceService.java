@@ -54,6 +54,14 @@ class StockDailyPriceService implements DailyPriceReader {
         return DailyPrices.of(latest).averageVolume20d();
     }
 
+    @Override
+    public DailyPrices readStoredLatest(Long stockId, int days) {
+        // 동기화하지 않는다. 종목을 훑는 호출자가 외부 호출을 종목 수만큼 늘리지 않게 하는 것이 목적이다.
+        return DailyPrices.of(repository.findByStockIdOrderByTradeAtDesc(stockId, Limit.of(days)).stream()
+                .map(StockDailyPrices::toDailyPrice)
+                .toList());
+    }
+
     private void syncIfNeeded(StockWithMarket stock, LocalDate from) {
         Long stockId = stock.stockId();
         LocalDate today = policy.today(stock.country());
