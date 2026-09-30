@@ -25,6 +25,7 @@ class StockDailyPriceSyncPolicyTest {
     private static final LocalDate LISTED_LONG_AGO = LocalDate.of(2000, 1, 1);
     // 2026-08-12 수요일
     private static final LocalDate WEDNESDAY = LocalDate.of(2026, 8, 12);
+    private static final LocalDate FROM = LocalDate.of(2026, 5, 12);
 
     private static StockWithMarket stockListedOn(LocalDate listedAt) {
         Stocks stock = new Stocks(1L, "005930", "삼성전자", null, StockStatus.ACTIVE, Exchange.KRX,
@@ -115,16 +116,61 @@ class StockDailyPriceSyncPolicyTest {
         Long stockId = 1L;
 
         // when
-        boolean first = policy.tryStartSync(stockId, WEDNESDAY);
-        boolean second = policy.tryStartSync(stockId, WEDNESDAY);
-        boolean nextDay = policy.tryStartSync(stockId, WEDNESDAY.plusDays(1));
-        boolean otherStock = policy.tryStartSync(2L, WEDNESDAY);
+        boolean first = policy.tryStartSync(stockId, FROM, WEDNESDAY);
+        boolean second = policy.tryStartSync(stockId, FROM, WEDNESDAY);
+        boolean nextDay = policy.tryStartSync(stockId, FROM, WEDNESDAY.plusDays(1));
+        boolean otherStock = policy.tryStartSync(2L, FROM, WEDNESDAY);
 
         // then
         assertThat(first).isTrue();
         assertThat(second).isFalse();
         assertThat(nextDay).isTrue();
         assertThat(otherStock).isTrue();
+    }
+
+    @Test
+    void 같은_날_더_이른_시작일을_요청하면_다시_동기화한다() {
+        // given
+        // 아침에 1개월 구간으로 이미 동기화를 시도했다.
+        Long stockId = 1L;
+        policy.tryStartSync(stockId, WEDNESDAY.minusMonths(1), WEDNESDAY);
+
+        // when
+        // 같은 날 줌 아웃으로 3년 구간을 요청한다. 저장된 봉이 덮지 못하므로 받아 와야 한다.
+        boolean retried = policy.tryStartSync(stockId, WEDNESDAY.minusYears(3), WEDNESDAY);
+
+        // then
+        assertThat(retried).isTrue();
+    }
+
+    @Test
+    void 같은_날_같거나_늦은_시작일이면_다시_동기화하지_않는다() {
+        // given
+        Long stockId = 1L;
+        policy.tryStartSync(stockId, WEDNESDAY.minusYears(3), WEDNESDAY);
+
+        // when
+        boolean sameStart = policy.tryStartSync(stockId, WEDNESDAY.minusYears(3), WEDNESDAY);
+        boolean narrower = policy.tryStartSync(stockId, WEDNESDAY.minusMonths(1), WEDNESDAY);
+
+        // then
+        assertThat(sameStart).isFalse();
+        assertThat(narrower).isFalse();
+    }
+
+    @Test
+    void 좁은_구간을_시도해도_그날_받아_둔_넓은_구간의_기록은_남는다() {
+        // given
+        // 넓게 받아 둔 뒤 좁은 요청이 여러 번 와도, 중간 구간 요청이 헛동기화를 일으키면 안 된다.
+        Long stockId = 1L;
+        policy.tryStartSync(stockId, WEDNESDAY.minusYears(3), WEDNESDAY);
+        policy.tryStartSync(stockId, WEDNESDAY.minusMonths(1), WEDNESDAY);
+
+        // when
+        boolean middle = policy.tryStartSync(stockId, WEDNESDAY.minusYears(1), WEDNESDAY);
+
+        // then
+        assertThat(middle).isFalse();
     }
 
     @Test
