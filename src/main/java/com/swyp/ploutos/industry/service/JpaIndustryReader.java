@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import com.swyp.ploutos.common.enums.IndustryCode;
 import com.swyp.ploutos.industry.Industries;
 import com.swyp.ploutos.industry.repository.IndustryRepository;
+import com.swyp.ploutos.industry.repository.StockIndustryRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -16,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 class JpaIndustryReader implements IndustryReader {
 
     private final IndustryRepository industryRepository;
+    private final StockIndustryRepository stockIndustryRepository;
 
     @Override
     public List<Industries> readAll() {
@@ -33,5 +35,10 @@ class JpaIndustryReader implements IndustryReader {
         return industryRepository.findByName(code)
                 .orElseThrow(() -> new IllegalStateException(
                         "산업 " + code + " 이 존재하지 않습니다. db/seed-industries.sql 을 실행했는지 확인하세요"));
+    }
+
+    @Override
+    public List<Long> readStockIds(Long industryId) {
+        return stockIndustryRepository.findStockIdsByIndustryId(industryId);
     }
 }

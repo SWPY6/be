@@ -16,12 +16,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.swyp.ploutos.common.enums.IndustryCode;
 import com.swyp.ploutos.industry.Industries;
 import com.swyp.ploutos.industry.repository.IndustryRepository;
+import com.swyp.ploutos.industry.repository.StockIndustryRepository;
 
 @ExtendWith(MockitoExtension.class)
 class JpaIndustryReaderTest {
 
     @Mock
     private IndustryRepository industryRepository;
+
+    @Mock
+    private StockIndustryRepository stockIndustryRepository;
 
     @InjectMocks
     private JpaIndustryReader industryReader;
@@ -67,6 +71,30 @@ class JpaIndustryReaderTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("ENERGY")
                 .hasMessageContaining("seed-industries.sql");
+    }
+
+    @Test
+    void 산업에_매핑된_종목_식별자를_읽는다() {
+        // given
+        given(stockIndustryRepository.findStockIdsByIndustryId(1L)).willReturn(List.of(10L, 20L, 30L));
+
+        // when
+        List<Long> stockIds = industryReader.readStockIds(1L);
+
+        // then
+        assertThat(stockIds).containsExactly(10L, 20L, 30L);
+    }
+
+    @Test
+    void 매핑이_없으면_빈_목록을_돌려준다() {
+        // given
+        given(stockIndustryRepository.findStockIdsByIndustryId(1L)).willReturn(List.of());
+
+        // when
+        List<Long> stockIds = industryReader.readStockIds(1L);
+
+        // then
+        assertThat(stockIds).isEmpty();
     }
 
 }
