@@ -6,6 +6,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import com.swyp.ploutos.stock.price.DailyPrice;
+import com.swyp.ploutos.stock.price.DailyPrices;
+
 /**
  * 한 산업의 거래대금. 오늘 금액을 그 산업 자신의 20거래일 평균과 견준다.
  *
@@ -42,6 +45,25 @@ public record IndustryTradingValue(BigDecimal todayAverage, BigDecimal average20
         return Optional.of(new IndustryTradingValue(
                 average(comparable.stream().map(StockTradingValue::today), count),
                 average(comparable.stream().map(StockTradingValue::average20d), count)));
+    }
+
+    /**
+     * 저장된 일봉으로 한 종목의 평균 거래대금을 근사한다. {@code stock_daily_prices}에 거래대금
+     * 컬럼이 없어 {@code 종가 × 거래량}으로 갈음한다 — 변화율은 분자·분모에 같은 성질의 오차가
+     * 들어가 상당 부분 상쇄되므로 순위를 매기는 데는 충분하다.
+     *
+     * <p>일봉이 {@code days}개에 못 미치면 견줄 기준이 없으므로 {@code null}이다.
+     * 신규 상장 종목이 여기 해당한다.
+     */
+    public static BigDecimal approximateAverage(DailyPrices stored, int days) {
+        List<DailyPrice> prices = stored.values();
+        if (prices.size() < days) {
+            return null;
+        }
+        BigDecimal sum = prices.stream()
+                .map(price -> price.close().multiply(BigDecimal.valueOf(price.volume())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return sum.divide(BigDecimal.valueOf(days), DIVISION_SCALE, RoundingMode.HALF_UP);
     }
 
     /**

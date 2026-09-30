@@ -10,17 +10,21 @@ import java.util.List;
  * @param risingCount  반영된 종목 중 오른 종목 수
  * @param fallingCount 반영된 종목 중 내린 종목 수. 보합은 어느 쪽에도 세지 않으므로
  *                     {@code stockCount - risingCount}로 역산할 수 없다
+ * @param tradingValueChangeRate 20거래일 평균 대비 거래대금 변화율 %. 견줄 수 있는 종목이
+ *                               하나도 없으면 {@code null}이다 — 0.00으로 내리면
+ *                               "계산 실패"가 "변화 없음"으로 위장한다
  */
 public record IndustryFlowSnapshot(
         BigDecimal avgChangeRate,
         int stockCount,
         int risingCount,
         int fallingCount,
+        BigDecimal tradingValueChangeRate,
         List<MajorStock> majorStocks
 ) {
 
     public static IndustryFlowSnapshot empty() {
-        return new IndustryFlowSnapshot(BigDecimal.ZERO.setScale(2), 0, 0, 0, List.of());
+        return new IndustryFlowSnapshot(BigDecimal.ZERO.setScale(2), 0, 0, 0, null, List.of());
     }
 
     /** 시세를 한 종목도 구하지 못했다. 이 경우 직전 값을 남겨야 하므로 저장하지 않는다. */

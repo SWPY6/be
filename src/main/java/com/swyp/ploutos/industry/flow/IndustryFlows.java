@@ -62,6 +62,14 @@ public class IndustryFlows {
     @Column(nullable = false)
     private int fallingCount;
 
+    /**
+     * 20거래일 평균 대비 거래대금 변화율 %. 견줄 수 있는 종목이 없으면 null 이다 —
+     * 0.00 으로 채우면 "계산 실패"가 "변화 없음"으로 위장한다.
+     * ±99999.99% 까지 담는다. 거래대금이 평소의 1000배가 되는 이상치도 들어간다.
+     */
+    @Column(precision = 7, scale = 2)
+    private BigDecimal tradingValueChangeRate;
+
     @Column(nullable = false)
     private LocalDateTime calculatedAt;
 
@@ -118,6 +126,7 @@ public class IndustryFlows {
         this.stockCount = snapshot.stockCount();
         this.risingCount = snapshot.risingCount();
         this.fallingCount = snapshot.fallingCount();
+        this.tradingValueChangeRate = snapshot.tradingValueChangeRate();
         this.calculatedAt = calculatedAt;
         clearMajorStocks();
         List<MajorStock> majorStocks = snapshot.majorStocks();

@@ -121,7 +121,7 @@ class IndustryFlowServiceTest {
 
     private static IndustryFlows flow(Long industryId, String avgChangeRate) {
         return new IndustryFlows(industryId, Country.KR,
-                new IndustryFlowSnapshot(new BigDecimal(avgChangeRate), 4, 3, 1,
+                new IndustryFlowSnapshot(new BigDecimal(avgChangeRate), 4, 3, 1, new BigDecimal("12.34"),
                         List.of(new MajorStock("005380", "현대차", new BigDecimal("3.24")))),
                 CALCULATED_AT);
     }
