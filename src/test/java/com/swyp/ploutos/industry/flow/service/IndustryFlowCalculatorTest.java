@@ -77,6 +77,56 @@ class IndustryFlowCalculatorTest {
     }
 
     @Test
+    void 오른_종목과_내린_종목을_각각_센다() {
+        // given 상승 2 · 하락 1
+        List<QuotedStock> stocks = List.of(
+                quoted("A", "가", "3.00", 300),
+                quoted("B", "나", "1.00", 200),
+                quoted("C", "다", "-1.00", 100));
+
+        // when
+        IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
+
+        // then
+        assertThat(snapshot.risingCount()).isEqualTo(2);
+        assertThat(snapshot.fallingCount()).isEqualTo(1);
+    }
+
+    @Test
+    void 보합인_종목은_상승에도_하락에도_세지_않는다() {
+        // given 상승 2 · 보합 1 · 하락 1
+        List<QuotedStock> stocks = List.of(
+                quoted("A", "가", "3.00", 400),
+                quoted("B", "나", "1.00", 300),
+                quoted("C", "다", "0.00", 200),
+                quoted("D", "라", "-1.00", 100));
+
+        // when
+        IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
+
+        // then 합이 종목 수보다 작다. stockCount − risingCount 로 하락 수를 역산할 수 없다
+        assertThat(snapshot.stockCount()).isEqualTo(4);
+        assertThat(snapshot.risingCount()).isEqualTo(2);
+        assertThat(snapshot.fallingCount()).isEqualTo(1);
+    }
+
+    @Test
+    void 중복_제거된_뒤의_종목만_센다() {
+        // given TSLA 가 두 시장에 있어 목록에 두 번 들어왔다
+        List<QuotedStock> stocks = List.of(
+                quoted("TSLA", "Tesla", "10.00", 300),
+                quoted("TSLA", "Tesla", "10.00", 300),
+                quoted("F", "Ford", "-1.00", 100));
+
+        // when
+        IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
+
+        // then 두 번 세면 상승이 2가 된다
+        assertThat(snapshot.risingCount()).isEqualTo(1);
+        assertThat(snapshot.fallingCount()).isEqualTo(1);
+    }
+
+    @Test
     void 같은_종목이_여러_시장에_있으면_한_번만_반영한다() {
         // given TSLA 가 NASDAQ·S&P500 에 각각 있어 목록에 두 번 들어왔다
         List<QuotedStock> stocks = List.of(
@@ -103,6 +153,8 @@ class IndustryFlowCalculatorTest {
         // then
         assertThat(snapshot.avgChangeRate()).isEqualByComparingTo("0.00");
         assertThat(snapshot.stockCount()).isZero();
+        assertThat(snapshot.risingCount()).isZero();
+        assertThat(snapshot.fallingCount()).isZero();
         assertThat(snapshot.majorStocks()).isEmpty();
         assertThat(snapshot.hasNoStock()).isTrue();
     }

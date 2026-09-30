@@ -106,7 +106,7 @@ class IndustryFlowControllerTest {
     void 대표_종목이_없으면_빈_배열을_응답한다() throws Exception {
         // given 계산된 적 없는 산업
         given(industryFlowService.read(Country.KR)).willReturn(List.of(
-                new RankedIndustryFlow(IndustryCode.AUTOMOBILE, 1, new BigDecimal("0.00"), 0,
+                new RankedIndustryFlow(IndustryCode.AUTOMOBILE, 1, new BigDecimal("0.00"), 0, 0, 0,
                         List.of(), null)));
 
         // when & then
@@ -140,7 +140,7 @@ class IndustryFlowControllerTest {
     }
 
     private static RankedIndustryFlow flow(IndustryCode code, int rank, String avgChangeRate, int stockCount) {
-        return new RankedIndustryFlow(code, rank, new BigDecimal(avgChangeRate), stockCount,
+        return new RankedIndustryFlow(code, rank, new BigDecimal(avgChangeRate), stockCount, 0, 0,
                 List.of(new MajorStock("005380", "현대차", new BigDecimal("3.24"))),
                 CALCULATED_AT);
     }

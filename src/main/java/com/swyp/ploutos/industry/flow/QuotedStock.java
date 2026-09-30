@@ -35,6 +35,16 @@ public record QuotedStock(
         return quote.marketCap();
     }
 
+    /** 직전 거래일 종가보다 올랐는지. 보합(0.00)은 오른 것도 내린 것도 아니다. */
+    public boolean rose() {
+        return changeRate().signum() > 0;
+    }
+
+    /** 직전 거래일 종가보다 내렸는지. */
+    public boolean fell() {
+        return changeRate().signum() < 0;
+    }
+
     public MajorStock toMajorStock() {
         return new MajorStock(ticker(), name(), changeRate());
     }

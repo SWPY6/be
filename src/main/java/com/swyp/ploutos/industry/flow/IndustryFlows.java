@@ -54,6 +54,14 @@ public class IndustryFlows {
     @Column(nullable = false)
     private int stockCount;
 
+    /** 그중 오른 종목 수. 카드의 "표시된 종목 4개 중 3개가 상승했어요"에 쓴다. */
+    @Column(nullable = false)
+    private int risingCount;
+
+    /** 그중 내린 종목 수. 보합은 어느 쪽에도 세지 않으므로 stockCount 에서 역산할 수 없다. */
+    @Column(nullable = false)
+    private int fallingCount;
+
     @Column(nullable = false)
     private LocalDateTime calculatedAt;
 
@@ -108,6 +116,8 @@ public class IndustryFlows {
     private void apply(IndustryFlowSnapshot snapshot, LocalDateTime calculatedAt) {
         this.avgChangeRate = snapshot.avgChangeRate();
         this.stockCount = snapshot.stockCount();
+        this.risingCount = snapshot.risingCount();
+        this.fallingCount = snapshot.fallingCount();
         this.calculatedAt = calculatedAt;
         clearMajorStocks();
         List<MajorStock> majorStocks = snapshot.majorStocks();

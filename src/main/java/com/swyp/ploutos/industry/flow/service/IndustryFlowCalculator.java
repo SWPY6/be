@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import org.springframework.stereotype.Component;
 
@@ -29,7 +30,14 @@ public class IndustryFlowCalculator {
         if (distinct.isEmpty()) {
             return IndustryFlowSnapshot.empty();
         }
-        return new IndustryFlowSnapshot(average(distinct), distinct.size(), majorStocks(distinct));
+        return new IndustryFlowSnapshot(average(distinct), distinct.size(),
+                count(distinct, QuotedStock::rose), count(distinct, QuotedStock::fell),
+                majorStocks(distinct));
+    }
+
+    /** 보합인 종목은 어느 쪽에도 세지 않는다. 그래서 두 수의 합이 종목 수보다 작을 수 있다. */
+    private static int count(List<QuotedStock> stocks, Predicate<QuotedStock> moved) {
+        return (int) stocks.stream().filter(moved).count();
     }
 
     /**
