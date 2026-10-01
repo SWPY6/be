@@ -75,6 +75,10 @@ public class IndustryFlows {
 
     // 시가총액 상위 2개의 계산 시점 스냅샷. 반영된 종목이 0·1개면 비어 있다.
     // 조회 시점에 종목명·등락률을 다시 구하면 KIS를 호출하게 되므로 여기 박아둔다.
+    // stockId 도 함께 저장한다 — 관련 뉴스를 이 식별자로 찾는다.
+    @Column
+    private Long firstStockId;
+
     @Column(length = 20)
     private String firstTicker;
 
@@ -83,6 +87,9 @@ public class IndustryFlows {
 
     @Column(precision = 10, scale = 2)
     private BigDecimal firstChangeRate;
+
+    @Column
+    private Long secondStockId;
 
     @Column(length = 20)
     private String secondTicker;
@@ -114,11 +121,11 @@ public class IndustryFlows {
             return List.of();
         }
         if (secondTicker == null) {
-            return List.of(new MajorStock(firstTicker, firstName, firstChangeRate));
+            return List.of(new MajorStock(firstStockId, firstTicker, firstName, firstChangeRate));
         }
         return List.of(
-                new MajorStock(firstTicker, firstName, firstChangeRate),
-                new MajorStock(secondTicker, secondName, secondChangeRate));
+                new MajorStock(firstStockId, firstTicker, firstName, firstChangeRate),
+                new MajorStock(secondStockId, secondTicker, secondName, secondChangeRate));
     }
 
     private void apply(IndustryFlowSnapshot snapshot, LocalDateTime calculatedAt) {
@@ -137,6 +144,7 @@ public class IndustryFlows {
             return;
         }
         MajorStock first = majorStocks.get(0);
+        this.firstStockId = first.stockId();
         this.firstTicker = first.ticker();
         this.firstName = first.name();
         this.firstChangeRate = first.changeRate();
@@ -144,15 +152,18 @@ public class IndustryFlows {
             return;
         }
         MajorStock second = majorStocks.get(1);
+        this.secondStockId = second.stockId();
         this.secondTicker = second.ticker();
         this.secondName = second.name();
         this.secondChangeRate = second.changeRate();
     }
 
     private void clearMajorStocks() {
+        this.firstStockId = null;
         this.firstTicker = null;
         this.firstName = null;
         this.firstChangeRate = null;
+        this.secondStockId = null;
         this.secondTicker = null;
         this.secondName = null;
         this.secondChangeRate = null;

@@ -260,6 +260,91 @@ class IndustryNewsServiceTest {
         then(industryReader).should(never()).read(IndustryCode.CONSTRUCTION);
     }
 
+    @Test
+    void 대표_종목의_뉴스를_먼저_찾는다() {
+        // given 대표 종목(10L)에 뉴스가 있다
+        given(industryFlowService.read(Country.KR)).willReturn(flows());
+        stubIndustry(IndustryCode.AUTOMOBILE, 1L, List.of(10L, 11L, 12L));
+        stubIndustry(IndustryCode.CHEMICAL, 9L, List.of(90L));
+        stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
+        stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
+        given(newsReader.readByStockIds(eq(List.of(10L)), any(), any()))
+                .willReturn(List.of(news(1L, "현대차 수출 증가")));
+
+        // when
+        List<IndustryNewsDetail> details = industryNewsService.read(Country.KR);
+
+        // then 산업 전체로 넓히지 않는다
+        assertThat(details.getFirst().news()).extracting(RelatedNews::title)
+                .containsExactly("현대차 수출 증가");
+        then(newsReader).should(never()).readByStockIds(eq(List.of(10L, 11L, 12L)), any(), any());
+    }
+
+    @Test
+    void 대표_종목에_뉴스가_없으면_산업_전체로_넓힌다() {
+        // given 대표 종목에는 없고 소속 종목 전체에는 있다
+        given(industryFlowService.read(Country.KR)).willReturn(flows());
+        stubIndustry(IndustryCode.AUTOMOBILE, 1L, List.of(10L, 11L, 12L));
+        stubIndustry(IndustryCode.CHEMICAL, 9L, List.of(90L));
+        stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
+        stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
+        given(newsReader.readByStockIds(eq(List.of(10L)), any(), any())).willReturn(List.of());
+        given(newsReader.readByStockIds(eq(List.of(10L, 11L, 12L)), any(), any()))
+                .willReturn(List.of(news(2L, "한온시스템 수주")));
+
+        // when
+        List<IndustryNewsDetail> details = industryNewsService.read(Country.KR);
+
+        // then 대표 종목에 없다는 이유로 영역을 비우지 않는다
+        assertThat(details.getFirst().news()).extracting(RelatedNews::title)
+                .containsExactly("한온시스템 수주");
+    }
+
+    @Test
+    void 어느_종목에도_뉴스가_없으면_빈_목록이다() {
+        // given 두 단계 모두 비어 있다
+        given(industryFlowService.read(Country.KR)).willReturn(flows());
+        stubIndustry(IndustryCode.AUTOMOBILE, 1L, List.of(10L, 11L));
+        stubIndustry(IndustryCode.CHEMICAL, 9L, List.of(90L));
+        stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
+        stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
+        given(newsReader.readByStockIds(anyList(), any(), any())).willReturn(List.of());
+
+        // when
+        List<IndustryNewsDetail> details = industryNewsService.read(Country.KR);
+
+        // then 카드는 그대로 2장이다
+        assertThat(details).hasSize(2);
+        assertThat(details).allSatisfy(detail -> assertThat(detail.news()).isEmpty());
+    }
+
+    @Test
+    void 대표_종목이_없는_산업은_곧바로_전체에서_찾는다() {
+        // given 시세를 한 종목도 구하지 못해 대표 종목이 비어 있다
+        given(industryFlowService.read(Country.KR)).willReturn(List.of(
+                flowWithoutMajorStocks(IndustryCode.AUTOMOBILE, 1, "1.61"),
+                flow(IndustryCode.CHEMICAL, 9, "-0.35", "96.03")));
+        stubIndustry(IndustryCode.AUTOMOBILE, 1L, List.of(10L, 11L));
+        stubIndustry(IndustryCode.CHEMICAL, 9L, List.of(90L));
+        stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
+        stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
+        given(newsReader.readByStockIds(eq(List.of(10L, 11L)), any(), any()))
+                .willReturn(List.of(news(3L, "자동차 수출 증가 발표")));
+
+        // when
+        List<IndustryNewsDetail> details = industryNewsService.read(Country.KR);
+
+        // then 빈 목록으로 조회하면 SQL 이 깨진다. 1단계를 건너뛴다
+        assertThat(details.getFirst().news()).extracting(RelatedNews::title)
+                .containsExactly("자동차 수출 증가 발표");
+    }
+
+    private static RankedIndustryFlow flowWithoutMajorStocks(IndustryCode code, int rank,
+            String avgChangeRate) {
+        return new RankedIndustryFlow(code, rank, new BigDecimal(avgChangeRate), 0, 0, 0,
+                new BigDecimal("10.00"), List.of(), CALCULATED_AT);
+    }
+
     /** 자동차 상승 1위 · 건설 중간 · 화학 하락 최하위. 거래대금은 모두 평소 이상이다. */
     private static List<RankedIndustryFlow> flows() {
         return List.of(
@@ -272,7 +357,7 @@ class IndustryNewsServiceTest {
             String tradingValueChangeRate) {
         return new RankedIndustryFlow(code, rank, new BigDecimal(avgChangeRate), 4, 3, 1,
                 new BigDecimal(tradingValueChangeRate),
-                List.of(new MajorStock("005380", "현대차", new BigDecimal("3.24"))),
+                List.of(new MajorStock(10L, "005380", "현대차", new BigDecimal("3.24"))),
                 CALCULATED_AT);
     }
 

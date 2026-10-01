@@ -141,7 +141,7 @@ class IndustryFlowControllerTest {
 
     private static RankedIndustryFlow flow(IndustryCode code, int rank, String avgChangeRate, int stockCount) {
         return new RankedIndustryFlow(code, rank, new BigDecimal(avgChangeRate), stockCount, 0, 0,
-                null, List.of(new MajorStock("005380", "현대차", new BigDecimal("3.24"))),
+                null, List.of(new MajorStock(10L, "005380", "현대차", new BigDecimal("3.24"))),
                 CALCULATED_AT);
     }
 

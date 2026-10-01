@@ -145,7 +145,7 @@ class IndustryFlowRefresher {
      */
     private Optional<QuotedStock> quote(QuoteTarget target) {
         try {
-            return Optional.of(new QuotedStock(target.stock(),
+            return Optional.of(new QuotedStock(target.stockId(), target.stock(),
                     quoteReader.readWithoutTracking(target.stockId()),
                     averageTradingValue(target.stockId())));
         } catch (RuntimeException ignored) {

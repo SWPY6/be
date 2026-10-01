@@ -11,10 +11,13 @@ import com.swyp.ploutos.stock.quote.Quote;
  * 시세를 붙인 종목. 평균을 내는 데 필요한 값만 한 단계로 노출해, 계산기가 종목과 시세 중
  * 어디에 있는 값인지 알 필요가 없게 한다.
  *
+ * @param stockId 식별자를 {@code stock}에서 꺼내지 않는 이유는 DB가 정하기 때문이다 —
+ *                그러면 DB를 거치지 않은 객체로는 이 코드를 검증할 수 없다
  * @param averageTradingValue20d 저장된 일봉으로 근사한 20거래일 평균 거래대금.
  *                               일봉이 20개에 못 미치면 {@code null}이다
  */
 public record QuotedStock(
+        Long stockId,
         StockWithMarket stock,
         Quote quote,
         BigDecimal averageTradingValue20d
@@ -51,7 +54,7 @@ public record QuotedStock(
     }
 
     public MajorStock toMajorStock() {
-        return new MajorStock(ticker(), name(), changeRate());
+        return new MajorStock(stockId, ticker(), name(), changeRate());
     }
 
     /** 오늘 누적 거래대금과 20거래일 평균을 짝지어 낸다. 평균이 없으면 견줄 수 없는 종목이 된다. */

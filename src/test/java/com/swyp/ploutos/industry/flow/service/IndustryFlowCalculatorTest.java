@@ -261,8 +261,8 @@ class IndustryFlowCalculatorTest {
 
         // then
         assertThat(snapshot.majorStocks()).containsExactly(
-                new MajorStock("005380", "현대차", new BigDecimal("3.24")),
-                new MajorStock("000270", "기아", new BigDecimal("1.85")));
+                new MajorStock(stockIdOf("005380"), "005380", "현대차", new BigDecimal("3.24")),
+                new MajorStock(stockIdOf("000270"), "000270", "기아", new BigDecimal("1.85")));
     }
 
     /** 전일 종가를 100 으로 고정해, 넘긴 등락률이 그대로 나오게 한다. 거래대금은 보지 않는 테스트용. */
@@ -274,7 +274,7 @@ class IndustryFlowCalculatorTest {
     private static QuotedStock quoted(String ticker, String name, String changeRate, long marketCap,
             long tradingValue, long average20d) {
         QuotedStock base = build(ticker, name, changeRate, marketCap, tradingValue);
-        return new QuotedStock(base.stock(), base.quote(),
+        return new QuotedStock(base.stockId(), base.stock(), base.quote(),
                 average20d == 0 ? null : BigDecimal.valueOf(average20d));
     }
 
@@ -295,7 +295,16 @@ class IndustryFlowCalculatorTest {
                 Currency.KRW,
                 OffsetDateTime.of(2026, 9, 28, 10, 0, 0, 0, ZoneOffset.ofHours(9)),
                 PriceTiming.REALTIME);
-        return new QuotedStock(new StockWithMarket(stock, market), quote, BigDecimal.ONE);
+        return new QuotedStock(stockIdOf(ticker), new StockWithMarket(stock, market), quote,
+                BigDecimal.ONE);
+    }
+
+    /**
+     * ticker 로 식별자를 만든다. {@code Stocks.stockId}는 DB가 정하므로 직접 만든 엔티티에는
+     * 없다 — 그래서 {@code QuotedStock}이 식별자를 따로 받는다.
+     */
+    private static Long stockIdOf(String ticker) {
+        return (long) Math.abs(ticker.hashCode() % 100_000);
     }
 
 }
