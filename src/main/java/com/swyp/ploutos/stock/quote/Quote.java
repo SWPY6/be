@@ -2,11 +2,13 @@ package com.swyp.ploutos.stock.quote;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.swyp.ploutos.common.enums.Currency;
+import com.swyp.ploutos.stock.price.DailyPrice;
 
 /**
  * 한 시점의 종목 시세 스냅샷. 금액은 모두 {@code currency}의 기본 단위(원·달러)이며,
@@ -59,6 +61,14 @@ public record Quote(
         }
         return BigDecimal.valueOf(volume)
                 .divide(BigDecimal.valueOf(average), SCALE, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * 진행 중인 봉으로 쓸 당일자 일봉. 종가 자리에 현재가가 들어간다.
+     * 필드를 하나씩 꺼내 바깥에서 조립하지 않도록 변환을 여기 둔다.
+     */
+    public DailyPrice asDailyPrice(LocalDate tradeAt) {
+        return new DailyPrice(tradeAt, open, high, low, price, volume);
     }
 
     /** 당일 시가가 없으면 아직 개장하지 않은 것으로 본다. */

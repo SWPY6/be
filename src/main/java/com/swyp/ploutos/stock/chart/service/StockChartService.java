@@ -10,6 +10,7 @@ import com.swyp.ploutos.stock.StockWithMarket;
 import com.swyp.ploutos.stock.chart.Chart;
 import com.swyp.ploutos.stock.chart.ChartInterval;
 import com.swyp.ploutos.stock.chart.ChartRange;
+import com.swyp.ploutos.stock.chart.LiveCandle;
 import com.swyp.ploutos.stock.price.DailyPrices;
 import com.swyp.ploutos.stock.price.service.DailyPriceReader;
 import com.swyp.ploutos.stock.quote.Quote;
@@ -42,7 +43,15 @@ public class StockChartService {
                 stockId,
                 interval,
                 stock.currency(),
-                Chart.of(closed, Optional.of(quote), interval, today)
+                Chart.of(closed, liveCandle(quote, today), interval)
         );
+    }
+
+    /** 당일 시가가 없으면 아직 개장하지 않은 것으로 본다. 그때는 진행 중인 봉이 없다. */
+    private static Optional<LiveCandle> liveCandle(Quote quote, LocalDate today) {
+        if (quote.notOpenedToday()) {
+            return Optional.empty();
+        }
+        return Optional.of(new LiveCandle(quote.asDailyPrice(today), quote.priceAt()));
     }
 }

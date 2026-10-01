@@ -152,6 +152,21 @@ class StockChartServiceTest {
     }
 
     @Test
+    void 당일_시가가_없으면_당일_봉을_붙이지_않는다() {
+        // given 개장 전에는 KIS가 시가를 0으로 준다. 진행 중인 봉이 있는지는 이 서비스가 판단한다
+        dailyPriceReader.prices = DailyPrices.of(List.of(price(TODAY.minusDays(1))));
+        quoteReader.quote = notOpenedYet();
+
+        // when
+        StockChartDetail detail = service.read(STOCK_ID, null, null, null);
+
+        // then 확정 봉만 남고 기준 시각도 비어 있다
+        assertThat(detail.chart().candles()).hasSize(1);
+        assertThat(detail.chart().candles().getLast().closed()).isTrue();
+        assertThat(detail.chart().asOf()).isEmpty();
+    }
+
+    @Test
     void 없는_종목이면_시세를_조회하지_않는다() {
         // given & when & then
         assertThatThrownBy(() -> service.read(MISSING_STOCK_ID, null, null, null))
@@ -190,6 +205,23 @@ class StockChartServiceTest {
                 BigDecimal.valueOf(47500),
                 BigDecimal.valueOf(49000),
                 100_000L
+        );
+    }
+
+    /** 개장 전 시세. KIS는 시가·고가·저가와 거래량을 0으로 준다. */
+    private static Quote notOpenedYet() {
+        return new Quote(
+                BigDecimal.valueOf(50_000),
+                BigDecimal.valueOf(49000),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                0L,
+                BigDecimal.ZERO,
+                BigDecimal.valueOf(300_000_000_000L),
+                Currency.KRW,
+                OffsetDateTime.parse("2026-08-12T14:31:05+09:00"),
+                PriceTiming.REALTIME
         );
     }
 

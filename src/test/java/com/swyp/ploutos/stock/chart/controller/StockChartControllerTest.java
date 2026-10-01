@@ -26,12 +26,11 @@ import com.swyp.ploutos.common.exception.BusinessException;
 import com.swyp.ploutos.common.exception.ErrorCode;
 import com.swyp.ploutos.stock.chart.Chart;
 import com.swyp.ploutos.stock.chart.ChartInterval;
+import com.swyp.ploutos.stock.chart.LiveCandle;
 import com.swyp.ploutos.stock.chart.service.StockChartDetail;
 import com.swyp.ploutos.stock.chart.service.StockChartService;
 import com.swyp.ploutos.stock.price.DailyPrice;
 import com.swyp.ploutos.stock.price.DailyPrices;
-import com.swyp.ploutos.stock.quote.PriceTiming;
-import com.swyp.ploutos.stock.quote.Quote;
 
 @WebMvcTest(StockChartController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -82,7 +81,7 @@ class StockChartControllerTest {
     void 장중이면_마지막_봉이_진행중_봉이다() throws Exception {
         // given
         given(stockChartService.read(STOCK_ID, null, null, "1D"))
-                .willReturn(detail(ChartInterval.DAY, Optional.of(quote())));
+                .willReturn(detail(ChartInterval.DAY, Optional.of(live())));
 
         // when & then
         mockMvc.perform(get("/api/v1/stocks/{stockId}/chart", STOCK_ID).param("interval", "1D"))
@@ -128,7 +127,7 @@ class StockChartControllerTest {
     void 봉이_없으면_빈_배열과_null_요약값을_반환한다() throws Exception {
         // given
         StockChartDetail empty = new StockChartDetail(STOCK_ID, ChartInterval.DAY, Currency.KRW,
-                Chart.of(DailyPrices.of(List.of()), Optional.empty(), ChartInterval.DAY, TODAY));
+                Chart.of(DailyPrices.of(List.of()), Optional.empty(), ChartInterval.DAY));
         given(stockChartService.read(STOCK_ID, null, null, null)).willReturn(empty);
 
         // when & then
@@ -211,10 +210,10 @@ class StockChartControllerTest {
                 .andExpect(jsonPath("$.error.code").value("P001"));
     }
 
-    private static StockChartDetail detail(ChartInterval interval, Optional<Quote> quote) {
+    private static StockChartDetail detail(ChartInterval interval, Optional<LiveCandle> live) {
         DailyPrices closed = DailyPrices.of(List.of(price(TODAY.minusDays(2)), price(TODAY.minusDays(1))));
         return new StockChartDetail(STOCK_ID, interval, Currency.KRW,
-                Chart.of(closed, quote, ChartInterval.DAY, TODAY));
+                Chart.of(closed, live, ChartInterval.DAY));
     }
 
     private static DailyPrice price(LocalDate tradeAt) {
@@ -228,19 +227,15 @@ class StockChartControllerTest {
         );
     }
 
-    private static Quote quote() {
-        return new Quote(
-                new BigDecimal("50000"),
-                new BigDecimal("49000"),
+    private static LiveCandle live() {
+        DailyPrice today = new DailyPrice(
+                TODAY,
                 new BigDecimal("48000"),
                 new BigDecimal("50500"),
                 new BigDecimal("47800"),
-                1_200L,
-                new BigDecimal("60000000"),
-                new BigDecimal("300000000000"),
-                Currency.KRW,
-                OffsetDateTime.parse("2026-08-12T14:31:05+09:00"),
-                PriceTiming.REALTIME
+                new BigDecimal("50000"),
+                1_200L
         );
+        return new LiveCandle(today, OffsetDateTime.parse("2026-08-12T14:31:05+09:00"));
     }
 }
