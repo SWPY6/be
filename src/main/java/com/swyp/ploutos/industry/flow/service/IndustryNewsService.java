@@ -65,8 +65,10 @@ public class IndustryNewsService {
      */
     private List<RelatedNews> newsOf(RankedIndustryFlow flow, Country country) {
         try {
+            // 국가로 걸러 읽는다. 산업 하나에 국내·해외가 함께 매핑되므로 전부를 받으면
+            // 다른 시장의 거래일과 뉴스가 섞인다.
             List<Long> stockIds = industryReader.readStockIds(
-                    industryReader.read(flow.code()).industryId());
+                    industryReader.read(flow.code()).industryId(), country);
             return window(stockIds, flow, country)
                     .map(from -> search(flow, stockIds, from, flow.calculatedAt().toLocalDateTime()))
                     .orElseGet(List::of);
@@ -112,7 +114,8 @@ public class IndustryNewsService {
      * 당일 봉은 저장하지 않으므로 그것이 곧 직전 거래일이고, 주말·공휴일·조기 폐장을
      * 공휴일 목록 없이 자동으로 비껴간다.
      *
-     * <p>소속 종목 중 일봉이 있는 첫 종목에서 읽는다. 같은 시장이라 거래일 달력이 같다.
+     * <p>소속 종목 중 일봉이 있는 첫 종목에서 읽는다. 호출자가 국가로 걸러 넘기므로 같은 시장이고
+     * 거래일 달력이 같다 — 거르지 않으면 국내 종목의 거래일에 해외 마감 시각을 붙이게 된다.
      * 하나도 없으면 창을 정할 수 없으므로 비어 있다 — 그 경우 뉴스를 싣지 않는다.
      */
     private Optional<LocalDateTime> window(List<Long> stockIds, RankedIndustryFlow flow,

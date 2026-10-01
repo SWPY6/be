@@ -68,6 +68,9 @@ class IndustryNewsServiceTest {
     @Captor
     private ArgumentCaptor<LocalDateTime> to;
 
+    @Captor
+    private ArgumentCaptor<List<Long>> stockIds;
+
     private IndustryNewsService industryNewsService;
 
     /** 선정 규칙은 실물을 쓴다. 가짜로 바꾸면 이 테스트가 규칙을 검증하지 못한다. */
@@ -78,8 +81,13 @@ class IndustryNewsServiceTest {
     }
 
     private void stubIndustry(IndustryCode code, Long industryId, List<Long> stockIds) {
+        stubIndustry(code, industryId, Country.KR, stockIds);
+    }
+
+    private void stubIndustry(IndustryCode code, Long industryId, Country country,
+            List<Long> stockIds) {
         given(industryReader.read(code)).willReturn(new Industries(industryId, code));
-        given(industryReader.readStockIds(industryId)).willReturn(stockIds);
+        given(industryReader.readStockIds(industryId, country)).willReturn(stockIds);
     }
 
     private void stubPreviousTradeDay(Long stockId, LocalDate tradeAt) {
@@ -132,8 +140,8 @@ class IndustryNewsServiceTest {
     void 미국은_마감_시각이_16시다() {
         // given
         given(industryFlowService.read(Country.US)).willReturn(flows());
-        stubIndustry(IndustryCode.AUTOMOBILE, 1L, List.of(10L));
-        stubIndustry(IndustryCode.CHEMICAL, 9L, List.of(90L));
+        stubIndustry(IndustryCode.AUTOMOBILE, 1L, Country.US, List.of(10L));
+        stubIndustry(IndustryCode.CHEMICAL, 9L, Country.US, List.of(90L));
         stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
         stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
         given(newsReader.readByStockIds(anyList(), any(), any())).willReturn(List.of());
@@ -337,6 +345,58 @@ class IndustryNewsServiceTest {
         // then 빈 목록으로 조회하면 SQL 이 깨진다. 1단계를 건너뛴다
         assertThat(details.getFirst().news()).extracting(RelatedNews::title)
                 .containsExactly("자동차 수출 증가 발표");
+    }
+
+    @Test
+    void 국내_카드는_해외_종목의_뉴스를_찾지_않는다() {
+        // given 한 산업에 국내 2개와 해외 2개가 함께 매핑돼 있다 (시드가 산업마다 국내 4 + 해외 4)
+        given(industryFlowService.read(Country.KR)).willReturn(flows());
+        stubIndustry(IndustryCode.AUTOMOBILE, 1L, Country.KR, List.of(10L, 11L));
+        stubIndustry(IndustryCode.AUTOMOBILE, 1L, Country.US, List.of(50L, 51L));
+        stubIndustry(IndustryCode.CHEMICAL, 9L, Country.KR, List.of(90L));
+        stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
+        stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
+
+        // when 대표 종목(10L)에 뉴스가 없어 산업 전체로 넓힌다
+        industryNewsService.read(Country.KR);
+
+        // then 넓힌 조회에도 해외 종목(50L·51L)이 섞이지 않는다
+        then(newsReader).should(atLeastOnce()).readByStockIds(stockIds.capture(), any(), any());
+        assertThat(stockIds.getAllValues()).allSatisfy(
+                ids -> assertThat(ids).doesNotContain(50L, 51L));
+    }
+
+    @Test
+    void 해외_카드는_국내_일봉으로_시간_창을_정하지_않는다() {
+        // given 해외 산업인데 국내 종목이 같은 산업에 매핑돼 있고, 둘의 최근 거래일이 다르다
+        given(industryFlowService.read(Country.US)).willReturn(usFlows());
+        stubIndustry(IndustryCode.AUTOMOBILE, 1L, Country.KR, List.of(10L));
+        stubIndustry(IndustryCode.AUTOMOBILE, 1L, Country.US, List.of(50L, 51L));
+        stubIndustry(IndustryCode.CHEMICAL, 9L, Country.US, List.of(95L));
+        stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);              // 국내 09-03
+        stubPreviousTradeDay(50L, LocalDate.of(2026, 9, 2));        // 해외 09-02
+        stubPreviousTradeDay(95L, LocalDate.of(2026, 9, 2));
+
+        // when
+        industryNewsService.read(Country.US);
+
+        // then 해외 종목의 거래일(09-02)에 미국 마감을 붙인다. 국내 거래일(09-03)을 쓰면 안 된다
+        then(newsReader).should(atLeastOnce()).readByStockIds(anyList(), from.capture(), any());
+        assertThat(from.getAllValues())
+                .containsOnly(LocalDateTime.of(2026, 9, 2, 16, 0));
+    }
+
+    /** 해외 카드. 대표 종목은 refresher 가 이미 국가로 걸러 저장하므로 해외 종목이다. */
+    private static List<RankedIndustryFlow> usFlows() {
+        return List.of(
+                new RankedIndustryFlow(IndustryCode.AUTOMOBILE, 1, new BigDecimal("1.61"), 4, 3, 1,
+                        new BigDecimal("52.65"),
+                        List.of(new MajorStock(50L, "F", "Ford", new BigDecimal("3.24"))),
+                        CALCULATED_AT),
+                new RankedIndustryFlow(IndustryCode.CHEMICAL, 9, new BigDecimal("-0.35"), 4, 1, 3,
+                        new BigDecimal("96.03"),
+                        List.of(new MajorStock(95L, "DOW", "Dow", new BigDecimal("-1.10"))),
+                        CALCULATED_AT));
     }
 
     private static RankedIndustryFlow flowWithoutMajorStocks(IndustryCode code, int rank,
