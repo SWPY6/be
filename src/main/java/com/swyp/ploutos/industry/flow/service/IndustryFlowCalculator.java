@@ -20,7 +20,6 @@ import com.swyp.ploutos.industry.flow.QuotedStock;
 @Component
 public class IndustryFlowCalculator {
 
-    private static final int MAJOR_STOCK_LIMIT = 2;
     private static final int SCALE = 2;
     private static final int DIVISION_SCALE = 6;
 
@@ -59,7 +58,7 @@ public class IndustryFlowCalculator {
         return stocks.stream()
                 .sorted(Comparator.comparing(QuotedStock::marketCap, Comparator.reverseOrder())
                         .thenComparing(QuotedStock::ticker))
-                .limit(MAJOR_STOCK_LIMIT)
+                .limit(IndustryFlowSnapshot.MAJOR_STOCK_LIMIT)
                 .map(QuotedStock::toMajorStock)
                 .toList();
     }
