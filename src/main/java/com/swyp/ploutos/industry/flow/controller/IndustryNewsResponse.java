@@ -8,7 +8,6 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.common.enums.IndustryCode;
 import com.swyp.ploutos.industry.flow.IndustryCard.Direction;
-import com.swyp.ploutos.industry.flow.IndustryCard.SelectedBy;
 import com.swyp.ploutos.industry.flow.RankedIndustryFlow;
 import com.swyp.ploutos.industry.flow.service.IndustryNewsDetail;
 import com.swyp.ploutos.news.RelatedNews;
@@ -27,13 +26,6 @@ record IndustryNewsResponse(
         @Schema(description = "RISING은 상승 카드, FALLING은 하락 카드. 등락률의 부호가 아니라 카드의 자리다",
                 example = "RISING")
         Direction direction,
-
-        @Schema(description = """
-                MATCHED는 거래대금이 그 산업의 20거래일 평균 이상이어서 골랐다는 뜻이다.
-                CHANGE_RATE_ONLY는 조건을 만족하는 산업이 없어 등락률만으로 골랐다는 뜻이며,
-                이때는 "거래대금 증가가 함께 나타났다"고 안내하지 않는다.""",
-                example = "MATCHED")
-        SelectedBy selectedBy,
 
         @Schema(description = "평균 등락률 순위. 1이 가장 높다. 선정 순서와 무관하므로 1이 아닐 수 있다",
                 example = "1")
@@ -73,7 +65,6 @@ record IndustryNewsResponse(
                 flow.code(),
                 flow.displayName(),
                 detail.direction(),
-                detail.selectedBy(),
                 flow.rank(),
                 flow.avgChangeRate(),
                 flow.stockCount(),

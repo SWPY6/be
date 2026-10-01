@@ -73,7 +73,6 @@ class IndustryNewsControllerTest {
                 .andExpect(jsonPath("$.data[0].code").value("AUTOMOBILE"))
                 .andExpect(jsonPath("$.data[0].displayName").value("자동차"))
                 .andExpect(jsonPath("$.data[0].direction").value("RISING"))
-                .andExpect(jsonPath("$.data[0].selectedBy").value("MATCHED"))
                 .andExpect(jsonPath("$.data[0].rank").value(1))
                 .andExpect(jsonPath("$.data[0].avgChangeRate").value(1.61))
                 .andExpect(jsonPath("$.data[0].stockCount").value(4))
@@ -156,8 +155,8 @@ class IndustryNewsControllerTest {
     }
 
     @Test
-    void 조건을_만족하는_산업이_없으면_대체_선정으로_알린다() throws Exception {
-        // given
+    void 선정_근거는_응답에_넣지_않는다() throws Exception {
+        // given 대체 선정된 카드다. 화면이 구분해 표시하지 않으므로 내려주지 않는다
         given(industryNewsService.read(Country.KR)).willReturn(List.of(
                 new IndustryNewsDetail(
                         new RankedIndustryFlow(IndustryCode.AUTOMOBILE, 1, new BigDecimal("1.61"),
@@ -167,7 +166,8 @@ class IndustryNewsControllerTest {
         // when & then
         mockMvc.perform(get(PATH))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].selectedBy").value("CHANGE_RATE_ONLY"));
+                .andExpect(jsonPath("$.data[0].selectedBy").doesNotExist())
+                .andExpect(jsonPath("$.data[0].direction").value("RISING"));
     }
 
     @Test
