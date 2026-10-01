@@ -2,6 +2,7 @@ package com.swyp.ploutos.industry.flow.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -15,6 +16,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,6 +46,9 @@ import com.swyp.ploutos.stock.StockWithMarket;
 import com.swyp.ploutos.stock.Stocks;
 import com.swyp.ploutos.stock.quote.PriceTiming;
 import com.swyp.ploutos.stock.quote.Quote;
+import com.swyp.ploutos.stock.price.DailyPrice;
+import com.swyp.ploutos.stock.price.DailyPrices;
+import com.swyp.ploutos.stock.price.service.DailyPriceReader;
 import com.swyp.ploutos.stock.quote.service.QuoteReader;
 import com.swyp.ploutos.stock.service.StockReader;
 
@@ -65,6 +70,9 @@ class IndustryFlowRefresherTest {
     private QuoteReader quoteReader;
 
     @Mock
+    private DailyPriceReader dailyPriceReader;
+
+    @Mock
     private IndustryFlowRepository industryFlowRepository;
 
     @Captor
@@ -75,10 +83,12 @@ class IndustryFlowRefresherTest {
     @BeforeEach
     void setUp() {
         // 초당 1000건 = 호출 사이 1ms. 테스트가 기다리지 않게 한다.
-        refresher = new IndustryFlowRefresher(industryReader, stockReader, quoteReader,
+        refresher = new IndustryFlowRefresher(industryReader, stockReader, quoteReader, dailyPriceReader,
                 new IndustryFlowCalculator(), industryFlowRepository, new IndustryFlowProperties(1000),
                 Clock.fixed(Instant.parse("2026-09-28T01:00:07Z"), ZoneOffset.UTC));
         given(industryFlowRepository.findByIndustryIdAndCountry(any(), any())).willReturn(Optional.empty());
+        // 기본은 저장된 일봉 없음. 거래대금을 보는 테스트만 따로 stub 한다.
+        given(dailyPriceReader.readStoredLatest(any(), anyInt())).willReturn(DailyPrices.of(List.of()));
     }
 
     @Test
@@ -226,6 +236,77 @@ class IndustryFlowRefresherTest {
                 .orElseThrow(() -> new AssertionError(country + " 행이 저장되지 않았다"));
     }
 
+    @Test
+    void 저장된_일봉으로_거래대금_변화율을_계산해_저장한다() {
+        // given 오늘 150, 20거래일 평균 100
+        given(industryReader.readAll()).willReturn(List.of(AUTOMOBILE));
+        given(industryReader.readStockIds(1L)).willReturn(List.of(10L));
+        stub(10L, "005380", "현대차", Country.KR, "3.00", 866);
+        given(quoteReader.readWithoutTracking(eq(10L))).willReturn(quote("3.00", 866, 150L));
+        given(dailyPriceReader.readStoredLatest(eq(10L), anyInt())).willReturn(storedPrices(20, 100L));
+
+        // when
+        refresher.refreshNext();
+
+        // then
+        then(industryFlowRepository).should(org.mockito.Mockito.atLeastOnce()).save(saved.capture());
+        assertThat(savedOf(Country.KR).tradingValueChangeRate()).isEqualByComparingTo("50.00");
+    }
+
+    @Test
+    void 저장된_일봉이_스무개보다_적으면_거래대금_변화율이_없다() {
+        // given 신규 상장이라 일봉이 10개뿐이다
+        given(industryReader.readAll()).willReturn(List.of(AUTOMOBILE));
+        given(industryReader.readStockIds(1L)).willReturn(List.of(10L));
+        stub(10L, "005380", "현대차", Country.KR, "3.00", 866);
+        given(dailyPriceReader.readStoredLatest(eq(10L), anyInt())).willReturn(storedPrices(10, 100L));
+
+        // when
+        refresher.refreshNext();
+
+        // then 등락률은 그대로 저장한다. 둘은 독립된 값이다
+        then(industryFlowRepository).should(org.mockito.Mockito.atLeastOnce()).save(saved.capture());
+        assertThat(savedOf(Country.KR).tradingValueChangeRate()).isNull();
+        assertThat(savedOf(Country.KR).avgChangeRate()).isEqualByComparingTo("3.00");
+    }
+
+    @Test
+    void 일봉_조회가_실패해도_평균_등락률은_저장한다() {
+        // given
+        given(industryReader.readAll()).willReturn(List.of(AUTOMOBILE));
+        given(industryReader.readStockIds(1L)).willReturn(List.of(10L));
+        stub(10L, "005380", "현대차", Country.KR, "3.00", 866);
+        given(dailyPriceReader.readStoredLatest(eq(10L), anyInt()))
+                .willThrow(new IllegalStateException("DB 장애"));
+
+        // when
+        refresher.refreshNext();
+
+        // then 거래대금만 잃고 종목은 평균에 남는다
+        then(industryFlowRepository).should(org.mockito.Mockito.atLeastOnce()).save(saved.capture());
+        assertThat(savedOf(Country.KR).tradingValueChangeRate()).isNull();
+        assertThat(savedOf(Country.KR).stockCount()).isEqualTo(1);
+        assertThat(savedOf(Country.KR).avgChangeRate()).isEqualByComparingTo("3.00");
+    }
+
+    @Test
+    void 일봉을_읽어도_시세_호출_횟수는_늘지_않는다() {
+        // given 종목 2개
+        given(industryReader.readAll()).willReturn(List.of(AUTOMOBILE));
+        given(industryReader.readStockIds(1L)).willReturn(List.of(10L, 20L));
+        stub(10L, "005380", "현대차", Country.KR, "3.00", 866);
+        stub(20L, "000270", "기아", Country.KR, "1.00", 349);
+
+        // when
+        refresher.refreshNext();
+
+        // then 종목당 정확히 한 번. 일봉은 DB 라 KIS 예산을 쓰지 않는다
+        then(quoteReader).should().readWithoutTracking(10L);
+        then(quoteReader).should().readWithoutTracking(20L);
+        then(dailyPriceReader).should().readStoredLatest(10L, 20);
+        then(dailyPriceReader).should().readStoredLatest(20L, 20);
+    }
+
     private void stub(Long stockId, String ticker, String name, Country country, String changeRate,
             long marketCap) {
         Markets market = country == Country.KR
@@ -239,10 +320,24 @@ class IndustryFlowRefresherTest {
     }
 
     private static Quote quote(String changeRate, long marketCap) {
+        return quote(changeRate, marketCap, 1L);
+    }
+
+    /** 저장된 일봉 {@code days}개. 하루 거래대금이 {@code dailyValue}가 되도록 종가×거래량을 맞춘다. */
+    private static DailyPrices storedPrices(int days, long dailyValue) {
+        return DailyPrices.of(IntStream.rangeClosed(1, days)
+                .mapToObj(day -> new DailyPrice(LocalDate.of(2026, 1, 1).plusDays(day),
+                        BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE,
+                        BigDecimal.valueOf(dailyValue), 1L))
+                .toList());
+    }
+
+    private static Quote quote(String changeRate, long marketCap, long tradingValue) {
         return new Quote(
                 PREVIOUS_CLOSE.add(new BigDecimal(changeRate)),
                 PREVIOUS_CLOSE,
-                BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, 1L, BigDecimal.ONE,
+                BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, 1L,
+                BigDecimal.valueOf(tradingValue),
                 BigDecimal.valueOf(marketCap),
                 Currency.KRW,
                 OffsetDateTime.of(2026, 9, 28, 10, 0, 0, 0, ZoneOffset.ofHours(9)),

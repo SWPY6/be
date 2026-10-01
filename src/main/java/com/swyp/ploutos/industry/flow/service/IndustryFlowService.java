@@ -64,9 +64,11 @@ public class IndustryFlowService {
             Map<Long, IndustryFlows> stored, Country country) {
         IndustryFlows flow = stored.get(industry.industryId());
         if (flow == null) {
-            return new RankedIndustryFlow(industry.name(), rank, NOT_CALCULATED, 0, List.of(), null);
+            return new RankedIndustryFlow(industry.name(), rank, NOT_CALCULATED, 0, 0, 0, null,
+                    List.of(), null);
         }
         return new RankedIndustryFlow(industry.name(), rank, flow.avgChangeRate(), flow.stockCount(),
+                flow.risingCount(), flow.fallingCount(), flow.tradingValueChangeRate(),
                 flow.majorStocks(), localTime(flow, country));
     }
 

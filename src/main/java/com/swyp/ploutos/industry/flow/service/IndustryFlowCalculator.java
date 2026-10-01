@@ -6,10 +6,12 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import org.springframework.stereotype.Component;
 
 import com.swyp.ploutos.industry.flow.IndustryFlowSnapshot;
+import com.swyp.ploutos.industry.flow.IndustryTradingValue;
 import com.swyp.ploutos.industry.flow.MajorStock;
 import com.swyp.ploutos.industry.flow.QuotedStock;
 
@@ -29,7 +31,24 @@ public class IndustryFlowCalculator {
         if (distinct.isEmpty()) {
             return IndustryFlowSnapshot.empty();
         }
-        return new IndustryFlowSnapshot(average(distinct), distinct.size(), majorStocks(distinct));
+        return new IndustryFlowSnapshot(average(distinct), distinct.size(),
+                count(distinct, QuotedStock::rose), count(distinct, QuotedStock::fell),
+                tradingValueChangeRate(distinct), majorStocks(distinct));
+    }
+
+    /**
+     * 금액을 먼저 합치고 나중에 나눈다. 종목별 비율을 평균하면 소형주 하나가 산업을 흔든다.
+     * 견줄 수 있는 종목이 하나도 없으면 {@code null}이다 — 0.00 으로 내리면 실패가 숨는다.
+     */
+    private static BigDecimal tradingValueChangeRate(List<QuotedStock> stocks) {
+        return IndustryTradingValue.of(stocks.stream().map(QuotedStock::toTradingValue).toList())
+                .map(IndustryTradingValue::changeRatePercent)
+                .orElse(null);
+    }
+
+    /** 보합인 종목은 어느 쪽에도 세지 않는다. 그래서 두 수의 합이 종목 수보다 작을 수 있다. */
+    private static int count(List<QuotedStock> stocks, Predicate<QuotedStock> moved) {
+        return (int) stocks.stream().filter(moved).count();
     }
 
     /**

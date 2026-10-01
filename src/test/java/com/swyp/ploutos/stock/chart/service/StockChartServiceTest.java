@@ -228,6 +228,11 @@ class StockChartServiceTest {
             averageCalled = true;
             return Optional.empty();
         }
+
+        @Override
+        public DailyPrices readStoredLatest(Long stockId, int days) {
+            throw new UnsupportedOperationException();
+        }
     }
 
     private static final class FakeQuoteReader implements QuoteReader {
