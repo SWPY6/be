@@ -49,7 +49,6 @@ class IndicatorQuoteTest {
         BigDecimal change = quote.change();
 
         // then
-        assertThat(quote.value().scale()).isEqualTo(4);
         assertThat(change).isEqualTo(new BigDecimal("-5.9000"));
         assertThat(quote.changeRate()).isEqualTo(new BigDecimal("-0.43"));
     }

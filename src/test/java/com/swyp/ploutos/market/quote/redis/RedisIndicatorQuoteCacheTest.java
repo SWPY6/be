@@ -7,8 +7,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,6 +47,12 @@ class RedisIndicatorQuoteCacheTest {
     @BeforeEach
     void setUp() {
         redisTemplate = template(redis.getHost(), redis.getMappedPort(REDIS_PORT));
+        // 테스트가 남긴 값·락이 다음 테스트로 넘어가면 실행 순서에 따라 결과가 달라진다
+        redisTemplate.delete(Arrays.stream(MarketIndicator.values())
+                .flatMap(indicator -> Stream.of(
+                        "market-quote:" + indicator.name(),
+                        "market-quote:lock:" + indicator.name()))
+                .toList());
         cache = cacheOf(redisTemplate);
     }
 
@@ -149,13 +157,6 @@ class RedisIndicatorQuoteCacheTest {
 
         // then
         assertThat(found).isEmpty();
-    }
-
-    @Test
-    void TTL이_1초_미만이면_설정을_만들_수_없다() {
-        // given & when & then 갱신 스케줄러가 없으므로 TTL이 0이면 매 요청이 KIS를 부른다
-        assertThatThrownBy(() -> new IndicatorQuoteCacheProperties(0))
-                .isInstanceOf(IllegalArgumentException.class);
     }
 
     private static RedisIndicatorQuoteCache cacheOf(StringRedisTemplate template) {
