@@ -1,7 +1,7 @@
 package com.swyp.ploutos.stock.quote.kis;
 
-import static com.swyp.ploutos.stock.quote.kis.KisNumbers.amount;
-import static com.swyp.ploutos.stock.quote.kis.KisNumbers.count;
+import static com.swyp.ploutos.external.kis.KisNumbers.amount;
+import static com.swyp.ploutos.external.kis.KisNumbers.count;
 
 import java.time.OffsetDateTime;
 
