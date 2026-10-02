@@ -47,6 +47,12 @@ public enum ErrorCode {
             HttpStatus.BAD_GATEWAY,
             "P007", "MarketDataUnavailableException",
             "시세 정보를 불러올 수 없습니다."
+    ),
+
+    LOGIN_FAILED(
+            HttpStatus.UNAUTHORIZED,
+            "P008", "LoginFailedException",
+            "로그인에 실패했습니다."
     );
 
     private final HttpStatus status;

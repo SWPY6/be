@@ -4,9 +4,13 @@ import java.util.List;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -23,15 +27,30 @@ public class SecurityConfig {
     );
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            SecurityContextRepository securityContextRepository
+    ) throws Exception {
         return http
                 // CORS 처리를 인증 검사보다 앞에 둔다. 이게 없으면 사전 요청(OPTIONS)이
                 // 인증 필터에서 401로 잘려 아래 CorsConfigurationSource까지 닿지 않는다.
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
-                // 인증 도입 전 임시 설정. 로그인 기능이 들어오면 경로별 인가 규칙으로 교체해야 한다.
-                .authorizeHttpRequests(request -> request.anyRequest().permitAll())
+                // 로그인 컨트롤러가 저장한 세션의 인증 정보를 필터가 같은 저장소에서 읽는다.
+                .securityContext(context -> context.securityContextRepository(securityContextRepository))
+                // 시장·산업·종목 조회는 비회원도 쓴다(RQ-0703). 로그인이 필요한 경로만 여기에 추가한다.
+                .authorizeHttpRequests(request -> request
+                        .requestMatchers("/api/v1/auth/me").authenticated()
+                        .anyRequest().permitAll())
+                // 기본값은 403이다. 비로그인은 401로 알려 프론트가 로그인 안내를 띄우게 한다.
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .build();
+    }
+
+    @Bean
+    SecurityContextRepository securityContextRepository() {
+        return new HttpSessionSecurityContextRepository();
     }
 
     @Bean
