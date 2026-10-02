@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.industry.Industries;
 import com.swyp.ploutos.industry.flow.IndustryFlows;
+import com.swyp.ploutos.industry.flow.IndustryTradingValue;
 import com.swyp.ploutos.industry.flow.RankedIndustryFlow;
 import com.swyp.ploutos.industry.flow.repository.IndustryFlowRepository;
 import com.swyp.ploutos.industry.service.IndustryReader;
@@ -46,11 +47,8 @@ public class IndustryFlowService {
         Map<Long, IndustryFlows> stored = industryFlowRepository.findByCountry(country).stream()
                 .collect(Collectors.toMap(IndustryFlows::industryId, Function.identity()));
 
-        // 평균 등락률 내림차순. 동점이면 표시명 가나다순으로 정해 순위가 매 요청 흔들리지 않게 한다.
         List<Industries> byChangeRate = industryReader.readAll().stream()
-                .sorted(Comparator.comparing((Industries industry) -> avgChangeRateOf(stored, industry),
-                                Comparator.reverseOrder())
-                        .thenComparing(Industries::displayName))
+                .sorted(byRank(stored))
                 .toList();
 
         // 순위는 이 순서에서 나오지만 응답에 값으로 실려 나간다. 뒤에서 순서를 바꿔도(관심 산업 고정,
@@ -70,6 +68,42 @@ public class IndustryFlowService {
         return new RankedIndustryFlow(industry.name(), rank, flow.avgChangeRate(), flow.stockCount(),
                 flow.risingCount(), flow.fallingCount(), flow.tradingValue().orElse(null),
                 flow.majorStocks(), localTime(flow, country));
+    }
+
+    /**
+     * 순위를 매기는 비교자. 세 단계로 가른다 (RQ-0603).
+     * 1) 반올림 전 평균 등락률  내림차순
+     * 2) 거래대금 비율          내림차순   ← 측정하지 못한 산업은 뒤로
+     * 3) 산업 표시명            가나다순
+     *
+     *
+     * <p>1번이 <b>반올림 전</b> 값이어야 하는 이유는, 응답에 나가는 두 자리로는
+     * {@code 1.333333}과 {@code 1.330000}이 둘 다 {@code 1.33}이라 구분할 수 없기 때문이다.
+     *
+     * <p>3번까지 두는 것은 순위가 매 요청 흔들리지 않게 하기 위해서다
+     */
+    private static Comparator<Industries> byRank(Map<Long, IndustryFlows> stored) {
+        return Comparator
+                .comparing((Industries industry) -> avgChangeRateOf(stored, industry),
+                        Comparator.reverseOrder())
+                .thenComparing(industry -> tradingRatioOf(stored, industry),
+                        Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(Industries::displayName);
+    }
+
+    /**
+     * 오늘 거래대금이 그 산업의 20거래일 평균의 몇 배인지. 측정하지 못했으면 {@code null}이고
+     * 비교자가 뒤로 보낸다 — 모르는 산업을 "거래가 활발했다"고 볼 수 없다.
+     *
+     * <p>시장 전체 대비 상대비율을 쓰지 않는 이유는 모든 산업을 같은 값으로 나누는 것이라
+     * <b>순서가 바뀌지 않기</b> 때문이다. 더 단순한 쪽을 쓴다.
+     */
+    private static BigDecimal tradingRatioOf(Map<Long, IndustryFlows> stored, Industries industry) {
+        IndustryFlows flow = stored.get(industry.industryId());
+        if (flow == null) {
+            return null;
+        }
+        return flow.tradingValue().map(IndustryTradingValue::ratio).orElse(null);
     }
 
     private static BigDecimal avgChangeRateOf(Map<Long, IndustryFlows> stored, Industries industry) {
