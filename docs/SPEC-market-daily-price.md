@@ -49,6 +49,10 @@ HTTP API가 없다. `market-chart`가 인터페이스로 읽는다.
   - Hibernate 6.2+는 `@Enumerated(STRING)`을 MySQL 네이티브 `ENUM`으로 만든다 (`SPEC-industry.md`).
   - 그러면 지표(유가)를 추가할 때 `ALTER TABLE`이 필요해진다.
   - `@JdbcTypeCode(SqlTypes.VARCHAR)`를 함께 붙여 막는다. 이렇게 하면 기능 맵의 "유가는 스키마 변경 없이 행만 늘어난다" 대비가 지켜진다.
+  - **테스트 스키마에는 `check` 제약이 함께 붙는다.** Hibernate가 `varchar`로 만들면서 enum 값 목록을 `check (indicator in ('KOSPI',…))`로 덧붙인다(구현 중 생성된 DDL로 확인).
+    - 테스트는 엔티티에서 스키마를 만들므로 지표를 추가하면 제약도 따라 바뀐다.
+    - **운영 SQL(`db/alter-market-daily-prices.sql`)에는 이 제약을 넣지 않는다.** 넣으면 지표를 추가할 때 제약을 고쳐야 해서 위 대비가 깨진다.
+    - 그래서 운영과 테스트 스키마가 이 제약 하나만큼 다르다. 앱은 enum 값만 저장하므로 동작 차이는 없다.
 
 ```java
 @Entity
@@ -270,6 +274,11 @@ public boolean tryStartSync(MarketIndicator indicator, LocalDate from, LocalDate
 - **절대 안 함:** 기존 행 덮어쓰기, `indicator`를 네이티브 `ENUM` 컬럼으로 두기, 테스트에서 실제 KIS 호출, 동기화 실패를 삼키고 빈 결과 반환.
 
 ## 성공 기준
+
+> **구현 상태 (2026-10-02):** 태스크 10까지 끝나 #14~#16만 테스트로 증명된다.
+> #1~#13이 가리키는 `MarketDailyPriceService`·`IndicatorDailyPriceSyncPolicy`·`KisIndicatorDailyPriceProvider`는
+> 아직 만들지 않았다(태스크 11~13). 표만 보고 완료로 읽지 않도록 적어 둔다.
+
 
 | # | 인수 기준 | 검증 테스트 |
 | --- | --- | --- |

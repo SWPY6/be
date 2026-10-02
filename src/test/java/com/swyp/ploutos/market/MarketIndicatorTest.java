@@ -79,6 +79,33 @@ class MarketIndicatorTest {
     }
 
     @Test
+    void 지표마다_명세의_심볼과_표시명을_가진다() {
+        // given 2026-09-30 KIS 실측으로 확인한 값이다
+        Map<MarketIndicator, String> expectedSymbols = Map.of(
+                MarketIndicator.KOSPI, "0001",
+                MarketIndicator.KOSDAQ, "1001",
+                MarketIndicator.NASDAQ, "COMP",
+                MarketIndicator.SP500, "SPX",
+                MarketIndicator.USD_KRW, "FX@KRW");
+        Map<MarketIndicator, String> expectedNames = Map.of(
+                MarketIndicator.KOSPI, "코스피",
+                MarketIndicator.KOSDAQ, "코스닥",
+                MarketIndicator.NASDAQ, "나스닥",
+                MarketIndicator.SP500, "S&P 500",
+                MarketIndicator.USD_KRW, "원/달러 환율");
+
+        // when
+        Map<MarketIndicator, String> symbols = Arrays.stream(MarketIndicator.values())
+                .collect(Collectors.toMap(indicator -> indicator, MarketIndicator::symbol));
+        Map<MarketIndicator, String> names = Arrays.stream(MarketIndicator.values())
+                .collect(Collectors.toMap(indicator -> indicator, MarketIndicator::displayName));
+
+        // then
+        assertThat(symbols).isEqualTo(expectedSymbols);
+        assertThat(names).isEqualTo(expectedNames);
+    }
+
+    @Test
     void 기준_국가에_맞는_타임존을_돌려준다() {
         // given
         ZoneId seoul = ZoneId.of("Asia/Seoul");

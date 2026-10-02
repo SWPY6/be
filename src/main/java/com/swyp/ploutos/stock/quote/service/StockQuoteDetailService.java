@@ -28,7 +28,7 @@ public class StockQuoteDetailService {
                 stock.ticker(),
                 stock.name(),
                 quote,
-                quote.volumeRatio(dailyPriceReader.averageVolume20d(stockId))
+                dailyPriceReader.averageVolume20d(stockId).flatMap(quote::volumeRatioTo).orElse(null)
         );
     }
 }

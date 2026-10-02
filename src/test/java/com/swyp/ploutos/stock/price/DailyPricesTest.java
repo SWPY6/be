@@ -110,6 +110,19 @@ class DailyPricesTest {
     }
 
     @Test
+    void 그_거래일의_봉이_있는지_스스로_답한다() {
+        // given
+        DailyPrices prices = DailyPrices.of(List.of(
+                price(LocalDate.of(2026, 8, 11), 1),
+                price(LocalDate.of(2026, 8, 13), 3)));
+
+        // when & then 꺼내서 바깥에서 판단하지 않게 한다
+        assertThat(prices.hasTradeOn(LocalDate.of(2026, 8, 13))).isTrue();
+        assertThat(prices.hasTradeOn(LocalDate.of(2026, 8, 12))).isFalse();
+        assertThat(DailyPrices.of(List.of()).hasTradeOn(LocalDate.of(2026, 8, 13))).isFalse();
+    }
+
+    @Test
     void 비어_있으면_첫_거래일과_마지막_거래일이_없다() {
         // when
         DailyPrices empty = DailyPrices.of(List.of());
