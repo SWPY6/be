@@ -1,5 +1,6 @@
 package com.swyp.ploutos.industry.flow.service;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -16,10 +17,13 @@ import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.industry.Industries;
 import com.swyp.ploutos.industry.flow.IndustryFlowSnapshot;
 import com.swyp.ploutos.industry.flow.IndustryFlows;
+import com.swyp.ploutos.industry.flow.IndustryTradingValue;
 import com.swyp.ploutos.industry.flow.QuotedStock;
 import com.swyp.ploutos.industry.flow.repository.IndustryFlowRepository;
 import com.swyp.ploutos.industry.service.IndustryReader;
 import com.swyp.ploutos.stock.StockWithMarket;
+import com.swyp.ploutos.stock.price.DailyPrices;
+import com.swyp.ploutos.stock.price.service.DailyPriceReader;
 import com.swyp.ploutos.stock.quote.service.QuoteReader;
 import com.swyp.ploutos.stock.service.StockReader;
 
@@ -41,6 +45,7 @@ class IndustryFlowRefresher {
     private final IndustryReader industryReader;
     private final StockReader stockReader;
     private final QuoteReader quoteReader;
+    private final DailyPriceReader dailyPriceReader;
     private final IndustryFlowCalculator calculator;
     private final IndustryFlowRepository industryFlowRepository;
     private final IndustryFlowProperties properties;
@@ -140,10 +145,28 @@ class IndustryFlowRefresher {
      */
     private Optional<QuotedStock> quote(QuoteTarget target) {
         try {
-            return Optional.of(new QuotedStock(target.stock(),
-                    quoteReader.readWithoutTracking(target.stockId())));
+            return Optional.of(new QuotedStock(target.stockId(), target.stock(),
+                    quoteReader.readWithoutTracking(target.stockId()),
+                    averageTradingValue(target.stockId())));
         } catch (RuntimeException ignored) {
             return Optional.empty();
+        }
+    }
+
+    /**
+     * 20거래일 평균 거래대금. 저장된 일봉만 읽는다 — 종목 수만큼 반복되므로 부족분을 외부에서
+     * 채우는 경로({@code findBetween}, {@code averageVolume20d})를 쓰면 KIS 호출이 종목 수만큼 는다.
+     *
+     * <p>실패해도 시세는 살린다. 거래대금과 평균 등락률은 독립된 값이라, 여기서 예외를 올리면
+     * 구할 수 있었던 등락률까지 잃는다.
+     */
+    private BigDecimal averageTradingValue(Long stockId) {
+        try {
+            return IndustryTradingValue.approximateAverage(
+                    dailyPriceReader.readStoredLatest(stockId, DailyPrices.AVERAGE_DAYS),
+                    DailyPrices.AVERAGE_DAYS);
+        } catch (RuntimeException ignored) {
+            return null;
         }
     }
 

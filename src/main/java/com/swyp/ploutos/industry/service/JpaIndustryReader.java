@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
+import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.common.enums.IndustryCode;
 import com.swyp.ploutos.industry.Industries;
 import com.swyp.ploutos.industry.repository.IndustryRepository;
@@ -40,5 +41,10 @@ class JpaIndustryReader implements IndustryReader {
     @Override
     public List<Long> readStockIds(Long industryId) {
         return stockIndustryRepository.findStockIdsByIndustryId(industryId);
+    }
+
+    @Override
+    public List<Long> readStockIds(Long industryId, Country country) {
+        return stockIndustryRepository.findStockIdsByIndustryIdAndCountry(industryId, country);
     }
 }

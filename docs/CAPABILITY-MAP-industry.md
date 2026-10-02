@@ -13,7 +13,7 @@
 | `industry` | 산업 마스터 9종(`IndustryCode`, 한글 표시명), 산업별 종목 조회. HTTP API 없음 | — | `SPEC-industry.md` |
 | `industry-flow` | 산업별 평균 등락률·순위·소속 종목 수. `GET /api/v1/industries/flows` | `industry`, `stock-quote` | **다음** — `SPEC-industry-flow.md` |
 | `industry-trend` | 산업별 동향 화면: 산업 카드 + 소속 종목 목록, 상승·하락 필터 | `industry`, `industry-flow`, `stock-quote` | **추후** — 별도 명세 |
-| `industry-news` | 오늘의 핵심 뉴스: 산업 단위 카드 + 관련 뉴스·공시 | `industry`, `industry-flow`, `news` | **추후** — 별도 명세 |
+| `industry-news` | 오늘의 핵심 뉴스: 상승·하락 산업 각 1건, 상승·하락 종목 수, 관련 뉴스. `GET /api/v1/industries/news` | `industry`, `industry-flow`, `stock-daily-price`, `news` | **완료** — `SPEC-industry-news.md` |
 | `industry-pin` | 관심 산업 최대 3개 고정 | `industry`, 인증 | **추후** — 로그인 도입 후 |
 
 빌드 순서: `industry` → `industry-flow` → (`industry-trend`, `industry-news`) → *로그인* → `industry-pin`
@@ -44,6 +44,17 @@
 | RQ-0203 | 산업 수동 탐색 | **프론트엔드** | 받은 9개 배열의 인덱스 이동. 재요청 없음 |
 | RQ-0204 | 관심 산업 고정 | `industry-pin` | **추후** — 로그인 도입 후. 설계 방향은 아래 참고 |
 | RQ-0205 | 산업 종목 전체 보기 | **프론트엔드** + `industry-trend` | 화면 전환은 프론트. 소속 종목 목록 API는 `industry-trend` 명세에 속한다 |
+| RQ-0401 | 핵심 뉴스 제공 | `industry-news` | 상승·하락 각 1건. 산업명·순위·평균 등락률·상승/하락 종목 수·관련 뉴스. **거래대금 변화율은 응답에 넣지 않는다** — 화면에 표시하지 않는다는 확인을 받았다. 선정 관문으로만 쓰고 `industry_flows`에 저장한다 |
+| RQ-0402 | 선정 기준 안내 | **프론트엔드** | 도움말 아이콘과 문구. 백엔드 작업 없음 |
+| RQ-0403 | 관련 뉴스·공시 연결 | `industry-news` + `news` | 시간 창 `[직전 거래일 마감, 현재 기준 시각]`. 0건이면 생략. **공시는 이번 범위 밖** — `Announcements`에 `url`·출처 컬럼이 없다 |
+| RQ-0404 | 뉴스·공시 맥락 고지 | **프론트엔드** | 고정 문구. 매 응답에 싣지 않는다 |
+| RQ-0405 | 관련 자료 확인 | **프론트엔드** + `industry-news` | 원문 링크는 응답의 `url`. 화면 이동은 프론트 라우팅 |
+
+원본 요구사항에서 마지막 두 행의 RQ-ID가 모두 `RQ-0404`로 중복되어 있다. 뒤의 "관련 자료 확인"을
+`RQ-0405`로 읽는다.
+
+**RQ-0501(주요 변동 종목)은 이 맵에 넣지 않는다.** 산업이 아니라 종목을 축으로 하고
+`industry-news`와 서로 의존하지 않아 독립적으로 출시할 수 있다. `top-movers` 모듈로 별도 명세를 쓴다.
 
 ## 프론트/백엔드 책임 경계
 
