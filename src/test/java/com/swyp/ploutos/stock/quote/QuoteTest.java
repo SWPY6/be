@@ -52,22 +52,10 @@ class QuoteTest {
         Quote quote = quote(new BigDecimal("248000"), new BigDecimal("240217"), new BigDecimal("244280"), 245_000);
 
         // when
-        BigDecimal ratio = quote.volumeRatio(Optional.of(258_000L));
+        Optional<BigDecimal> ratio = quote.volumeRatioTo(258_000L);
 
         // then
-        assertThat(ratio).isEqualTo(new BigDecimal("0.95"));
-    }
-
-    @Test
-    void 평균_거래량이_없으면_배수는_null이다() {
-        // given
-        Quote quote = quote(new BigDecimal("248000"), new BigDecimal("240217"), new BigDecimal("244280"), 245_000);
-
-        // when
-        BigDecimal ratio = quote.volumeRatio(Optional.empty());
-
-        // then
-        assertThat(ratio).isNull();
+        assertThat(ratio).contains(new BigDecimal("0.95"));
     }
 
     @Test
@@ -108,15 +96,15 @@ class QuoteTest {
     }
 
     @Test
-    void 평균_거래량이_0이면_배수는_null이다() {
+    void 평균_거래량이_0이면_배수는_없다() {
         // given
         Quote quote = quote(new BigDecimal("248000"), new BigDecimal("240217"), new BigDecimal("244280"), 245_000);
 
         // when
-        BigDecimal ratio = quote.volumeRatio(Optional.of(0L));
+        Optional<BigDecimal> ratio = quote.volumeRatioTo(0L);
 
         // then
-        assertThat(ratio).isNull();
+        assertThat(ratio).isEmpty();
     }
 
     @Test

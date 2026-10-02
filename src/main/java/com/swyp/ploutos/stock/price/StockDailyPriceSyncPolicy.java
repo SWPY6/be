@@ -5,6 +5,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.springframework.stereotype.Component;
 
@@ -51,14 +52,23 @@ public class StockDailyPriceSyncPolicy {
      * 오늘 이 종목을 이 시작일까지 아직 받아 오려 한 적이 없으면 시도를 기록하고 true. 이미 했으면 false.
      * 시작일을 함께 보는 이유: 조회 구간은 요청마다 다르다. 같은 날 짧은 구간으로 먼저 시도했다고 해서
      * 더 이른 시작일의 요청까지 막으면, 저장된 봉이 덮지 못하는 구간을 다음 날까지 채우지 못한다.
+     *
+     * <p>기록을 원자적으로 남긴다. 조회 후 기록 사이가 벌어지면 여러 요청이 함께 시도권을 얻고,
+     * 같이 동기화하다 {@code stock_daily_prices}의 (stock_id, trade_at) 유니크 제약에 걸린다.
+     *
+     * <p>거절할 때는 기록을 덮지 않는다. 그날 넓은 구간으로 받아 뒀는데 좁은 요청이 기록을 덮으면,
+     * 그다음 중간 구간 요청이 헛동기화를 일으킨다.
      */
     public boolean tryStartSync(Long stockId, LocalDate from, LocalDate today) {
-        Attempt previous = lastAttempts.get(stockId);
-        if (previous != null && previous.covers(from, today)) {
-            return false;
-        }
-        lastAttempts.put(stockId, new Attempt(today, from));
-        return true;
+        AtomicBoolean granted = new AtomicBoolean(false);
+        lastAttempts.compute(stockId, (key, previous) -> {
+            if (previous != null && previous.covers(from, today)) {
+                return previous;
+            }
+            granted.set(true);
+            return new Attempt(today, from);
+        });
+        return granted.get();
     }
 
     /** 그날 이 종목에 대해 시도한 가장 이른 시작일. */

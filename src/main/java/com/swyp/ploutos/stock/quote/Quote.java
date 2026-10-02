@@ -50,17 +50,17 @@ public record Quote(
                 .setScale(SCALE, RoundingMode.HALF_UP);
     }
 
-    /** 당일 거래량이 최근 20거래일 평균의 몇 배인지. 평균을 낼 수 없으면 null이다. */
-    public BigDecimal volumeRatio(Optional<Long> averageVolume20d) {
-        if (averageVolume20d.isEmpty()) {
-            return null;
+    /**
+     * 당일 거래량이 주어진 평균 거래량의 몇 배인지. 평균이 0이면 나눌 수 없어 비어 있다.
+     *
+     * <p>"평균을 낼 수 있는가"는 일봉 쪽 사정이라 여기서 판단하지 않는다. 호출자가 평균을 가진 경우에만 묻는다.
+     */
+    public Optional<BigDecimal> volumeRatioTo(long averageVolume) {
+        if (averageVolume == 0) {
+            return Optional.empty();
         }
-        long average = averageVolume20d.get();
-        if (average == 0) {
-            return null;
-        }
-        return BigDecimal.valueOf(volume)
-                .divide(BigDecimal.valueOf(average), SCALE, RoundingMode.HALF_UP);
+        return Optional.of(BigDecimal.valueOf(volume)
+                .divide(BigDecimal.valueOf(averageVolume), SCALE, RoundingMode.HALF_UP));
     }
 
     /**
