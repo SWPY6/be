@@ -3,6 +3,7 @@ package com.swyp.ploutos.industry.flow;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import com.swyp.ploutos.common.enums.Country;
 
@@ -63,12 +64,19 @@ public class IndustryFlows {
     private int fallingCount;
 
     /**
-     * 20거래일 평균 대비 거래대금 변화율 %. 견줄 수 있는 종목이 없으면 null 이다 —
-     * 0.00 으로 채우면 "계산 실패"가 "변화 없음"으로 위장한다.
-     * ±99999.99% 까지 담는다. 거래대금이 평소의 1000배가 되는 이상치도 들어간다.
+     * 오늘 누적 거래대금 합계. 견줄 수 있는 종목이 없으면 null 이고, 그때는
+     * avgTradingValue20d 도 함께 null 이다 — 둘은 한 객체에서 나오므로 따로 존재하지 않는다.
+     *
+     * <p>나눈 결과가 아니라 금액을 저장한다. 비교 기준을 조회 시점에 고를 수 있고
+     * (자기 평균 대비 / 시장 전체 대비), 기준이 바뀌어도 저장된 값이 그대로 쓰인다.
+     * 10^18 까지 담는다 — 종목 87개 × 수백억 원이면 수조 단위다.
      */
-    @Column(precision = 7, scale = 2)
-    private BigDecimal tradingValueChangeRate;
+    @Column(precision = 20, scale = 2)
+    private BigDecimal todayTradingValue;
+
+    /** 20거래일 평균 거래대금 합계. todayTradingValue 와 함께 있거나 함께 없다. */
+    @Column(precision = 20, scale = 2)
+    private BigDecimal avgTradingValue20d;
 
     @Column(nullable = false)
     private LocalDateTime calculatedAt;
@@ -128,12 +136,33 @@ public class IndustryFlows {
                 new MajorStock(secondStockId, secondTicker, secondName, secondChangeRate));
     }
 
+    /**
+     * 저장된 거래대금. 둘 중 하나라도 없으면 비어 있다 — 꺼내 쓰는 쪽이 null 두 개를 맞춰 보지
+     * 않게 한다.
+     */
+    public Optional<IndustryTradingValue> tradingValue() {
+        if (todayTradingValue == null || avgTradingValue20d == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new IndustryTradingValue(todayTradingValue, avgTradingValue20d));
+    }
+
+    private void applyTradingValue(IndustryTradingValue tradingValue) {
+        if (tradingValue == null) {
+            this.todayTradingValue = null;
+            this.avgTradingValue20d = null;
+            return;
+        }
+        this.todayTradingValue = tradingValue.today();
+        this.avgTradingValue20d = tradingValue.average20d();
+    }
+
     private void apply(IndustryFlowSnapshot snapshot, LocalDateTime calculatedAt) {
         this.avgChangeRate = snapshot.avgChangeRate();
         this.stockCount = snapshot.stockCount();
         this.risingCount = snapshot.risingCount();
         this.fallingCount = snapshot.fallingCount();
-        this.tradingValueChangeRate = snapshot.tradingValueChangeRate();
+        applyTradingValue(snapshot.tradingValue());
         this.calculatedAt = calculatedAt;
         clearMajorStocks();
         List<MajorStock> majorStocks = snapshot.majorStocks();

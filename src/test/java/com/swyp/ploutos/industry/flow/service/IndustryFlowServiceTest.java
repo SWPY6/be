@@ -18,6 +18,7 @@ import com.swyp.ploutos.common.enums.IndustryCode;
 import com.swyp.ploutos.industry.Industries;
 import com.swyp.ploutos.industry.flow.IndustryFlowSnapshot;
 import com.swyp.ploutos.industry.flow.IndustryFlows;
+import com.swyp.ploutos.industry.flow.IndustryTradingValue;
 import com.swyp.ploutos.industry.flow.MajorStock;
 import com.swyp.ploutos.industry.flow.RankedIndustryFlow;
 import com.swyp.ploutos.industry.flow.repository.IndustryFlowRepository;
@@ -121,7 +122,8 @@ class IndustryFlowServiceTest {
 
     private static IndustryFlows flow(Long industryId, String avgChangeRate) {
         return new IndustryFlows(industryId, Country.KR,
-                new IndustryFlowSnapshot(new BigDecimal(avgChangeRate), 4, 3, 1, new BigDecimal("12.34"),
+                new IndustryFlowSnapshot(new BigDecimal(avgChangeRate), 4, 3, 1,
+                        new IndustryTradingValue(new BigDecimal("120"), new BigDecimal("100")),
                         List.of(new MajorStock(10L, "005380", "현대차", new BigDecimal("3.24")))),
                 CALCULATED_AT);
     }
