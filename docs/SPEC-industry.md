@@ -74,8 +74,12 @@ MySQL은 ENUM을 **선언 순서의 정수**로 정렬한다. 문자열로 비�
 ### 종목 매핑
 
 `StockIndustries`(`stock_industries`)가 종목↔산업 N:M 매핑을 갖는다. **시드 데이터는 아직 넣지 않는다.**
-매핑을 읽는 메서드는 `industry-flow`를 만들 때 추가한다(아래 "추후 구현" 1번) — 지금 만들면
+산업별 종목 조회는 `industry-flow`를 만들 때 추가한다(아래 "추후 구현" 1번) — 지금 만들면
 쓰는 곳이 없는 추측성 코드다.
+
+종목별 산업 조회(`readByStockId`)는 [종목 요약](SPEC-stock-summary.md)이 쓰므로 추가했다(2026-10-02).
+`stock_industries`에 (stock_id, industry_id) 유니크 제약이 없어 쿼리에서 중복을 제거하고,
+정렬은 `readAll()`과 같이 Java에서 한글 표시명 가나다순으로 한다. 연결이 없으면 빈 목록이다.
 
 ### 노출 인터페이스
 
@@ -87,6 +91,9 @@ public interface IndustryReader {
 
     /** 산업 코드에 대응하는 산업. 시드가 없으면 예외를 던진다. */
     Industries read(IndustryCode code);
+
+    /** 종목에 연결된 산업을 중복 없이 한글 표시명 가나다순으로 읽는다. 연결이 없으면 빈 목록이다. */
+    List<Industries> readByStockId(Long stockId);
 }
 ```
 
@@ -241,6 +248,11 @@ public class Industries {
 | 5 | `readAll()`은 9건을 가나다순으로 돌려준다. | `JpaIndustryReaderTest.전체를_읽으면_가나다순으로_돌려준다` |
 | 6 | `read(code)`는 해당 산업을 돌려준다. | `코드로_읽으면_해당_산업을_돌려준다` |
 | 7 | 시드가 없는 코드로 읽으면 예외를 던진다. | `시드가_없는_코드로_읽으면_예외를_던진다` |
+| 8 | `readByStockId`는 종목의 산업을 가나다순으로 돌려준다. | `JpaIndustryReaderTest.종목의_산업을_읽으면_가나다순으로_돌려준다` |
+| 9 | 같은 연결이 중복돼도 산업은 한 번만 나온다. | `IndustryRepositoryTest.같은_산업_연결이_중복되어도_한_번만_조회한다` |
+| 10 | 다른 종목의 산업이 섞이지 않는다. | `다른_종목의_산업은_섞이지_않는다` |
+| 11 | 연결이 없으면 빈 목록이다. | `연결된_산업이_없으면_빈_목록을_반환한다` |
+| 12 | 산업이 여러 개여도 쿼리 한 번으로 읽는다. | `산업이_여러_개여도_쿼리_한_번으로_조회한다` |
 
 ## 미해결 질문
 
