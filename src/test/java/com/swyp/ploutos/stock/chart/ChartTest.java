@@ -12,17 +12,14 @@ import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.Test;
 
-import com.swyp.ploutos.common.enums.Currency;
 import com.swyp.ploutos.stock.price.DailyPrice;
 import com.swyp.ploutos.stock.price.DailyPrices;
-import com.swyp.ploutos.stock.quote.PriceTiming;
-import com.swyp.ploutos.stock.quote.Quote;
 
 class ChartTest {
 
     // 2026-08-12 수요일. 같은 주의 월요일은 08-10이다.
     private static final LocalDate TODAY = LocalDate.of(2026, 8, 12);
-    private static final OffsetDateTime PRICE_AT =
+    private static final OffsetDateTime AS_OF =
             OffsetDateTime.of(2026, 8, 12, 14, 31, 5, 0, ZoneOffset.ofHours(9));
 
     @Test
@@ -35,7 +32,7 @@ class ChartTest {
         ));
 
         // when
-        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.DAY, TODAY);
+        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.DAY);
 
         // then
         assertThat(chart.candles()).extracting(ChartCandle::tradeAt)
@@ -56,7 +53,7 @@ class ChartTest {
         )));
 
         // when
-        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.DAY, TODAY);
+        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.DAY);
 
         // then
         ChartCandle candle = chart.candles().getFirst();
@@ -71,10 +68,10 @@ class ChartTest {
     void 장중이면_당일_진행중_봉을_마지막에_붙인다() {
         // given
         DailyPrices closed = DailyPrices.of(List.of(price(TODAY.minusDays(1))));
-        Quote quote = quote(BigDecimal.valueOf(50000), BigDecimal.valueOf(49000), 1_200L);
+        LiveCandle live = live(BigDecimal.valueOf(50000), BigDecimal.valueOf(49000), 1_200L);
 
         // when
-        Chart chart = Chart.of(closed, Optional.of(quote), ChartInterval.DAY, TODAY);
+        Chart chart = Chart.of(closed, Optional.of(live), ChartInterval.DAY);
 
         // then
         ChartCandle today = chart.candles().getLast();
@@ -83,33 +80,18 @@ class ChartTest {
         assertThat(today.closed()).isFalse();
         assertThat(today.close()).isEqualByComparingTo("50000");
         assertThat(today.volume()).isEqualTo(1_200L);
-        assertThat(chart.asOf()).contains(PRICE_AT);
+        assertThat(chart.asOf()).contains(AS_OF);
         assertThat(chart.to()).contains(TODAY);
-    }
-
-    @Test
-    void 당일_시가가_없으면_당일_봉을_붙이지_않는다() {
-        // given
-        DailyPrices closed = DailyPrices.of(List.of(price(TODAY.minusDays(1))));
-        Quote 개장_전 = quote(BigDecimal.valueOf(50000), BigDecimal.ZERO, 0L);
-
-        // when
-        Chart chart = Chart.of(closed, Optional.of(개장_전), ChartInterval.DAY, TODAY);
-
-        // then
-        assertThat(chart.candles()).hasSize(1);
-        assertThat(chart.candles().getLast().closed()).isTrue();
-        assertThat(chart.asOf()).isEmpty();
     }
 
     @Test
     void 당일_봉이_이미_확정되어_있으면_붙이지_않는다() {
         // given
         DailyPrices closed = DailyPrices.of(List.of(price(TODAY.minusDays(1)), price(TODAY)));
-        Quote quote = quote(BigDecimal.valueOf(50000), BigDecimal.valueOf(49000), 1_200L);
+        LiveCandle live = live(BigDecimal.valueOf(50000), BigDecimal.valueOf(49000), 1_200L);
 
         // when
-        Chart chart = Chart.of(closed, Optional.of(quote), ChartInterval.DAY, TODAY);
+        Chart chart = Chart.of(closed, Optional.of(live), ChartInterval.DAY);
 
         // then
         assertThat(chart.candles()).hasSize(2);
@@ -122,10 +104,10 @@ class ChartTest {
         // given
         // 장 마감 후 동기화가 끝난 상태. 당일 거래량이 8월 봉에 두 번 들어가면 안 된다.
         DailyPrices closed = DailyPrices.of(List.of(price(LocalDate.of(2026, 8, 3)), price(TODAY)));
-        Quote quote = quote(BigDecimal.valueOf(50000), BigDecimal.valueOf(49000), 1_200L);
+        LiveCandle live = live(BigDecimal.valueOf(50000), BigDecimal.valueOf(49000), 1_200L);
 
         // when
-        Chart chart = Chart.of(closed, Optional.of(quote), ChartInterval.MONTH, TODAY);
+        Chart chart = Chart.of(closed, Optional.of(live), ChartInterval.MONTH);
 
         // then
         assertThat(chart.candles()).hasSize(1);
@@ -143,7 +125,7 @@ class ChartTest {
         ));
 
         // when
-        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.DAY, TODAY);
+        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.DAY);
 
         // then
         assertThat(chart.from()).contains(TODAY.minusDays(5));
@@ -156,7 +138,7 @@ class ChartTest {
         DailyPrices 없음 = DailyPrices.of(List.of());
 
         // when
-        Chart chart = Chart.of(없음, Optional.empty(), ChartInterval.DAY, TODAY);
+        Chart chart = Chart.of(없음, Optional.empty(), ChartInterval.DAY);
 
         // then
         assertThat(chart.candles()).isEmpty();
@@ -178,7 +160,7 @@ class ChartTest {
         ));
 
         // when
-        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.MONTH, TODAY);
+        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.MONTH);
 
         // then
         assertThat(chart.candles()).extracting(ChartCandle::tradeAt)
@@ -195,7 +177,7 @@ class ChartTest {
         ));
 
         // when
-        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.MONTH, TODAY);
+        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.MONTH);
 
         // then
         ChartCandle july = chart.candles().getFirst();
@@ -215,7 +197,7 @@ class ChartTest {
         ));
 
         // when
-        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.MONTH, TODAY);
+        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.MONTH);
 
         // then
         assertThat(chart.candles().getFirst().volume()).isEqualTo(6_000L);
@@ -231,7 +213,7 @@ class ChartTest {
         ));
 
         // when
-        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.MONTH, TODAY);
+        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.MONTH);
 
         // then
         assertThat(chart.candles().getFirst().tradeAt()).isEqualTo(LocalDate.of(2026, 7, 2));
@@ -248,7 +230,7 @@ class ChartTest {
         ));
 
         // when
-        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.MONTH, TODAY);
+        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.MONTH);
 
         // then
         assertThat(chart.candles()).hasSize(2);
@@ -263,11 +245,11 @@ class ChartTest {
                 price(LocalDate.of(2026, 8, 3), 100, 120, 95, 110, 1_000L),
                 price(LocalDate.of(2026, 8, 4), 110, 130, 105, 125, 2_000L)
         ));
-        Quote quote = quote(BigDecimal.valueOf(140), BigDecimal.valueOf(125),
+        LiveCandle live = live(BigDecimal.valueOf(140), BigDecimal.valueOf(125),
                 BigDecimal.valueOf(145), BigDecimal.valueOf(90), 3_000L);
 
         // when
-        Chart chart = Chart.of(closed, Optional.of(quote), ChartInterval.MONTH, TODAY);
+        Chart chart = Chart.of(closed, Optional.of(live), ChartInterval.MONTH);
 
         // then
         ChartCandle august = chart.candles().getFirst();
@@ -279,7 +261,7 @@ class ChartTest {
         assertThat(august.low()).isEqualByComparingTo("90");
         assertThat(august.close()).isEqualByComparingTo("140");
         assertThat(august.volume()).isEqualTo(6_000L);
-        assertThat(chart.asOf()).contains(PRICE_AT);
+        assertThat(chart.asOf()).contains(AS_OF);
     }
 
     @Test
@@ -290,10 +272,10 @@ class ChartTest {
                 price(LocalDate.of(2026, 8, 6)),
                 price(LocalDate.of(2026, 8, 7))
         ));
-        Quote quote = quote(BigDecimal.valueOf(50000), BigDecimal.valueOf(49000), 1_200L);
+        LiveCandle live = live(BigDecimal.valueOf(50000), BigDecimal.valueOf(49000), 1_200L);
 
         // when
-        Chart chart = Chart.of(closed, Optional.of(quote), ChartInterval.WEEK, TODAY);
+        Chart chart = Chart.of(closed, Optional.of(live), ChartInterval.WEEK);
 
         // then
         assertThat(chart.candles()).hasSize(2);
@@ -314,7 +296,7 @@ class ChartTest {
         ));
 
         // when
-        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.WEEK, TODAY);
+        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.WEEK);
 
         // then
         assertThat(chart.candles()).extracting(ChartCandle::tradeAt)
@@ -329,10 +311,10 @@ class ChartTest {
                 price(TODAY.minusDays(2), 100, 120, 95, 110, 1_000L),
                 price(TODAY.minusDays(1), 110, 130, 105, 125, 3_000L)
         ));
-        Quote quote = quote(BigDecimal.valueOf(140), BigDecimal.valueOf(125), 999_999L);
+        LiveCandle live = live(BigDecimal.valueOf(140), BigDecimal.valueOf(125), 999_999L);
 
         // when
-        Chart chart = Chart.of(closed, Optional.of(quote), ChartInterval.DAY, TODAY);
+        Chart chart = Chart.of(closed, Optional.of(live), ChartInterval.DAY);
 
         // then
         assertThat(chart.averageVolume()).contains(2_000L);
@@ -348,7 +330,7 @@ class ChartTest {
         ));
 
         // when
-        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.DAY, TODAY);
+        Chart chart = Chart.of(closed, Optional.empty(), ChartInterval.DAY);
 
         // then
         assertThat(chart.averageVolume()).contains(200L);
@@ -363,7 +345,7 @@ class ChartTest {
                 .toList();
 
         // when
-        Chart chart = Chart.of(DailyPrices.of(prices), Optional.empty(), ChartInterval.DAY, TODAY);
+        Chart chart = Chart.of(DailyPrices.of(prices), Optional.empty(), ChartInterval.DAY);
 
         // then
         assertThat(chart.averageVolume()).contains(15L);
@@ -384,23 +366,11 @@ class ChartTest {
         );
     }
 
-    private static Quote quote(BigDecimal price, BigDecimal open, long volume) {
-        return quote(price, open, BigDecimal.valueOf(50500), BigDecimal.valueOf(48800), volume);
+    private static LiveCandle live(BigDecimal close, BigDecimal open, long volume) {
+        return live(close, open, BigDecimal.valueOf(50500), BigDecimal.valueOf(48800), volume);
     }
 
-    private static Quote quote(BigDecimal price, BigDecimal open, BigDecimal high, BigDecimal low, long volume) {
-        return new Quote(
-                price,
-                BigDecimal.valueOf(49000),
-                open,
-                high,
-                low,
-                volume,
-                BigDecimal.valueOf(60_000_000),
-                BigDecimal.valueOf(300_000_000_000L),
-                Currency.KRW,
-                PRICE_AT,
-                PriceTiming.REALTIME
-        );
+    private static LiveCandle live(BigDecimal close, BigDecimal open, BigDecimal high, BigDecimal low, long volume) {
+        return new LiveCandle(new DailyPrice(TODAY, open, high, low, close, volume), AS_OF);
     }
 }

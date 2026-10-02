@@ -34,8 +34,6 @@ import jakarta.persistence.UniqueConstraint;
 )
 public class IndustryFlows {
 
-    private static final int MAJOR_STOCK_LIMIT = 2;
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(nullable = false)
@@ -166,8 +164,9 @@ public class IndustryFlows {
         this.calculatedAt = calculatedAt;
         clearMajorStocks();
         List<MajorStock> majorStocks = snapshot.majorStocks();
-        if (majorStocks.size() > MAJOR_STOCK_LIMIT) {
-            throw new IllegalArgumentException("대표 종목은 " + MAJOR_STOCK_LIMIT + "개까지다: " + majorStocks.size());
+        if (majorStocks.size() > IndustryFlowSnapshot.MAJOR_STOCK_LIMIT) {
+            throw new IllegalArgumentException(
+                    "대표 종목은 " + IndustryFlowSnapshot.MAJOR_STOCK_LIMIT + "개까지다: " + majorStocks.size());
         }
         if (majorStocks.isEmpty()) {
             return;
