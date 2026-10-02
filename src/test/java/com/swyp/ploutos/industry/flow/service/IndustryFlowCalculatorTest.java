@@ -120,8 +120,8 @@ class IndustryFlowCalculatorTest {
         // when
         IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
 
-        // then 종목별 비율을 단순 평균하면 +125.00 이 된다
-        assertThat(snapshot.tradingValueChangeRate()).isEqualByComparingTo("50.37");
+        // then 종목별 비율을 단순 평균하면 2.25배가 된다
+        assertThat(snapshot.tradingValue().ratio()).isEqualByComparingTo("1.503741");
     }
 
     @Test
@@ -134,13 +134,14 @@ class IndustryFlowCalculatorTest {
         // when
         IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
 
-        // then 9000을 분자에만 넣으면 +900% 가 나온다. 등락률에는 두 종목 모두 반영된다
-        assertThat(snapshot.tradingValueChangeRate()).isEqualByComparingTo("100.00");
+        // then 9000을 분자에만 넣으면 20배가 나온다. 등락률에는 두 종목 모두 반영된다
+        assertThat(snapshot.tradingValue().today()).isEqualByComparingTo("1000");
+        assertThat(snapshot.tradingValue().average20d()).isEqualByComparingTo("500");
         assertThat(snapshot.stockCount()).isEqualTo(2);
     }
 
     @Test
-    void 견줄_수_있는_종목이_없으면_거래대금_변화율이_없다() {
+    void 견줄_수_있는_종목이_없으면_거래대금이_없다() {
         // given 전부 20일 평균이 없다
         List<QuotedStock> stocks = List.of(
                 quoted("A", "가", "1.00", 300, 1_000L, 0L),
@@ -149,8 +150,8 @@ class IndustryFlowCalculatorTest {
         // when
         IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
 
-        // then 0.00 으로 내리면 "계산 실패"가 "변화 없음"으로 위장한다
-        assertThat(snapshot.tradingValueChangeRate()).isNull();
+        // then 0 으로 채우면 "계산 실패"가 "거래 없음"으로 위장한다
+        assertThat(snapshot.tradingValue()).isNull();
         assertThat(snapshot.avgChangeRate()).isEqualByComparingTo("1.50");
     }
 

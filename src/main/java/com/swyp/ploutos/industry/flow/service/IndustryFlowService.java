@@ -68,7 +68,7 @@ public class IndustryFlowService {
                     List.of(), null);
         }
         return new RankedIndustryFlow(industry.name(), rank, flow.avgChangeRate(), flow.stockCount(),
-                flow.risingCount(), flow.fallingCount(), flow.tradingValueChangeRate(),
+                flow.risingCount(), flow.fallingCount(), flow.tradingValue().orElse(null),
                 flow.majorStocks(), localTime(flow, country));
     }
 

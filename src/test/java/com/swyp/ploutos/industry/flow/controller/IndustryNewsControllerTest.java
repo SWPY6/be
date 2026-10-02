@@ -28,6 +28,7 @@ import com.swyp.ploutos.common.enums.IndustryCode;
 import com.swyp.ploutos.common.exception.GlobalExceptionHandler;
 import com.swyp.ploutos.industry.flow.IndustryCard.Direction;
 import com.swyp.ploutos.industry.flow.IndustryCard.SelectedBy;
+import com.swyp.ploutos.industry.flow.IndustryTradingValue;
 import com.swyp.ploutos.industry.flow.MajorStock;
 import com.swyp.ploutos.industry.flow.RankedIndustryFlow;
 import com.swyp.ploutos.industry.flow.service.IndustryNewsDetail;
@@ -61,9 +62,9 @@ class IndustryNewsControllerTest {
     void 상승과_하락_카드를_순서대로_응답한다() throws Exception {
         // given
         given(industryNewsService.read(Country.KR)).willReturn(List.of(
-                detail(IndustryCode.AUTOMOBILE, 1, "1.61", "52.65", Direction.RISING,
+                detail(IndustryCode.AUTOMOBILE, 1, "1.61", Direction.RISING,
                         SelectedBy.MATCHED, List.of(news())),
-                detail(IndustryCode.CHEMICAL, 9, "-0.35", "96.03", Direction.FALLING,
+                detail(IndustryCode.CHEMICAL, 9, "-0.35", Direction.FALLING,
                         SelectedBy.MATCHED, List.of())));
 
         // when & then
@@ -87,7 +88,7 @@ class IndustryNewsControllerTest {
     void 국가를_지정하지_않으면_국내를_돌려준다() throws Exception {
         // given
         given(industryNewsService.read(Country.KR)).willReturn(List.of(
-                detail(IndustryCode.AUTOMOBILE, 1, "1.61", "52.65", Direction.RISING,
+                detail(IndustryCode.AUTOMOBILE, 1, "1.61", Direction.RISING,
                         SelectedBy.MATCHED, List.of())));
 
         // when & then
@@ -101,7 +102,7 @@ class IndustryNewsControllerTest {
     void 뉴스는_제목_출처_발표시각_링크를_내려준다() throws Exception {
         // given
         given(industryNewsService.read(Country.KR)).willReturn(List.of(
-                detail(IndustryCode.AUTOMOBILE, 1, "1.61", "52.65", Direction.RISING,
+                detail(IndustryCode.AUTOMOBILE, 1, "1.61", Direction.RISING,
                         SelectedBy.MATCHED, List.of(news()))));
 
         // when & then 저장된 발표 시각에 시장 오프셋을 붙여 내려준다
@@ -118,7 +119,7 @@ class IndustryNewsControllerTest {
     void 해외는_발표_시각에_미국_오프셋을_붙인다() throws Exception {
         // given
         given(industryNewsService.read(Country.US)).willReturn(List.of(
-                detail(IndustryCode.AUTOMOBILE, 1, "1.61", "52.65", Direction.RISING,
+                detail(IndustryCode.AUTOMOBILE, 1, "1.61", Direction.RISING,
                         SelectedBy.MATCHED, List.of(news()))));
 
         // when & then 2026-09-04 는 서머타임 기간이라 -04:00 이다
@@ -131,7 +132,7 @@ class IndustryNewsControllerTest {
     void 뉴스가_없으면_빈_배열을_응답한다() throws Exception {
         // given
         given(industryNewsService.read(Country.KR)).willReturn(List.of(
-                detail(IndustryCode.AUTOMOBILE, 1, "1.61", "52.65", Direction.RISING,
+                detail(IndustryCode.AUTOMOBILE, 1, "1.61", Direction.RISING,
                         SelectedBy.MATCHED, List.of())));
 
         // when & then null 이 아니라 빈 배열이다. 프론트는 길이만 확인하면 된다
@@ -145,7 +146,7 @@ class IndustryNewsControllerTest {
     void 거래대금_변화율은_응답에_넣지_않는다() throws Exception {
         // given 선정에는 쓰지만 화면에는 표시하지 않는 값이다
         given(industryNewsService.read(Country.KR)).willReturn(List.of(
-                detail(IndustryCode.AUTOMOBILE, 1, "1.61", "52.65", Direction.RISING,
+                detail(IndustryCode.AUTOMOBILE, 1, "1.61", Direction.RISING,
                         SelectedBy.MATCHED, List.of())));
 
         // when & then
@@ -183,7 +184,7 @@ class IndustryNewsControllerTest {
     void 조회는_외부_시세를_호출하지_않는다() throws Exception {
         // given
         given(industryNewsService.read(Country.KR)).willReturn(List.of(
-                detail(IndustryCode.AUTOMOBILE, 1, "1.61", "52.65", Direction.RISING,
+                detail(IndustryCode.AUTOMOBILE, 1, "1.61", Direction.RISING,
                         SelectedBy.MATCHED, List.of())));
 
         // when
@@ -195,10 +196,9 @@ class IndustryNewsControllerTest {
     }
 
     private static IndustryNewsDetail detail(IndustryCode code, int rank, String avgChangeRate,
-            String tradingValueChangeRate, Direction direction, SelectedBy selectedBy,
-            List<RelatedNews> news) {
+            Direction direction, SelectedBy selectedBy, List<RelatedNews> news) {
         RankedIndustryFlow flow = new RankedIndustryFlow(code, rank, new BigDecimal(avgChangeRate),
-                4, 3, 1, new BigDecimal(tradingValueChangeRate),
+                4, 3, 1, new IndustryTradingValue(new BigDecimal("120"), new BigDecimal("100")),
                 List.of(new MajorStock(10L, "005380", "현대차", new BigDecimal("3.24"))),
                 CALCULATED_AT);
         return new IndustryNewsDetail(flow, direction, selectedBy, news);
