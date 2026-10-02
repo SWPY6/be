@@ -31,7 +31,7 @@ class CachedKisAccessTokenProvider implements KisAccessTokenProvider {
     static final String TOKEN_PATH = "/oauth2/tokenP";
     static final Duration REFRESH_MARGIN = Duration.ofMinutes(5);
 
-    private final RestClient restClient;
+    private final RestClient kisRestClient;
     private final KisProperties properties;
     private final Clock clock;
 
@@ -71,7 +71,7 @@ class CachedKisAccessTokenProvider implements KisAccessTokenProvider {
 
     private KisTokenResponse requestToken() {
         try {
-            return restClient.post()
+            return kisRestClient.post()
                     .uri(TOKEN_PATH)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of(
