@@ -33,7 +33,7 @@ import com.swyp.ploutos.industry.Industries;
 import com.swyp.ploutos.industry.flow.IndustryCard.Direction;
 import com.swyp.ploutos.industry.flow.IndustryCardSelector;
 import com.swyp.ploutos.industry.flow.IndustryTradingValue;
-import com.swyp.ploutos.industry.flow.MajorStock;
+import com.swyp.ploutos.industry.flow.IndustryFlowStock;
 import com.swyp.ploutos.industry.flow.RankedIndustryFlow;
 import com.swyp.ploutos.industry.service.IndustryReader;
 import com.swyp.ploutos.news.RelatedNews;
@@ -45,6 +45,8 @@ import com.swyp.ploutos.stock.price.service.DailyPriceReader;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class IndustryNewsServiceTest {
+
+    private static final java.math.BigDecimal PRICE = new java.math.BigDecimal("248000");
 
     /** 계산 시각 = 2026-09-04 15:30 KST. 직전 거래일은 09-03 이다. */
     private static final OffsetDateTime CALCULATED_AT =
@@ -331,7 +333,7 @@ class IndustryNewsServiceTest {
     void 대표_종목이_없는_산업은_곧바로_전체에서_찾는다() {
         // given 시세를 한 종목도 구하지 못해 대표 종목이 비어 있다
         given(industryFlowService.read(Country.KR)).willReturn(List.of(
-                flowWithoutMajorStocks(IndustryCode.AUTOMOBILE, 1, "1.61"),
+                flowWithoutIndustryFlowStocks(IndustryCode.AUTOMOBILE, 1, "1.61"),
                 flow(IndustryCode.CHEMICAL, 9, "-0.35")));
         stubIndustry(IndustryCode.AUTOMOBILE, 1L, List.of(10L, 11L));
         stubIndustry(IndustryCode.CHEMICAL, 9L, List.of(90L));
@@ -392,15 +394,15 @@ class IndustryNewsServiceTest {
         return List.of(
                 new RankedIndustryFlow(IndustryCode.AUTOMOBILE, 1, new BigDecimal("1.61"), 4, 3, 1,
                         tradedAsUsual(),
-                        List.of(new MajorStock(50L, "F", "Ford", new BigDecimal("3.24"))),
+                        List.of(new IndustryFlowStock(50L, "F", "Ford", PRICE, new BigDecimal("3.24"))),
                         CALCULATED_AT),
                 new RankedIndustryFlow(IndustryCode.CHEMICAL, 9, new BigDecimal("-0.35"), 4, 1, 3,
                         tradedAsUsual(),
-                        List.of(new MajorStock(95L, "DOW", "Dow", new BigDecimal("-1.10"))),
+                        List.of(new IndustryFlowStock(95L, "DOW", "Dow", PRICE, new BigDecimal("-1.10"))),
                         CALCULATED_AT));
     }
 
-    private static RankedIndustryFlow flowWithoutMajorStocks(IndustryCode code, int rank,
+    private static RankedIndustryFlow flowWithoutIndustryFlowStocks(IndustryCode code, int rank,
             String avgChangeRate) {
         return new RankedIndustryFlow(code, rank, new BigDecimal(avgChangeRate), 0, 0, 0,
                 tradedAsUsual(), List.of(), CALCULATED_AT);
@@ -421,7 +423,7 @@ class IndustryNewsServiceTest {
     private static RankedIndustryFlow flow(IndustryCode code, int rank, String avgChangeRate) {
         return new RankedIndustryFlow(code, rank, new BigDecimal(avgChangeRate), 4, 3, 1,
                 tradedAsUsual(),
-                List.of(new MajorStock(10L, "005380", "현대차", new BigDecimal("3.24"))),
+                List.of(new IndustryFlowStock(10L, "005380", "현대차", PRICE, new BigDecimal("3.24"))),
                 CALCULATED_AT);
     }
 

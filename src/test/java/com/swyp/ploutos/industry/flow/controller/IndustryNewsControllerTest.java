@@ -29,7 +29,7 @@ import com.swyp.ploutos.common.exception.GlobalExceptionHandler;
 import com.swyp.ploutos.industry.flow.IndustryCard.Direction;
 import com.swyp.ploutos.industry.flow.IndustryCard.SelectedBy;
 import com.swyp.ploutos.industry.flow.IndustryTradingValue;
-import com.swyp.ploutos.industry.flow.MajorStock;
+import com.swyp.ploutos.industry.flow.IndustryFlowStock;
 import com.swyp.ploutos.industry.flow.RankedIndustryFlow;
 import com.swyp.ploutos.industry.flow.service.IndustryNewsDetail;
 import com.swyp.ploutos.industry.flow.service.IndustryNewsService;
@@ -40,6 +40,8 @@ import com.swyp.ploutos.stock.quote.service.QuoteReader;
 @AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
 class IndustryNewsControllerTest {
+
+    private static final java.math.BigDecimal PRICE = new java.math.BigDecimal("248000");
 
     private static final String PATH = "/api/v1/industries/news";
     private static final OffsetDateTime CALCULATED_AT =
@@ -199,7 +201,7 @@ class IndustryNewsControllerTest {
             Direction direction, SelectedBy selectedBy, List<RelatedNews> news) {
         RankedIndustryFlow flow = new RankedIndustryFlow(code, rank, new BigDecimal(avgChangeRate),
                 4, 3, 1, new IndustryTradingValue(new BigDecimal("120"), new BigDecimal("100")),
-                List.of(new MajorStock(10L, "005380", "현대차", new BigDecimal("3.24"))),
+                List.of(new IndustryFlowStock(10L, "005380", "현대차", PRICE, new BigDecimal("3.24"))),
                 CALCULATED_AT);
         return new IndustryNewsDetail(flow, direction, selectedBy, news);
     }

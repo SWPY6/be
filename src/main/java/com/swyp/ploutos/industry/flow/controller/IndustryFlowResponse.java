@@ -6,7 +6,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.swyp.ploutos.common.enums.IndustryCode;
-import com.swyp.ploutos.industry.flow.MajorStock;
+import com.swyp.ploutos.industry.flow.IndustryFlowStock;
 import com.swyp.ploutos.industry.flow.RankedIndustryFlow;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -46,7 +46,7 @@ record IndustryFlowResponse(
                 flow.rank(),
                 flow.displayAvgChangeRate(),
                 flow.stockCount(),
-                flow.majorStocks().stream().map(MajorStockResponse::from).toList(),
+                flow.stocks().stream().map(MajorStockResponse::from).toList(),
                 flow.calculatedAt());
     }
 
@@ -63,7 +63,7 @@ record IndustryFlowResponse(
             BigDecimal changeRate
     ) {
 
-        static MajorStockResponse from(MajorStock stock) {
+        static MajorStockResponse from(IndustryFlowStock stock) {
             return new MajorStockResponse(stock.ticker(), stock.name(), stock.changeRate());
         }
     }

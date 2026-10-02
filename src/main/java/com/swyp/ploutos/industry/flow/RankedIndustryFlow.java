@@ -25,7 +25,7 @@ public record RankedIndustryFlow(
         int risingCount,
         int fallingCount,
         IndustryTradingValue tradingValue,
-        List<MajorStock> majorStocks,
+        List<IndustryFlowStock> stocks,
         OffsetDateTime calculatedAt
 ) {
 

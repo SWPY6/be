@@ -18,7 +18,7 @@ import com.swyp.ploutos.common.enums.MarketCode;
 import com.swyp.ploutos.common.enums.StockStatus;
 import com.swyp.ploutos.common.enums.TradingSession;
 import com.swyp.ploutos.industry.flow.IndustryFlowSnapshot;
-import com.swyp.ploutos.industry.flow.MajorStock;
+import com.swyp.ploutos.industry.flow.IndustryFlowStock;
 import com.swyp.ploutos.industry.flow.QuotedStock;
 import com.swyp.ploutos.market.Markets;
 import com.swyp.ploutos.stock.StockWithMarket;
@@ -220,7 +220,7 @@ class IndustryFlowCalculatorTest {
         assertThat(snapshot.stockCount()).isZero();
         assertThat(snapshot.risingCount()).isZero();
         assertThat(snapshot.fallingCount()).isZero();
-        assertThat(snapshot.majorStocks()).isEmpty();
+        assertThat(snapshot.stocks()).isEmpty();
         assertThat(snapshot.hasNoStock()).isTrue();
     }
 
@@ -237,7 +237,7 @@ class IndustryFlowCalculatorTest {
         IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
 
         // then 시가총액 866 · 349 순
-        assertThat(snapshot.majorStocks()).extracting(MajorStock::ticker)
+        assertThat(snapshot.stocks()).extracting(IndustryFlowStock::ticker)
                 .containsExactly("005380", "000270");
     }
 
@@ -253,7 +253,7 @@ class IndustryFlowCalculatorTest {
         IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
 
         // then
-        assertThat(snapshot.majorStocks()).extracting(MajorStock::ticker)
+        assertThat(snapshot.stocks()).extracting(IndustryFlowStock::ticker)
                 .containsExactly("A", "B");
     }
 
@@ -266,12 +266,12 @@ class IndustryFlowCalculatorTest {
         IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
 
         // then
-        assertThat(snapshot.majorStocks()).hasSize(1);
-        assertThat(snapshot.majorStocks().get(0).ticker()).isEqualTo("005380");
+        assertThat(snapshot.stocks()).hasSize(1);
+        assertThat(snapshot.stocks().get(0).ticker()).isEqualTo("005380");
     }
 
     @Test
-    void 대표_종목은_계산_시점의_종목명과_등락률을_담는다() {
+    void 대표_종목은_계산_시점의_종목명과_현재가와_등락률을_담는다() {
         // given
         List<QuotedStock> stocks = List.of(
                 quoted("005380", "현대차", "3.24", 866),
@@ -281,9 +281,12 @@ class IndustryFlowCalculatorTest {
         IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
 
         // then
-        assertThat(snapshot.majorStocks()).containsExactly(
-                new MajorStock(stockIdOf("005380"), "005380", "현대차", new BigDecimal("3.24")),
-                new MajorStock(stockIdOf("000270"), "000270", "기아", new BigDecimal("1.85")));
+        // 현재가는 전일 종가(100)에 등락률을 더해 만든다. Quote 가 이미 들고 있는 값을 그대로 담는다
+        assertThat(snapshot.stocks()).containsExactly(
+                new IndustryFlowStock(stockIdOf("005380"), "005380", "현대차",
+                        new BigDecimal("103.24"), new BigDecimal("3.24")),
+                new IndustryFlowStock(stockIdOf("000270"), "000270", "기아",
+                        new BigDecimal("101.85"), new BigDecimal("1.85")));
     }
 
     /** 전일 종가를 100 으로 고정해, 넘긴 등락률이 그대로 나오게 한다. 거래대금은 보지 않는 테스트용. */

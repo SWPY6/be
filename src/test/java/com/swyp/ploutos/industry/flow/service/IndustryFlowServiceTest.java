@@ -19,13 +19,16 @@ import com.swyp.ploutos.industry.Industries;
 import com.swyp.ploutos.industry.flow.IndustryFlowSnapshot;
 import com.swyp.ploutos.industry.flow.IndustryFlows;
 import com.swyp.ploutos.industry.flow.IndustryTradingValue;
-import com.swyp.ploutos.industry.flow.MajorStock;
+import com.swyp.ploutos.industry.flow.IndustryFlowStock;
 import com.swyp.ploutos.industry.flow.RankedIndustryFlow;
 import com.swyp.ploutos.industry.flow.repository.IndustryFlowRepository;
+import com.swyp.ploutos.industry.flow.repository.IndustryFlowStockRepository;
 import com.swyp.ploutos.industry.service.IndustryReader;
 
 @ExtendWith(MockitoExtension.class)
 class IndustryFlowServiceTest {
+
+    private static final java.math.BigDecimal PRICE = new java.math.BigDecimal("248000");
 
     private static final LocalDateTime CALCULATED_AT = LocalDateTime.of(2026, 9, 28, 10, 0, 0);
     private static final int SEOUL_OFFSET_SECONDS = 9 * 3600;
@@ -35,6 +38,9 @@ class IndustryFlowServiceTest {
 
     @Mock
     private IndustryFlowRepository industryFlowRepository;
+
+    @Mock
+    private IndustryFlowStockRepository industryFlowStockRepository;
 
     @InjectMocks
     private IndustryFlowService industryFlowService;
@@ -89,7 +95,7 @@ class IndustryFlowServiceTest {
         assertThat(flows).allSatisfy(flow -> {
             assertThat(flow.avgChangeRate()).isEqualByComparingTo("0.00");
             assertThat(flow.stockCount()).isZero();
-            assertThat(flow.majorStocks()).isEmpty();
+            assertThat(flow.stocks()).isEmpty();
         });
     }
 
@@ -203,7 +209,7 @@ class IndustryFlowServiceTest {
                         new BigDecimal("100"));
         return new IndustryFlows(industryId, Country.KR,
                 new IndustryFlowSnapshot(new BigDecimal(avgChangeRate), 4, 3, 1, tradingValue,
-                        List.of(new MajorStock(10L, "005380", "현대차", new BigDecimal("3.24")))),
+                        List.of(new IndustryFlowStock(10L, "005380", "현대차", PRICE, new BigDecimal("3.24")))),
                 CALCULATED_AT);
     }
 

@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 
 import com.swyp.ploutos.industry.flow.IndustryFlowSnapshot;
 import com.swyp.ploutos.industry.flow.IndustryTradingValue;
-import com.swyp.ploutos.industry.flow.MajorStock;
+import com.swyp.ploutos.industry.flow.IndustryFlowStock;
 import com.swyp.ploutos.industry.flow.QuotedStock;
 
 /**
@@ -21,6 +21,12 @@ import com.swyp.ploutos.industry.flow.QuotedStock;
  */
 @Component
 public class IndustryFlowCalculator {
+
+    /**
+     * 카드에 싣는 종목 수. 저장 자리 수가 아니라 <b>몇 개를 보여줄까</b>이므로 여기 하나만 있으면 된다.
+     * 자식 테이블이 개수를 제한하지 않아 이 값만 바꾸면 늘어난다.
+     */
+    private static final int MAJOR_STOCK_COUNT = 2;
 
     private static final int DIVISION_SCALE = 6;
 
@@ -31,7 +37,7 @@ public class IndustryFlowCalculator {
         }
         return new IndustryFlowSnapshot(average(distinct), distinct.size(),
                 count(distinct, QuotedStock::rose), count(distinct, QuotedStock::fell),
-                tradingValue(distinct), majorStocks(distinct));
+                tradingValue(distinct), stocks(distinct));
     }
 
     /**
@@ -80,12 +86,12 @@ public class IndustryFlowCalculator {
      * 상한가·급락한 소형주가 되어 산업 평균과 동떨어진 극단값이 뜨기 때문이다.
      * 시가총액이 같으면 ticker 순으로 정해 갱신마다 순서가 흔들리지 않게 한다.
      */
-    private static List<MajorStock> majorStocks(List<QuotedStock> stocks) {
+    private static List<IndustryFlowStock> stocks(List<QuotedStock> stocks) {
         return stocks.stream()
                 .sorted(Comparator.comparing(QuotedStock::marketCap, Comparator.reverseOrder())
                         .thenComparing(QuotedStock::ticker))
-                .limit(IndustryFlowSnapshot.MAJOR_STOCK_LIMIT)
-                .map(QuotedStock::toMajorStock)
+                .limit(MAJOR_STOCK_COUNT)
+                .map(QuotedStock::toFlowStock)
                 .toList();
     }
 }

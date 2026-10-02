@@ -2,6 +2,7 @@ package com.swyp.ploutos.industry.flow.service;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -13,10 +14,13 @@ import org.springframework.stereotype.Service;
 
 import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.industry.Industries;
+import com.swyp.ploutos.industry.flow.IndustryFlowStock;
+import com.swyp.ploutos.industry.flow.IndustryFlowStocks;
 import com.swyp.ploutos.industry.flow.IndustryFlows;
 import com.swyp.ploutos.industry.flow.IndustryTradingValue;
 import com.swyp.ploutos.industry.flow.RankedIndustryFlow;
 import com.swyp.ploutos.industry.flow.repository.IndustryFlowRepository;
+import com.swyp.ploutos.industry.flow.repository.IndustryFlowStockRepository;
 import com.swyp.ploutos.industry.service.IndustryReader;
 
 import lombok.RequiredArgsConstructor;
@@ -33,6 +37,7 @@ public class IndustryFlowService {
 
     private final IndustryReader industryReader;
     private final IndustryFlowRepository industryFlowRepository;
+    private final IndustryFlowStockRepository industryFlowStockRepository;
 
     /**
      * 국가의 산업 흐름을 평균 등락률이 높은 순으로 읽는다. 계산된 적 없는 산업도 평균 0 · 종목 0
@@ -51,15 +56,40 @@ public class IndustryFlowService {
                 .sorted(byRank(stored))
                 .toList();
 
+        // 산업마다 따로 읽으면 조회가 9번 된다. 한 번에 읽어 산업별로 나눈다
+        Map<Long, List<IndustryFlowStock>> stocksByFlowId = readStocks(stored.values());
+
         // 순위는 이 순서에서 나오지만 응답에 값으로 실려 나간다. 뒤에서 순서를 바꿔도(관심 산업 고정,
         // 동향 탭의 가나다순 필터) 각 원소가 자기 순위를 들고 다니므로 다시 매길 필요가 없다.
         return IntStream.range(0, byChangeRate.size())
-                .mapToObj(index -> toRanked(byChangeRate.get(index), index + 1, stored, country))
+                .mapToObj(index -> toRanked(byChangeRate.get(index), index + 1, stored,
+                        stocksByFlowId, country))
                 .toList();
     }
 
+    /**
+     * 저장된 종목 행을 산업별로 모은다. {@code displayOrder}로 정렬해 시가총액 순서를 되살린다 —
+     * 조회 결과의 순서에 기대지 않는다.
+     */
+    private Map<Long, List<IndustryFlowStock>> readStocks(Collection<IndustryFlows> flows) {
+        List<Long> flowIds = flows.stream().map(IndustryFlows::industryFlowId).toList();
+        if (flowIds.isEmpty()) {
+            return Map.of();
+        }
+        return industryFlowStockRepository.findByIndustryFlowIdIn(flowIds).stream()
+                .sorted(Comparator.comparingInt(IndustryFlowStocks::displayOrder))
+                .collect(Collectors.groupingBy(IndustryFlowStocks::industryFlowId,
+                        Collectors.mapping(IndustryFlowService::toFlowStock, Collectors.toList())));
+    }
+
+    private static IndustryFlowStock toFlowStock(IndustryFlowStocks stock) {
+        return new IndustryFlowStock(stock.stockId(), stock.ticker(), stock.name(),
+                stock.price(), stock.changeRate());
+    }
+
     private static RankedIndustryFlow toRanked(Industries industry, int rank,
-            Map<Long, IndustryFlows> stored, Country country) {
+            Map<Long, IndustryFlows> stored, Map<Long, List<IndustryFlowStock>> stocksByFlowId,
+            Country country) {
         IndustryFlows flow = stored.get(industry.industryId());
         if (flow == null) {
             return new RankedIndustryFlow(industry.name(), rank, NOT_CALCULATED, 0, 0, 0, null,
@@ -67,7 +97,8 @@ public class IndustryFlowService {
         }
         return new RankedIndustryFlow(industry.name(), rank, flow.avgChangeRate(), flow.stockCount(),
                 flow.risingCount(), flow.fallingCount(), flow.tradingValue().orElse(null),
-                flow.majorStocks(), localTime(flow, country));
+                stocksByFlowId.getOrDefault(flow.industryFlowId(), List.of()),
+                localTime(flow, country));
     }
 
     /**
