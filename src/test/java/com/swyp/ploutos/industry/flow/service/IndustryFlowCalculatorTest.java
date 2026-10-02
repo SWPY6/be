@@ -3,6 +3,7 @@ package com.swyp.ploutos.industry.flow.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -46,9 +47,11 @@ class IndustryFlowCalculatorTest {
         assertThat(snapshot.avgChangeRate()).isEqualByComparingTo("1.00");
     }
 
+
+
     @Test
-    void 평균은_소수_둘째_자리로_반올림한다() {
-        // given 등락률 1.00 · 1.00 · 2.00 → 4.00 / 3 = 1.333...
+    void 평균을_반올림하지_않고_그대로_담는다() {
+        // given 등락률 1.00 · 1.00 · 2.00 → 4.00 / 3 = 1.333333
         List<QuotedStock> stocks = List.of(
                 quoted("A", "가", "1.00", 300),
                 quoted("B", "나", "1.00", 200),
@@ -57,9 +60,26 @@ class IndustryFlowCalculatorTest {
         // when
         IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
 
-        // then
-        assertThat(snapshot.avgChangeRate()).isEqualByComparingTo("1.33");
-        assertThat(snapshot.avgChangeRate().scale()).isEqualTo(2);
+        // then 여기서 두 자리로 자르면 순위 동률을 풀 수 없다 (RQ-0603).
+        // 표기용으로 자르는 것은 RankedIndustryFlow 가 한다
+        assertThat(snapshot.avgChangeRate()).isEqualByComparingTo("1.333333");
+    }
+
+    @Test
+    void 표기가_같아도_반올림_전_값이_다르면_구분된다() {
+        // given 종목 등락률은 Quote 가 이미 두 자리로 반올림해 주므로,
+        // 추가 정밀도는 종목 수로 나눌 때 생긴다
+        IndustryFlowSnapshot divided = calculator.calculate(List.of(
+                quoted("A", "가", "1.00", 300),
+                quoted("B", "나", "1.00", 200),
+                quoted("C", "다", "2.00", 100)));          // 4.00 / 3 = 1.333333
+        IndustryFlowSnapshot exact = calculator.calculate(List.of(
+                quoted("D", "라", "1.33", 300)));          // 1.330000
+
+        // when & then 표기하면 둘 다 1.33 이지만 저장되는 값은 다르다
+        assertThat(divided.avgChangeRate()).isNotEqualByComparingTo(exact.avgChangeRate());
+        assertThat(divided.avgChangeRate().setScale(2, RoundingMode.HALF_UP))
+                .isEqualByComparingTo(exact.avgChangeRate().setScale(2, RoundingMode.HALF_UP));
     }
 
     @Test

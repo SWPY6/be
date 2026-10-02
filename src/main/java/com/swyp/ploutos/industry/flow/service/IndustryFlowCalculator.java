@@ -23,7 +23,6 @@ import com.swyp.ploutos.industry.flow.QuotedStock;
 public class IndustryFlowCalculator {
 
     private static final int MAJOR_STOCK_LIMIT = 2;
-    private static final int SCALE = 2;
     private static final int DIVISION_SCALE = 6;
 
     public IndustryFlowSnapshot calculate(List<QuotedStock> quotedStocks) {
@@ -61,12 +60,18 @@ public class IndustryFlowCalculator {
         return List.copyOf(byTicker.values());
     }
 
+    /**
+     * 반올림하지 않는다. 표기용으로 자르는 것은 응답을 만들 때
+     * {@link RankedIndustryFlow#displayAvgChangeRate()}가 한다.
+     *
+     * <p>여기서 두 자리로 자르면 {@code +1.6149}와 {@code +1.6151}이 같은 값이 되어
+     * 순위 동률을 풀 수 없다(RQ-0603).
+     */
     private static BigDecimal average(List<QuotedStock> stocks) {
         BigDecimal sum = stocks.stream()
                 .map(QuotedStock::changeRate)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return sum.divide(BigDecimal.valueOf(stocks.size()), DIVISION_SCALE, RoundingMode.HALF_UP)
-                .setScale(SCALE, RoundingMode.HALF_UP);
+        return sum.divide(BigDecimal.valueOf(stocks.size()), DIVISION_SCALE, RoundingMode.HALF_UP);
     }
 
     /**

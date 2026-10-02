@@ -12,7 +12,7 @@
 | --- | --- | --- | --- |
 | `industry` | 산업 마스터 9종(`IndustryCode`, 한글 표시명), 산업별 종목 조회. HTTP API 없음 | — | `SPEC-industry.md` |
 | `industry-flow` | 산업별 평균 등락률·순위·소속 종목 수. `GET /api/v1/industries/flows` | `industry`, `stock-quote` | **다음** — `SPEC-industry-flow.md` |
-| `industry-trend` | 산업별 동향 화면: 산업 카드 + 소속 종목 목록, 상승·하락 필터 | `industry`, `industry-flow`, `stock-quote` | **추후** — 별도 명세 |
+| `industry-trend` | 산업별 동향 화면: 산업 카드 + 시가총액 상위 4종목(현재가 포함). `GET /api/v1/industries/trends` | `industry`, `industry-flow`, `stock-quote` | **다음** — `SPEC-industry-trend.md` |
 | `industry-news` | 오늘의 핵심 뉴스: 상승·하락 산업 각 1건, 상승·하락 종목 수, 관련 뉴스. `GET /api/v1/industries/news` | `industry`, `industry-flow`, `stock-daily-price`, `news` | **완료** — `SPEC-industry-news.md` |
 | `industry-pin` | 관심 산업 최대 3개 고정 | `industry`, 인증 | **추후** — 로그인 도입 후 |
 
@@ -49,6 +49,12 @@
 | RQ-0403 | 관련 뉴스·공시 연결 | `industry-news` + `news` | 시간 창 `[직전 거래일 마감, 현재 기준 시각]`. 0건이면 생략. **공시는 이번 범위 밖** — `Announcements`에 `url`·출처 컬럼이 없다 |
 | RQ-0404 | 뉴스·공시 맥락 고지 | **프론트엔드** | 고정 문구. 매 응답에 싣지 않는다 |
 | RQ-0405 | 관련 자료 확인 | **프론트엔드** + `industry-news` | 원문 링크는 응답의 `url`. 화면 이동은 프론트 라우팅 |
+| RQ-0601 | 산업 카드 목록 | `industry-trend` | 9개 산업 × 시가총액 상위 4종목(종목명·코드·현재가·등락률) |
+| RQ-0602 | 산업 필터 | `industry-trend` | `filter=ALL\|RISING\|FALLING`. 서버가 거른다 |
+| RQ-0603 | 산업 정렬 | `industry-trend` | 서버가 정렬한다. 동률은 반올림 전 등락률 → 거래대금 → 산업명 |
+| RQ-0604 | 관심 산업 고정 | **프론트엔드** | 받은 목록을 재배열하는 일. 서버 작업 없음 |
+| RQ-0605 | 산업 종목 전체 보기 | **프론트엔드** + 종목 검색 화면 | `industry-trend`는 넘길 식별자(`code`)만 준다 |
+| RQ-0606 | 관심 산업 계정 저장 | `industry-pin` | **추후** — 인증이 선행 조건 |
 
 원본 요구사항에서 마지막 두 행의 RQ-ID가 모두 `RQ-0404`로 중복되어 있다. 뒤의 "관련 자료 확인"을
 `RQ-0405`로 읽는다.

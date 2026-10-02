@@ -1,6 +1,7 @@
 package com.swyp.ploutos.industry.flow;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -27,7 +28,20 @@ public record RankedIndustryFlow(
         OffsetDateTime calculatedAt
 ) {
 
+    /** 표기용 자리수. 저장된 값은 반올림돼 있지 않다. */
+    private static final int DISPLAY_SCALE = 2;
+
     public String displayName() {
         return code.displayName();
+    }
+
+    /**
+     * 화면에 내보낼 평균 등락률. 소수 둘째 자리로 반올림한다.
+     *
+     * <p>{@link #avgChangeRate()}는 반올림하지 않은 값이라 순위를 매길 때 쓰고, 응답에는
+     * 이것을 싣는다. 자르는 규칙을 값 옆에 두어 DTO 마다 같은 코드를 쓰지 않게 한다.
+     */
+    public BigDecimal displayAvgChangeRate() {
+        return avgChangeRate.setScale(DISPLAY_SCALE, RoundingMode.HALF_UP);
     }
 }

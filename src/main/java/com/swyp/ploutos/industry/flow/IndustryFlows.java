@@ -47,7 +47,12 @@ public class IndustryFlows {
     @Column(nullable = false, length = 10)
     private Country country;
 
-    @Column(nullable = false, precision = 10, scale = 2)
+    /**
+     * 소속 종목 등락률의 단순평균. <b>반올림하지 않은 값</b>이다 — 표기용으로 두 자리로 자르는 것은
+     * 응답을 만들 때 한다. 반올림해 저장하면 1.6149 와 1.6151 을 구분할 수 없어 순위 동률을
+     * 풀 수 없다(RQ-0603).
+     */
+    @Column(nullable = false, precision = 12, scale = 6)
     private BigDecimal avgChangeRate;
 
     /** 평균에 실제로 반영된 종목 수. 시세를 못 구한 종목은 빠진다. */
