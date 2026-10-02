@@ -14,43 +14,32 @@ import com.swyp.ploutos.industry.flow.IndustryTradingValue.StockTradingValue;
 class IndustryTradingValueTest {
 
     @Test
-    void 오늘_거래대금이_평소보다_많으면_양수_변화율이다() {
+    void 종목들의_금액을_합쳐_담는다() {
         // given 오늘 600억, 20일 평균 400억
         List<StockTradingValue> stocks = List.of(stock(600, 400));
 
         // when
         IndustryTradingValue value = IndustryTradingValue.of(stocks).orElseThrow();
 
-        // then
-        assertThat(value.changeRatePercent()).isEqualByComparingTo("50.00");
+        // then 나눈 결과가 아니라 금액을 그대로 담는다
+        assertThat(value.today()).isEqualByComparingTo("600");
+        assertThat(value.average20d()).isEqualByComparingTo("400");
     }
 
     @Test
-    void 오늘_거래대금이_평소보다_적으면_음수_변화율이다() {
+    void 자기_평균_대비_비율을_낸다() {
         // given
-        List<StockTradingValue> stocks = List.of(stock(200, 400));
+        List<StockTradingValue> stocks = List.of(stock(600, 400));
 
         // when
         IndustryTradingValue value = IndustryTradingValue.of(stocks).orElseThrow();
 
         // then
-        assertThat(value.changeRatePercent()).isEqualByComparingTo("-50.00");
+        assertThat(value.ratio()).isEqualByComparingTo("1.5");
     }
 
     @Test
-    void 평소와_같으면_변화율이_0이다() {
-        // given
-        List<StockTradingValue> stocks = List.of(stock(400, 400));
-
-        // when
-        IndustryTradingValue value = IndustryTradingValue.of(stocks).orElseThrow();
-
-        // then
-        assertThat(value.changeRatePercent()).isEqualByComparingTo("0.00");
-    }
-
-    @Test
-    void 오늘_거래가_없으면_마이너스_100퍼센트다() {
+    void 오늘_거래가_없으면_비율이_0이다() {
         // given 장 시작 전이라 누적 거래대금이 0이다
         List<StockTradingValue> stocks = List.of(stock(0, 400));
 
@@ -58,7 +47,7 @@ class IndustryTradingValueTest {
         IndustryTradingValue value = IndustryTradingValue.of(stocks).orElseThrow();
 
         // then
-        assertThat(value.changeRatePercent()).isEqualByComparingTo("-100.00");
+        assertThat(value.ratio()).isEqualByComparingTo("0");
     }
 
     @Test
@@ -71,8 +60,8 @@ class IndustryTradingValueTest {
         // when
         IndustryTradingValue value = IndustryTradingValue.of(stocks).orElseThrow();
 
-        // then 종목별 비율을 단순 평균하면 +125.00 이 되지만, 금액을 합치면 대형주가 지배한다
-        assertThat(value.changeRatePercent()).isEqualByComparingTo("50.37");
+        // then 종목별 비율을 단순 평균하면 2.25배가 되지만, 금액을 합치면 대형주가 지배한다
+        assertThat(value.ratio()).isEqualByComparingTo("1.503741");
     }
 
     @Test
@@ -85,9 +74,8 @@ class IndustryTradingValueTest {
         // when
         IndustryTradingValue value = IndustryTradingValue.of(stocks).orElseThrow();
 
-        // then 비교 가능한 종목만으로 계산한다. 9000을 분자에만 넣으면 +900% 가 나온다
-        assertThat(value.changeRatePercent()).isEqualByComparingTo("100.00");
-        assertThat(value.todayAverage()).isEqualByComparingTo("1000");
+        // then 9000을 분자에만 넣으면 20배가 나온다
+        assertThat(value.today()).isEqualByComparingTo("1000");
         assertThat(value.average20d()).isEqualByComparingTo("500");
     }
 
@@ -102,7 +90,8 @@ class IndustryTradingValueTest {
         IndustryTradingValue value = IndustryTradingValue.of(stocks).orElseThrow();
 
         // then
-        assertThat(value.changeRatePercent()).isEqualByComparingTo("50.00");
+        assertThat(value.today()).isEqualByComparingTo("600");
+        assertThat(value.average20d()).isEqualByComparingTo("400");
     }
 
     @Test
@@ -115,7 +104,7 @@ class IndustryTradingValueTest {
         // when
         Optional<IndustryTradingValue> value = IndustryTradingValue.of(stocks);
 
-        // then 0.00 으로 내리면 "계산 실패"가 "변화 없음"으로 위장한다
+        // then 0 으로 채우면 "계산 실패"가 "거래 없음"으로 위장한다
         assertThat(value).isEmpty();
     }
 
@@ -129,26 +118,97 @@ class IndustryTradingValueTest {
     }
 
     @Test
-    void 소수_둘째_자리로_반올림한다() {
-        // given 3억 / 7억 = 0.428571... → -57.142857...%
-        List<StockTradingValue> stocks = List.of(stock(3, 7));
-
-        // when
-        IndustryTradingValue value = IndustryTradingValue.of(stocks).orElseThrow();
-
-        // then
-        assertThat(value.changeRatePercent()).isEqualByComparingTo("-57.14");
-        assertThat(value.changeRatePercent().scale()).isEqualTo(2);
-    }
-
-    @Test
     void 이십일_평균이_0이면_객체를_만들_수_없다() {
         // when & then 팩토리를 거치지 않고 직접 만들어도 잘못된 상태가 생기지 않는다
         assertThatThrownBy(() -> new IndustryTradingValue(BigDecimal.TEN, BigDecimal.ZERO))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void 시장_전체는_금액을_모두_합쳐_구한다() {
+        // given 큰 산업은 1.5배, 작은 산업 둘은 그대로다
+        List<IndustryTradingValue> industries = List.of(
+                industry(600, 400),
+                industry(10, 10),
+                industry(10, 10));
+
+        // when
+        BigDecimal market = IndustryTradingValue.marketRatio(industries).orElseThrow();
+
+        // then 산업 수로 평균하면 1.167 이지만 금액으로 합치면 큰 산업이 시장을 설명한다
+        assertThat(market).isEqualByComparingTo("1.476190");
+    }
+
+    @Test
+    void 측정된_산업이_셋보다_적으면_시장을_말할_수_없다() {
+        // given 일봉이 드물어 두 산업만 측정됐다
+        List<IndustryTradingValue> industries = List.of(industry(600, 400), industry(10, 10));
+
+        // when
+        Optional<BigDecimal> market = IndustryTradingValue.marketRatio(industries);
+
+        // then 한 산업이 곧 시장이 되면 자기 자신과 비교하게 된다
+        assertThat(market).isEmpty();
+    }
+
+    @Test
+    void 시장보다_활발하면_상대비율이_1보다_크다() {
+        // given 시장은 1.2배인데 이 산업은 1.5배다
+        IndustryTradingValue value = industry(150, 100);
+
+        // when
+        BigDecimal relative = value.relativeTo(new BigDecimal("1.2"));
+
+        // then
+        assertThat(relative).isEqualByComparingTo("1.250");
+    }
+
+    @Test
+    void 시장보다_한산하면_상대비율이_1보다_작다() {
+        // given 시장은 1.2배인데 이 산업은 0.9배다
+        IndustryTradingValue value = industry(90, 100);
+
+        // when
+        BigDecimal relative = value.relativeTo(new BigDecimal("1.2"));
+
+        // then
+        assertThat(relative).isEqualByComparingTo("0.750");
+    }
+
+    @Test
+    void 장중_경과율은_상대비율에서_약분된다() {
+        // given 하루 전체 기준으로 산업은 1.5배, 시장은 1.2배다.
+        // 장이 절반쯤 지난 시각이라 양쪽 모두 관측값에 0.47 이 곱해져 있다
+        BigDecimal elapsed = new BigDecimal("0.47");
+        IndustryTradingValue observed = new IndustryTradingValue(
+                new BigDecimal("150").multiply(elapsed), new BigDecimal("100"));
+        BigDecimal observedMarket = new BigDecimal("1.2").multiply(elapsed);
+
+        // when
+        BigDecimal relative = observed.relativeTo(observedMarket);
+
+        // then 경과율을 추정하지 않았는데도 하루 전체 기준의 값이 그대로 나온다
+        assertThat(relative).isEqualByComparingTo("1.250");
+    }
+
+    @Test
+    void 상대비율은_소수_셋째_자리로_반올림한다() {
+        // given 1 ÷ 3 = 0.333333...
+        IndustryTradingValue value = industry(100, 100);
+
+        // when
+        BigDecimal relative = value.relativeTo(new BigDecimal("3"));
+
+        // then
+        assertThat(relative).isEqualByComparingTo("0.333");
+        assertThat(relative.scale()).isEqualTo(3);
+    }
+
     private static StockTradingValue stock(long today, long average20d) {
         return new StockTradingValue(BigDecimal.valueOf(today), BigDecimal.valueOf(average20d));
+    }
+
+    private static IndustryTradingValue industry(long today, long average20d) {
+        return new IndustryTradingValue(BigDecimal.valueOf(today), BigDecimal.valueOf(average20d));
     }
 }

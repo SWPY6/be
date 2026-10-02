@@ -32,16 +32,18 @@ public class IndustryFlowCalculator {
         }
         return new IndustryFlowSnapshot(average(distinct), distinct.size(),
                 count(distinct, QuotedStock::rose), count(distinct, QuotedStock::fell),
-                tradingValueChangeRate(distinct), majorStocks(distinct));
+                tradingValue(distinct), majorStocks(distinct));
     }
 
     /**
-     * 금액을 먼저 합치고 나중에 나눈다. 종목별 비율을 평균하면 소형주 하나가 산업을 흔든다.
-     * 견줄 수 있는 종목이 하나도 없으면 {@code null}이다 — 0.00 으로 내리면 실패가 숨는다.
+     * 금액을 합치기만 하고 나누지 않는다. 비교는 조회 시점에 시장 전체와 함께 한다 —
+     * 여기서는 다른 산업의 숫자를 알 수 없다. 종목별 비율을 평균하지 않는 이유는 소형주 하나가
+     * 산업을 흔들기 때문이다.
+     *
+     * <p>견줄 수 있는 종목이 하나도 없으면 {@code null}이다 — 0 으로 채우면 실패가 숨는다.
      */
-    private static BigDecimal tradingValueChangeRate(List<QuotedStock> stocks) {
+    private static IndustryTradingValue tradingValue(List<QuotedStock> stocks) {
         return IndustryTradingValue.of(stocks.stream().map(QuotedStock::toTradingValue).toList())
-                .map(IndustryTradingValue::changeRatePercent)
                 .orElse(null);
     }
 

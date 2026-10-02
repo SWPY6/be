@@ -250,11 +250,12 @@ class IndustryFlowRefresherTest {
 
         // then
         then(industryFlowRepository).should(org.mockito.Mockito.atLeastOnce()).save(saved.capture());
-        assertThat(savedOf(Country.KR).tradingValueChangeRate()).isEqualByComparingTo("50.00");
+        assertThat(savedOf(Country.KR).tradingValue().orElseThrow().ratio())
+                .isEqualByComparingTo("1.5");
     }
 
     @Test
-    void 저장된_일봉이_스무개보다_적으면_거래대금_변화율이_없다() {
+    void 저장된_일봉이_스무개보다_적으면_거래대금이_없다() {
         // given 신규 상장이라 일봉이 10개뿐이다
         given(industryReader.readAll()).willReturn(List.of(AUTOMOBILE));
         given(industryReader.readStockIds(1L)).willReturn(List.of(10L));
@@ -266,7 +267,7 @@ class IndustryFlowRefresherTest {
 
         // then 등락률은 그대로 저장한다. 둘은 독립된 값이다
         then(industryFlowRepository).should(org.mockito.Mockito.atLeastOnce()).save(saved.capture());
-        assertThat(savedOf(Country.KR).tradingValueChangeRate()).isNull();
+        assertThat(savedOf(Country.KR).tradingValue()).isEmpty();
         assertThat(savedOf(Country.KR).avgChangeRate()).isEqualByComparingTo("3.00");
     }
 
@@ -284,7 +285,7 @@ class IndustryFlowRefresherTest {
 
         // then 거래대금만 잃고 종목은 평균에 남는다
         then(industryFlowRepository).should(org.mockito.Mockito.atLeastOnce()).save(saved.capture());
-        assertThat(savedOf(Country.KR).tradingValueChangeRate()).isNull();
+        assertThat(savedOf(Country.KR).tradingValue()).isEmpty();
         assertThat(savedOf(Country.KR).stockCount()).isEqualTo(1);
         assertThat(savedOf(Country.KR).avgChangeRate()).isEqualByComparingTo("3.00");
     }

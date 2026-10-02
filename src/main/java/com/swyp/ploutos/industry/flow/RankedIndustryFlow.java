@@ -13,7 +13,8 @@ import com.swyp.ploutos.common.enums.IndustryCode;
  *
  * @param risingCount  반영된 종목 중 오른 종목 수
  * @param fallingCount 반영된 종목 중 내린 종목 수. 보합은 어느 쪽에도 세지 않는다
- * @param tradingValueChangeRate 20거래일 평균 대비 거래대금 변화율 %. 계산할 수 없으면 {@code null}
+ * @param tradingValue 오늘 누적 금액과 20거래일 평균 금액. 계산할 수 없으면 {@code null}.
+ *                     선정 규칙이 9개 산업의 이 값을 모두 합쳐 시장 전체와 견준다
  * @param calculatedAt 시장 현지 시각. 아직 한 번도 계산되지 않은 산업은 {@code null}이다
  */
 public record RankedIndustryFlow(
@@ -23,7 +24,7 @@ public record RankedIndustryFlow(
         int stockCount,
         int risingCount,
         int fallingCount,
-        BigDecimal tradingValueChangeRate,
+        IndustryTradingValue tradingValue,
         List<MajorStock> majorStocks,
         OffsetDateTime calculatedAt
 ) {

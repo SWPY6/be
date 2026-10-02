@@ -32,6 +32,7 @@ import com.swyp.ploutos.common.enums.IndustryCode;
 import com.swyp.ploutos.industry.Industries;
 import com.swyp.ploutos.industry.flow.IndustryCard.Direction;
 import com.swyp.ploutos.industry.flow.IndustryCardSelector;
+import com.swyp.ploutos.industry.flow.IndustryTradingValue;
 import com.swyp.ploutos.industry.flow.MajorStock;
 import com.swyp.ploutos.industry.flow.RankedIndustryFlow;
 import com.swyp.ploutos.industry.service.IndustryReader;
@@ -331,7 +332,7 @@ class IndustryNewsServiceTest {
         // given 시세를 한 종목도 구하지 못해 대표 종목이 비어 있다
         given(industryFlowService.read(Country.KR)).willReturn(List.of(
                 flowWithoutMajorStocks(IndustryCode.AUTOMOBILE, 1, "1.61"),
-                flow(IndustryCode.CHEMICAL, 9, "-0.35", "96.03")));
+                flow(IndustryCode.CHEMICAL, 9, "-0.35")));
         stubIndustry(IndustryCode.AUTOMOBILE, 1L, List.of(10L, 11L));
         stubIndustry(IndustryCode.CHEMICAL, 9L, List.of(90L));
         stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
@@ -390,11 +391,11 @@ class IndustryNewsServiceTest {
     private static List<RankedIndustryFlow> usFlows() {
         return List.of(
                 new RankedIndustryFlow(IndustryCode.AUTOMOBILE, 1, new BigDecimal("1.61"), 4, 3, 1,
-                        new BigDecimal("52.65"),
+                        tradedAsUsual(),
                         List.of(new MajorStock(50L, "F", "Ford", new BigDecimal("3.24"))),
                         CALCULATED_AT),
                 new RankedIndustryFlow(IndustryCode.CHEMICAL, 9, new BigDecimal("-0.35"), 4, 1, 3,
-                        new BigDecimal("96.03"),
+                        tradedAsUsual(),
                         List.of(new MajorStock(95L, "DOW", "Dow", new BigDecimal("-1.10"))),
                         CALCULATED_AT));
     }
@@ -402,23 +403,31 @@ class IndustryNewsServiceTest {
     private static RankedIndustryFlow flowWithoutMajorStocks(IndustryCode code, int rank,
             String avgChangeRate) {
         return new RankedIndustryFlow(code, rank, new BigDecimal(avgChangeRate), 0, 0, 0,
-                new BigDecimal("10.00"), List.of(), CALCULATED_AT);
+                tradedAsUsual(), List.of(), CALCULATED_AT);
     }
 
-    /** 자동차 상승 1위 · 건설 중간 · 화학 하락 최하위. 거래대금은 모두 평소 이상이다. */
+    /**
+     * 자동차 상승 1위 · 건설 중간 · 화학 하락 최하위.
+     * 세 산업의 거래대금 비율이 같아 모두 시장과 같은 속도이고, 관문을 통과한다 —
+     * 이 테스트의 관심사는 선정 규칙이 아니라 뉴스 연결이다.
+     */
     private static List<RankedIndustryFlow> flows() {
         return List.of(
-                flow(IndustryCode.AUTOMOBILE, 1, "1.61", "52.65"),
-                flow(IndustryCode.CONSTRUCTION, 2, "0.45", "10.00"),
-                flow(IndustryCode.CHEMICAL, 9, "-0.35", "96.03"));
+                flow(IndustryCode.AUTOMOBILE, 1, "1.61"),
+                flow(IndustryCode.CONSTRUCTION, 2, "0.45"),
+                flow(IndustryCode.CHEMICAL, 9, "-0.35"));
     }
 
-    private static RankedIndustryFlow flow(IndustryCode code, int rank, String avgChangeRate,
-            String tradingValueChangeRate) {
+    private static RankedIndustryFlow flow(IndustryCode code, int rank, String avgChangeRate) {
         return new RankedIndustryFlow(code, rank, new BigDecimal(avgChangeRate), 4, 3, 1,
-                new BigDecimal(tradingValueChangeRate),
+                tradedAsUsual(),
                 List.of(new MajorStock(10L, "005380", "현대차", new BigDecimal("3.24"))),
                 CALCULATED_AT);
+    }
+
+    /** 시장과 같은 속도. 모든 산업이 같은 비율이면 상대비율이 1.000 이라 관문을 통과한다. */
+    private static IndustryTradingValue tradedAsUsual() {
+        return new IndustryTradingValue(new BigDecimal("100"), new BigDecimal("100"));
     }
 
     private static RelatedNews news(Long newsId, String title) {
