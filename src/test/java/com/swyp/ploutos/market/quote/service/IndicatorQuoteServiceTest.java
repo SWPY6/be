@@ -67,6 +67,8 @@ class IndicatorQuoteServiceTest {
         // then
         assertThat(quote).isEqualTo(filled);
         assertThat(provider.calls).isEmpty();
+        // 내가 잡지 않은 락을 풀면 다른 요청의 락을 뺏는다
+        assertThat(cache.unlocked).isEmpty();
     }
 
     @Test
@@ -81,6 +83,7 @@ class IndicatorQuoteServiceTest {
                 .isEqualTo(ErrorCode.MARKET_DATA_UNAVAILABLE);
         assertThat(provider.calls).isEmpty();
         assertThat(cache.finds).isEqualTo(1 + IndicatorQuoteService.MAX_POLLS);
+        assertThat(cache.unlocked).isEmpty();
     }
 
     @Test

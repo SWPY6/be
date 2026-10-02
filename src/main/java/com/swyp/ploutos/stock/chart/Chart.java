@@ -6,16 +6,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.swyp.ploutos.stock.price.DailyPrice;
 import com.swyp.ploutos.stock.price.DailyPrices;
-import com.swyp.ploutos.stock.quote.Quote;
 
 /**
- * 한 구간의 차트 데이터. 확정 일봉을 요청한 봉 단위로 묶고, 진행 중 봉을 붙일지 여기서 판단한다.
+ * 한 구간의 차트 데이터. 확정 일봉을 요청한 봉 단위로 묶고, 진행 중인 봉을 마지막 버킷에 합친다.
  */
 public final class Chart {
 
@@ -30,28 +28,27 @@ public final class Chart {
         this.asOf = asOf;
     }
 
-    public static Chart of(DailyPrices closed, Optional<Quote> quote, ChartInterval interval, LocalDate today) {
-        Optional<Quote> inProgress = quote
-                .filter(Predicate.not(Quote::notOpenedToday))
-                .filter(ignored -> closed.values().stream().noneMatch(price -> price.tradedOn(today)));
-        Optional<LocalDate> inProgressDay = inProgress.map(ignored -> today);
+    /**
+     * 진행 중인 봉을 받을지는 호출자가 판단한다. 그 거래일이 이미 확정 봉으로 있으면 붙이지 않는다 —
+     * 장 마감 후 동기화가 끝나면 같은 날이 두 번 들어온다.
+     */
+    public static Chart of(DailyPrices closed, Optional<LiveCandle> live, ChartInterval interval) {
+        Optional<LiveCandle> inProgress = live.filter(candle -> !closed.hasTradeOn(candle.tradeAt()));
         return new Chart(
-                aggregate(withToday(closed.values(), inProgress, today), interval, inProgressDay),
-                inProgress.map(Quote::priceAt).orElse(null)
+                aggregate(withLive(closed.values(), inProgress), interval, inProgress.map(LiveCandle::tradeAt)),
+                inProgress.map(LiveCandle::asOf).orElse(null)
         );
     }
 
     /**
-     * 진행 중 봉을 당일자 일봉으로 바꿔 목록 끝에 붙인다.
+     * 진행 중인 봉을 목록 끝에 붙인다.
      * 집계 경로를 하나로 유지하려는 것이다 — 이렇게 해 두면 "마지막 버킷에 합치기"가 특수 분기가 되지 않는다.
      */
-    private static List<DailyPrice> withToday(List<DailyPrice> closed, Optional<Quote> inProgress, LocalDate today) {
+    private static List<DailyPrice> withLive(List<DailyPrice> closed, Optional<LiveCandle> inProgress) {
         if (inProgress.isEmpty()) {
             return closed;
         }
-        Quote quote = inProgress.get();
-        DailyPrice price = new DailyPrice(today, quote.open(), quote.high(), quote.low(), quote.price(), quote.volume());
-        return Stream.concat(closed.stream(), Stream.of(price)).toList();
+        return Stream.concat(closed.stream(), Stream.of(inProgress.get().price())).toList();
     }
 
     private static List<ChartCandle> aggregate(List<DailyPrice> prices, ChartInterval interval,

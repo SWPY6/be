@@ -29,7 +29,7 @@ HTTP API가 없다. `market-summary`가 카드를 만들 때, `market-chart`가 
 | `previousClose` | 직전 거래일 종가. 국내 지수는 KIS가 종가를 따로 주지 않아 `현재값 − 전일 대비`로 구한다 (아래 표) |
 | `open`, `high`, `low` | KIS 당일 값 그대로 |
 | `change()` | `value − previousClose` |
-| `changeRate()` | `(value − previousClose) / previousClose × 100`, 소수 둘째 자리 반올림(HALF_UP). KIS의 등락률 필드(`bstp_nmix_prdy_ctrt`, `prdy_ctrt`)는 쓰지 않는다. `previousClose`가 0이면 `0.00` |
+| `changeRate()` | `(value − previousClose) / previousClose × 100`, 소수 둘째 자리 반올림(HALF_UP). 나눗셈에서 6자리로 한 번, 마지막에 2자리로 한 번 반올림한다(`Quote`와 같은 2단 반올림). KIS의 등락률 필드(`bstp_nmix_prdy_ctrt`, `prdy_ctrt`)는 쓰지 않는다. `previousClose`가 0이면 `0.00` |
 | `valueAt` | 서버가 KIS 응답을 받은 시각. 지표 타임존(`MarketIndicator.zoneId()`)의 오프셋을 붙인다. 캐시에서 응답할 때도 바꾸지 않는다 |
 
 - `change()`와 `changeRate()` 공식은 `stock.quote.Quote`와 같다. 5줄짜리 중복이지만 지금은 공통화하지 않는다. `Quote`에는 시가총액·거래량 같은 주식 전용 필드가 있어서, 합치면 지표에 주식 개념이 섞인다.
@@ -51,7 +51,12 @@ HTTP API가 없다. `market-summary`가 카드를 만들 때, `market-chart`가 
   - 실측값: `6870.81 − (−18.93) = 6889.74`
   - 이 값은 일봉 TR(`FHKUP03500100`) `output1`의 전일 지수 `prdy_nmix`(`6889.74`)와 같다. 그래서 `prdy_vrss_sign`은 쓰지 않는다.
   - KOSDAQ도 같다: `849.80 − 3.22 = 846.58` = `prdy_nmix`.
-- 빈 문자열은 0으로 읽는다. 이 규칙을 담은 `KisNumbers`를 재사용한다.
+- **없으면 시세를 만들 수 없는 값은 빈 값을 허용하지 않는다.** 비면 `P007`로 알린다.
+  - 국내: `bstp_nmix_prpr`, `bstp_nmix_prdy_vrss` / 해외: `ovrs_nmix_prpr`, `ovrs_nmix_prdy_clpr`
+  - 전일 대비를 0으로 읽으면 전일 종가가 현재값과 같아져 **등락률이 조용히 0이 된다.** 현재값이 0이면 카드가 0으로 나간다.
+  - `output`(국내)·`output1`(해외)이 아예 없을 때도 같다. 휴장일에는 응답 코드가 정상이어도 비어 올 수 있다. 막지 않으면 NPE가 나 500 `P006`이 된다.
+  - `KisNumbers.requiredAmount(value, field)`가 이 규칙을 담는다. 어느 필드가 비었는지 로그에 남긴다.
+- **시가·고가·저가는 빈 값을 0으로 읽는다.** 개장 전에 비어 오고, 카드에 나가지 않는 값이다. `KisNumbers.amount`를 쓴다.
 
 | `IndicatorKind` | API | 파라미터 |
 | --- | --- | --- |
@@ -172,7 +177,8 @@ src/main/java/com/swyp/ploutos/market/quote/service/                       → I
                                                                              IndicatorQuoteCache, IndicatorQuoteService (신규)
 src/main/java/com/swyp/ploutos/market/quote/kis/                           → KisIndicatorQuoteProvider, KisDomesticIndexPriceResponse,
                                                                              KisOverseasChartPriceResponse (신규)
-src/main/java/com/swyp/ploutos/market/quote/redis/                         → RedisIndicatorQuoteCache, IndicatorQuoteCacheProperties (신규)
+src/main/java/com/swyp/ploutos/market/quote/redis/                         → RedisIndicatorQuoteCache, IndicatorQuoteCacheProperties,
+                                                                             IndicatorQuoteCacheConfig (신규)
 src/main/java/com/swyp/ploutos/external/kis/KisNumbers.java               → stock.quote.kis에서 이동
 src/main/java/com/swyp/ploutos/stock/quote/kis/Kis*PriceResponse.java     → import 변경
 src/main/resources/application.properties                                → ploutos.market-quote.cache-ttl-seconds=10
@@ -208,7 +214,7 @@ public IndicatorQuote fetch(MarketIndicator indicator) {
   - `IndicatorQuoteTest`: 등락률 계산, 전일 종가 0 처리, 원값 보존.
   - `IndicatorQuoteServiceTest`: 가짜 `IndicatorQuoteCache`·`IndicatorQuoteProvider`로 캐시 히트, 락을 잡은 쪽만 호출, 대기 후 반환, 대기 초과, Redis 장애, KIS 실패 시 락 해제를 검증한다.
 - **통합 (30%)**
-  - `KisIndicatorQuoteProviderTest`: `MockRestServiceServer`로 세 종류의 파라미터와 필드 매핑, 국내 전일 종가 역산, `valueAt` 타임존을 검증한다. 응답 본문은 이 대화의 실측 응답을 그대로 쓴다.
+  - `KisIndicatorQuoteProviderTest`: 가짜 `KisApiClient`로 세 종류의 파라미터와 필드 매핑, 국내 전일 종가 역산, `valueAt` 타임존, 빈 값·`output` 누락 처리를 검증한다. 응답 본문은 실측 응답을 그대로 쓴다. HTTP 계층은 `KisApiClient` 구현체 테스트가 덮으므로 여기서는 포트 경계만 본다(`KisQuoteProviderTest` 선례).
   - `RedisIndicatorQuoteCacheTest`: `PloutosApplicationTests`의 Testcontainers Redis로 JSON 왕복(오프셋 보존), TTL 만료, NX 락을 검증한다.
 - **E2E**: 없다. HTTP API가 없는 모듈이다. `market-summary`의 E2E가 이 모듈을 함께 지난다.
 - `ArchitectureTest`가 통과해야 한다. `KisNumbers` 이동 뒤에도 규칙 1(`external`은 도메인에 의존하지 않음)이 지켜진다.
@@ -236,6 +242,9 @@ public IndicatorQuote fetch(MarketIndicator indicator) {
 | 10 | 락 대기가 끝나도 캐시가 비어 있으면 KIS를 호출하지 않고 `P007`을 던진다. | `락_대기가_끝나도_캐시가_비어_있으면_외부를_호출하지_않고_예외를_던진다` |
 | 11 | Redis에 접근할 수 없으면 KIS를 호출하지 않고 `P007`을 던진다. | `캐시_저장소_장애면_외부를_호출하지_않고_예외를_던진다` |
 | 12 | KIS가 실패하면 예외를 던지고 락을 해제한다. | `외부_호출이_실패하면_예외를_던지고_락을_해제한다` |
+| 12-1 | 시가·고가·저가가 비어 있으면 0으로 읽고 등락률은 멀쩡하다. | `KisIndicatorQuoteProviderTest.개장_전_시가가_비어_있으면_0으로_읽는다` |
+| 12-2 | 현재값이나 전일 대비가 비어 있으면 `P007`을 던진다. | `국내_지수의_현재값이_비어_있으면_시세조회_실패로_알린다`, `국내_지수의_전일_대비가_비어_있으면_시세조회_실패로_알린다`, `해외_응답의_전일_종가가_비어_있으면_시세조회_실패로_알린다` |
+| 12-3 | 해외 응답에 `output1`이 없으면 500이 아니라 `P007`을 던진다. | `해외_응답에_현재값_묶음이_없으면_시세조회_실패로_알린다` |
 | 13 | 저장한 시세를 같은 값으로 읽고 오프셋이 유지된다. | `RedisIndicatorQuoteCacheTest.저장한_시세를_같은_값과_오프셋으로_읽는다` |
 | 14 | TTL이 지나면 값이 사라진다. | `TTL이_지나면_값이_사라진다` |
 | 15 | 같은 지표의 락은 한 요청만 잡는다. | `같은_지표의_락은_한_요청만_잡는다` |
@@ -245,7 +254,7 @@ public IndicatorQuote fetch(MarketIndicator indicator) {
 
 - **해외 지수와 환율은 실시간인가, 지연인가?** KIS의 해외지수(`N`)와 환율(`X`) 시세가 지연 시세인지 확인해야 한다. 지연이라면 카드에 지연 여부를 표시할지 `market-summary`에서 정한다.
 - **모의 도메인 호출 한도:** 캐시가 빈 상태에서 탭 하나를 열면 KIS를 3번 순차 호출한다. 실측에서 모의 도메인은 1초 간격 호출도 `EGW00201`에 걸렸다. 운영이 실전 도메인(초당 20건)인지는 기능 맵의 미해결 질문과 같다.
-- **해외 TR의 기간 파라미터:** 평일에는 기간을 오늘 하루로 줘도 `output1`이 채워진다(실측). 해외 휴장일에도 그런지는 구현 중에 확인한다. 비어 있으면 기간을 최근 며칠로 넓힌다.
+- **해외 TR의 기간 파라미터:** 평일에는 기간을 오늘 하루로 줘도 `output1`이 채워진다(실측). 휴장일에 비어 오는지는 아직 확인하지 못했다. 비어 오면 지금 계약대로 `P007`이 되므로 그 탭 전체가 502다. 실측으로 확인한 뒤 기간을 최근 며칠로 넓힐지 정한다.
 - **KIS 호출 한도 공유:** `stock-quote`의 `QuoteRefresher`와 한도를 나눠 쓴다. 이 모듈은 초당 0.5회가 상한이라 지금은 여유가 있다.
 
 ## 추후 구현

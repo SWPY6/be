@@ -1,6 +1,7 @@
 package com.swyp.ploutos.market.quote.kis;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -16,6 +17,8 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.swyp.ploutos.common.exception.BusinessException;
+import com.swyp.ploutos.common.exception.ErrorCode;
 import com.swyp.ploutos.external.kis.KisApiClient;
 import com.swyp.ploutos.external.kis.KisResponse;
 import com.swyp.ploutos.market.MarketIndicator;
@@ -117,6 +120,87 @@ class KisIndicatorQuoteProviderTest {
         // then
         assertThat(domestic.valueAt()).isEqualTo(OffsetDateTime.parse("2026-09-30T10:15:03+09:00"));
         assertThat(overseas.valueAt()).isEqualTo(OffsetDateTime.parse("2026-09-29T21:15:03-04:00"));
+    }
+
+    @Test
+    void 개장_전_시가가_비어_있으면_0으로_읽는다() {
+        // given 개장 전에는 시가·고가·저가가 빈 값으로 온다. 현재값과 전일 대비는 들어 있다
+        kisApiClient.enqueue("""
+                {"rt_cd":"0","msg_cd":"MCA00000","msg1":"정상처리 되었습니다.","output":{
+                  "bstp_nmix_prpr":"6870.81","bstp_nmix_prdy_vrss":"-18.93",
+                  "bstp_nmix_oprc":"","bstp_nmix_hgpr":"","bstp_nmix_lwpr":""}}
+                """);
+
+        // when
+        IndicatorQuote quote = provider.fetch(MarketIndicator.KOSPI);
+
+        // then 카드에 나가지 않는 값이므로 0으로 읽어도 등락률은 멀쩡하다
+        assertThat(quote.open()).isEqualByComparingTo("0");
+        assertThat(quote.high()).isEqualByComparingTo("0");
+        assertThat(quote.low()).isEqualByComparingTo("0");
+        assertThat(quote.changeRate()).isEqualByComparingTo("-0.27");
+    }
+
+    @Test
+    void 국내_지수의_전일_대비가_비어_있으면_시세조회_실패로_알린다() {
+        // given 0으로 읽으면 전일 종가가 현재값과 같아져 등락률이 조용히 0이 된다
+        kisApiClient.enqueue("""
+                {"rt_cd":"0","msg_cd":"MCA00000","msg1":"정상처리 되었습니다.","output":{
+                  "bstp_nmix_prpr":"6870.81","bstp_nmix_prdy_vrss":"",
+                  "bstp_nmix_oprc":"6844.41","bstp_nmix_hgpr":"6898.36","bstp_nmix_lwpr":"6782.99"}}
+                """);
+
+        // when & then
+        assertThatThrownBy(() -> provider.fetch(MarketIndicator.KOSPI))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).errorCode())
+                .isEqualTo(ErrorCode.MARKET_DATA_UNAVAILABLE);
+    }
+
+    @Test
+    void 국내_지수의_현재값이_비어_있으면_시세조회_실패로_알린다() {
+        // given
+        kisApiClient.enqueue("""
+                {"rt_cd":"0","msg_cd":"MCA00000","msg1":"정상처리 되었습니다.","output":{
+                  "bstp_nmix_prpr":"","bstp_nmix_prdy_vrss":"-18.93"}}
+                """);
+
+        // when & then
+        assertThatThrownBy(() -> provider.fetch(MarketIndicator.KOSPI))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).errorCode())
+                .isEqualTo(ErrorCode.MARKET_DATA_UNAVAILABLE);
+    }
+
+    @Test
+    void 해외_응답에_현재값_묶음이_없으면_시세조회_실패로_알린다() {
+        // given 휴장일에는 응답 코드가 정상이어도 output1이 비어 올 수 있다
+        kisApiClient.enqueue("""
+                {"rt_cd":"0","msg_cd":"MCA00000","msg1":"정상처리 되었습니다.","output2":[]}
+                """);
+
+        // when & then 500이 아니라 시세 조회 실패로 알린다
+        assertThatThrownBy(() -> provider.fetch(MarketIndicator.NASDAQ))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).errorCode())
+                .isEqualTo(ErrorCode.MARKET_DATA_UNAVAILABLE);
+    }
+
+    @Test
+    void 해외_응답의_전일_종가가_비어_있으면_시세조회_실패로_알린다() {
+        // given
+        kisApiClient.enqueue("""
+                {"rt_cd":"0","msg_cd":"MCA00000","msg1":"정상처리 되었습니다.","output1":{
+                  "ovrs_nmix_prpr":"26817.30","ovrs_nmix_prdy_clpr":"",
+                  "ovrs_prod_oprc":"26908.76","ovrs_prod_hgpr":"26919.01",
+                  "ovrs_prod_lwpr":"26717.95"},"output2":[]}
+                """);
+
+        // when & then
+        assertThatThrownBy(() -> provider.fetch(MarketIndicator.NASDAQ))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).errorCode())
+                .isEqualTo(ErrorCode.MARKET_DATA_UNAVAILABLE);
     }
 
     private static String kospiBody() {

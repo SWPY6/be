@@ -1,10 +1,13 @@
 package com.swyp.ploutos.market.quote.kis;
 
 import static com.swyp.ploutos.external.kis.KisNumbers.amount;
+import static com.swyp.ploutos.external.kis.KisNumbers.requiredAmount;
 
 import java.time.OffsetDateTime;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.swyp.ploutos.common.exception.BusinessException;
+import com.swyp.ploutos.common.exception.ErrorCode;
 import com.swyp.ploutos.external.kis.KisResponse;
 import com.swyp.ploutos.market.MarketIndicator;
 import com.swyp.ploutos.market.quote.IndicatorQuote;
@@ -20,11 +23,18 @@ record KisOverseasChartPriceResponse(
         @JsonProperty("output1") Output output1
 ) implements KisResponse {
 
+    /**
+     * 휴장일에는 응답 코드가 정상이어도 output1이 비어 올 수 있다. 그때는 시세를 만들 수 없으므로
+     * 시세 조회 실패로 알린다. 시가·고가·저가는 개장 전에 비어 올 수 있어 0으로 읽는다.
+     */
     IndicatorQuote toQuote(MarketIndicator indicator, OffsetDateTime valueAt) {
+        if (output1 == null) {
+            throw new BusinessException(ErrorCode.MARKET_DATA_UNAVAILABLE);
+        }
         return new IndicatorQuote(
                 indicator,
-                amount(output1.value()),
-                amount(output1.previousClose()),
+                requiredAmount(output1.value(), "ovrs_nmix_prpr"),
+                requiredAmount(output1.previousClose(), "ovrs_nmix_prdy_clpr"),
                 amount(output1.open()),
                 amount(output1.high()),
                 amount(output1.low()),
