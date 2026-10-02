@@ -10,8 +10,8 @@ import lombok.Getter;
 @Getter
 public enum Country {
 
-	KR(ZoneId.of("Asia/Seoul"), LocalTime.of(15, 30)),
-	US(ZoneId.of("America/New_York"), LocalTime.of(16, 0));
+	KR(ZoneId.of("Asia/Seoul"), LocalTime.of(15, 30), Currency.KRW),
+	US(ZoneId.of("America/New_York"), LocalTime.of(16, 0), Currency.USD);
 
 	/** 이 나라 시장의 현지 타임존. "오늘"과 거래일 계산에 쓴다. */
 	private final ZoneId zoneId;
@@ -25,9 +25,18 @@ public enum Country {
 	 */
 	private final LocalTime regularCloseTime;
 
-	Country(ZoneId zoneId, LocalTime regularCloseTime) {
+	/**
+	 * 이 나라 시장의 표시 통화. 금액을 화면에 쓸 때 기호를 고르는 데 쓴다.
+	 *
+	 * <p>값의 출처는 {@code markets.currency}이고 여기 둔 것은 그 사본이다 — 한 나라의 시장이
+	 * 하나뿐이라 성립한다. 시장이 둘 이상 생기면 시장에서 읽어야 한다.
+	 */
+	private final Currency currency;
+
+	Country(ZoneId zoneId, LocalTime regularCloseTime, Currency currency) {
 		this.zoneId = zoneId;
 		this.regularCloseTime = regularCloseTime;
+		this.currency = currency;
 	}
 
 	/** 그 거래일의 종가가 확정된 시각. */
