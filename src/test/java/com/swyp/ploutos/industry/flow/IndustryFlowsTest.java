@@ -41,8 +41,9 @@ class IndustryFlowsTest {
     private static IndustryFlowSnapshot snapshotWith(int majorStockCount) {
         List<MajorStock> majorStocks = IntStream.range(0, majorStockCount)
                 .mapToObj(index -> new MajorStock(
-                        "00000" + index, "종목" + index, new BigDecimal("1.0" + index)))
+                        (long) index, "00000" + index, "종목" + index, new BigDecimal("1.0" + index)))
                 .toList();
-        return new IndustryFlowSnapshot(new BigDecimal("1.23"), majorStockCount, majorStocks);
+        return new IndustryFlowSnapshot(new BigDecimal("1.23"), majorStockCount, majorStockCount, 0,
+                null, majorStocks);
     }
 }
