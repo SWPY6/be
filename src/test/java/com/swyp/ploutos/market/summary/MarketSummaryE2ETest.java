@@ -1,9 +1,12 @@
 package com.swyp.ploutos.market.summary;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -12,6 +15,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -86,7 +90,7 @@ class MarketSummaryE2ETest extends IntegrationTestContainers {
                 .andExpect(jsonPath("$.data.indicators[0].value").value(6870.81))
                 .andExpect(jsonPath("$.data.indicators[0].change").value(-18.93))
                 .andExpect(jsonPath("$.data.indicators[0].changeRate").value(-0.27))
-                .andExpect(jsonPath("$.data.indicators[0].valueAt").isString())
+                .andExpect(jsonPath("$.data.indicators[0].valueAt", endsWith("+09:00")))
                 .andExpect(jsonPath("$.data.indicators[1].indicator").value("KOSDAQ"))
                 .andExpect(jsonPath("$.data.indicators[1].name").value("코스닥"))
                 .andExpect(jsonPath("$.data.indicators[1].value").value(849.80))
@@ -97,7 +101,9 @@ class MarketSummaryE2ETest extends IntegrationTestContainers {
                 .andExpect(jsonPath("$.data.indicators[2].unit").value("KRW"))
                 .andExpect(jsonPath("$.data.indicators[2].value").value(1354.00))
                 .andExpect(jsonPath("$.data.indicators[2].change").value(-5.90))
-                .andExpect(jsonPath("$.data.indicators[2].changeRate").value(-0.43));
+                .andExpect(jsonPath("$.data.indicators[2].changeRate").value(-0.43))
+                // 와이어 포맷까지 소수 둘째 자리다. jsonPath 숫자 비교로는 자릿수가 드러나지 않는다
+                .andExpect(content().string(containsString("\"value\":1354.00")));
 
         // 지표마다 한 번씩 부른다
         assertThat(indicatorCalls.get()).isEqualTo(3);
@@ -106,27 +112,33 @@ class MarketSummaryE2ETest extends IntegrationTestContainers {
     @Test
     void 같은_탭을_다시_요청하면_캐시로_답해_외부를_호출하지_않는다() throws Exception {
         // given 첫 요청으로 캐시를 채운다
-        mockMvc.perform(get(PATH).param("region", "DOMESTIC")).andExpect(status().isOk());
+        String first = mockMvc.perform(get(PATH).param("region", "DOMESTIC"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
         int callsAfterFirst = indicatorCalls.get();
         assertThat(callsAfterFirst).isEqualTo(3);
 
         // when 같은 탭을 다시 요청한다
-        mockMvc.perform(get(PATH).param("region", "DOMESTIC"))
+        String second = mockMvc.perform(get(PATH).param("region", "DOMESTIC"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.indicators.length()").value(3));
+                .andReturn().getResponse().getContentAsString();
 
         // then 캐시된 값으로 답해 외부를 다시 부르지 않는다
         assertThat(indicatorCalls.get()).isEqualTo(callsAfterFirst);
+        // Redis를 왕복한 값이 그대로 돌아온다. 자릿수나 오프셋이 깨지면 여기서 드러난다
+        assertThat(second).isEqualTo(first);
     }
 
     /**
      * 컨테이너를 테스트 클래스 사이에 공유하므로 남은 값을 지운다.
-     * 지표 캐시가 남아 있으면 첫 요청이 KIS를 부르지 않고, 활성 종목이 남아 있으면
-     * 현재가 갱신 스케줄러가 끼어들어 호출 수가 흔들린다.
+     * 지표 캐시가 남아 있으면 첫 요청이 KIS를 부르지 않고, 락이 남아 있으면 첫 요청이
+     * 3초를 기다린 뒤 502가 된다. 활성 종목이 남아 있으면 현재가 갱신 스케줄러가 끼어들어 호출 수가 흔들린다.
      */
     private void clearCaches() {
         List<String> keys = new ArrayList<>(Arrays.stream(MarketIndicator.values())
-                .map(indicator -> "market-quote:" + indicator.name())
+                .flatMap(indicator -> Stream.of(
+                        "market-quote:" + indicator.name(),
+                        "market-quote:lock:" + indicator.name()))
                 .toList());
         keys.add("quote:active");
         redisTemplate.delete(keys);

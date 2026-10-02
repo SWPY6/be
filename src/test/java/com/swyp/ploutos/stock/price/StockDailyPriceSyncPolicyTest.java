@@ -6,7 +6,13 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.Test;
 
@@ -187,5 +193,39 @@ class StockDailyPriceSyncPolicyTest {
         // then
         assertThat(newYork).isEqualTo(LocalDate.of(2026, 3, 8));
         assertThat(seoul).isEqualTo(LocalDate.of(2026, 3, 9));
+    }
+
+    @Test
+    void 동시에_시도해도_한_요청만_시도권을_얻는다() throws Exception {
+        // given 경합 구간이 좁아 한 라운드로는 재현되지 않는다. 매 라운드 새 정책으로 여러 번 돈다
+        int threads = 32;
+        int rounds = 300;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+
+        // when 스레드가 미리 CPU에서 돌고 있다가 같은 종목·같은 구간을 동시에 시도한다
+        long maxGranted = 0;
+        for (int round = 0; round < rounds; round++) {
+            StockDailyPriceSyncPolicy policy = new StockDailyPriceSyncPolicy(
+                    Clock.fixed(Instant.parse("2026-08-12T00:00:00Z"), ZoneOffset.UTC));
+            AtomicBoolean go = new AtomicBoolean(false);
+            List<Future<Boolean>> results = IntStream.range(0, threads)
+                    .mapToObj(ignored -> pool.submit(() -> {
+                        while (!go.get()) {
+                            Thread.onSpinWait();
+                        }
+                        return policy.tryStartSync(1L, FROM, WEDNESDAY);
+                    }))
+                    .toList();
+            go.set(true);
+            long granted = 0;
+            for (Future<Boolean> result : results) {
+                granted += result.get() ? 1 : 0;
+            }
+            maxGranted = Math.max(maxGranted, granted);
+        }
+        pool.shutdown();
+
+        // then 둘이 같이 동기화하면 같은 거래일을 저장하다 유니크 제약에 걸린다
+        assertThat(maxGranted).isEqualTo(1);
     }
 }

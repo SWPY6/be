@@ -86,7 +86,10 @@
 
 - `ChartInterval`(enum): `DAY("1D")` … `YEAR("1Y")`. `from(String code)`로 요청 문자열을 받고(기본값 `DAY`, 미허용 값이면 `INVALID_INPUT_VALUE`), `bucketStart(LocalDate)`로 그룹핑 키를 낸다.
 - `ChartRange`(값 객체): `of(from, to, today)`가 기본값 채우기와 검증(역전·상한)을 한다.
-- `Chart`(값 객체): 확정 봉 목록 + `Optional<Quote>` + `ChartInterval`을 받아 `candles`, `from`, `to`, `asOf`, `averageVolume`을 만든다. 당일 봉 결합과 집계 규칙을 여기 둔다.
+- `Chart`(값 객체): 확정 봉 목록 + `Optional<LiveCandle>` + `ChartInterval`을 받아 `candles`, `from`, `to`, `asOf`, `averageVolume`을 만든다. 당일 봉 결합과 집계 규칙을 여기 둔다.
+  - `LiveCandle`(값 객체): 당일자 일봉과 그 값의 기준 시각. 시세 출처를 담지 않아 종목 현재가와 시장 지표 현재값이 같은 타입으로 들어온다 (`SPEC-market-chart.md`).
+  - **"진행 중 봉이 있는가"는 `Chart`가 아니라 호출자가 판단한다.** 당일 시가가 0이면(개장 전) `StockChartService`가 `Optional.empty()`를 넘긴다. 시가 0이 개장 전을 뜻하는 것은 KIS 응답의 성질이고 봉 집계 규칙이 아니다.
+  - `Chart`가 직접 하는 판정은 하나다: 그 거래일이 이미 확정 봉으로 있으면 붙이지 않는다.
 - `ChartCandle`: `of(List<DailyPrice> bucket, boolean closed)`가 버킷 하나를 봉 하나로 접는다.
 - `StockChartService`: `interval` 검증 → 종목 조회(없으면 `STOCK_NOT_FOUND`) → `ChartRange` → `DailyPriceReader` → `QuoteReader` → `Chart`. **`interval` 검증이 종목 조회보다 앞선다** — 잘못된 요청에 DB를 건드리지 않는다.
 - `StockChartController`: `GET /api/v1/stocks/{stockId}/chart` → `ApiResult<StockChartResponse>`.
@@ -280,7 +283,7 @@ LocalDate bucketStart(LocalDate tradeAt) {
 | 8 | 구간 시작이 달 중간이면 첫 봉은 불완전한 채로 포함된다. | `ChartTest.구간_시작이_달_중간이면_첫_봉은_불완전한_채로_포함된다` |
 | 9 | 봉의 `tradeAt`은 그 봉에 실제 포함된 첫 거래일이다. | `ChartTest.묶인_봉의_거래일은_버킷의_첫_거래일이다` |
 | 10 | 장중이면 진행 중 봉이 마지막 버킷에 합쳐지고 `closed`는 `false`다. | `ChartTest.장중이면_마지막_버킷에_당일_봉이_합쳐지고_미확정이다` |
-| 11 | 당일 시가가 0이면 진행 중 봉을 붙이지 않고 `asOf`는 `null`이다. | `ChartTest.당일_시가가_없으면_당일_봉을_붙이지_않는다` |
+| 11 | 당일 시가가 0이면 진행 중 봉을 붙이지 않고 `asOf`는 `null`이다. | `StockChartServiceTest.당일_시가가_없으면_당일_봉을_붙이지_않는다` |
 | 12 | 당일 거래일이 이미 확정 봉으로 있으면 진행 중 봉을 붙이지 않는다. | `ChartTest.당일_봉이_이미_확정되어_있으면_붙이지_않는다` |
 | 13 | `averageVolume`은 확정 봉만으로, 마지막 최대 20개를 평균한다. | `ChartTest.평균_거래량은_확정_봉만으로_계산한다`, `ChartTest.확정_봉이_스무개보다_적으면_있는_만큼_평균한다` |
 | 14 | `from`·`to`는 실제 포함된 첫·마지막 봉의 거래일이다. | `ChartTest.시작일과_종료일은_실제_포함된_봉의_거래일이다` |
