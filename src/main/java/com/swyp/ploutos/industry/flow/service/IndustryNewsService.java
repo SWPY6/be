@@ -90,7 +90,7 @@ public class IndustryNewsService {
      */
     private List<RelatedNews> search(RankedIndustryFlow flow, List<Long> stockIds,
             LocalDateTime from, LocalDateTime to) {
-        List<Long> majorStockIds = flow.stocks().stream()
+        List<Long> majorStockIds = flow.majorStocks().stream()
                 .map(IndustryFlowStock::stockId)
                 .filter(Objects::nonNull)
                 .toList();

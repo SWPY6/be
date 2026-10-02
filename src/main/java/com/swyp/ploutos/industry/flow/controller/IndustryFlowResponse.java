@@ -46,7 +46,7 @@ record IndustryFlowResponse(
                 flow.rank(),
                 flow.displayAvgChangeRate(),
                 flow.stockCount(),
-                flow.stocks().stream().map(MajorStockResponse::from).toList(),
+                flow.majorStocks().stream().map(MajorStockResponse::from).toList(),
                 flow.calculatedAt());
     }
 

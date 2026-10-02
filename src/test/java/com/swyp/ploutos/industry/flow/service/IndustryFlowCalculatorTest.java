@@ -225,36 +225,53 @@ class IndustryFlowCalculatorTest {
     }
 
     @Test
-    void 시가총액_상위_2개를_대표_종목으로_고른다() {
-        // given 시가총액이 낮은 순으로 넣어 정렬이 실제로 일어나는지 본다
+    void 시가총액_상위_네_개를_대표_종목으로_고른다() {
+        // given 시가총액이 낮은 순으로 넣어 정렬이 실제로 일어나는지 본다. 다섯 종목 중 넷을 고른다
         List<QuotedStock> stocks = List.of(
                 quoted("012330", "현대모비스", "-0.78", 100),
                 quoted("005380", "현대차", "3.24", 866),
                 quoted("018880", "한온시스템", "2.13", 15),
+                quoted("000270", "기아", "1.85", 349),
+                quoted("204320", "HL만도", "0.40", 200));
+
+        // when
+        IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
+
+        // then 시가총액 866 · 349 · 200 · 100 순. 가장 작은 15 는 빠진다
+        assertThat(snapshot.stocks()).extracting(IndustryFlowStock::ticker)
+                .containsExactly("005380", "000270", "204320", "012330");
+    }
+
+    @Test
+    void 종목이_네_개보다_적으면_있는_만큼만_고른다() {
+        // given
+        List<QuotedStock> stocks = List.of(
+                quoted("005380", "현대차", "3.24", 866),
                 quoted("000270", "기아", "1.85", 349));
 
         // when
         IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
 
-        // then 시가총액 866 · 349 순
-        assertThat(snapshot.stocks()).extracting(IndustryFlowStock::ticker)
-                .containsExactly("005380", "000270");
+        // then 배열 길이가 가변이다. 화면이 4개를 가정하면 안 된다
+        assertThat(snapshot.stocks()).hasSize(2);
     }
 
     @Test
     void 시가총액이_같으면_ticker_순으로_고른다() {
-        // given 셋 다 시가총액 100
+        // given 다섯 다 시가총액 100. 순서를 정하는 것은 ticker 뿐이다
         List<QuotedStock> stocks = List.of(
                 quoted("C", "다", "1.00", 100),
                 quoted("A", "가", "2.00", 100),
-                quoted("B", "나", "3.00", 100));
+                quoted("E", "마", "0.50", 100),
+                quoted("B", "나", "3.00", 100),
+                quoted("D", "라", "0.10", 100));
 
         // when
         IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
 
-        // then
+        // then 갱신마다 순서가 흔들리지 않는다
         assertThat(snapshot.stocks()).extracting(IndustryFlowStock::ticker)
-                .containsExactly("A", "B");
+                .containsExactly("A", "B", "C", "D");
     }
 
     @Test
