@@ -6,7 +6,13 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +31,7 @@ class StockDailyPriceSyncPolicyTest {
     private static final LocalDate LISTED_LONG_AGO = LocalDate.of(2000, 1, 1);
     // 2026-08-12 수요일
     private static final LocalDate WEDNESDAY = LocalDate.of(2026, 8, 12);
+    private static final LocalDate FROM = LocalDate.of(2026, 5, 12);
 
     private static StockWithMarket stockListedOn(LocalDate listedAt) {
         Stocks stock = new Stocks(1L, "005930", "삼성전자", null, StockStatus.ACTIVE, Exchange.KRX,
@@ -115,16 +122,61 @@ class StockDailyPriceSyncPolicyTest {
         Long stockId = 1L;
 
         // when
-        boolean first = policy.tryStartSync(stockId, WEDNESDAY);
-        boolean second = policy.tryStartSync(stockId, WEDNESDAY);
-        boolean nextDay = policy.tryStartSync(stockId, WEDNESDAY.plusDays(1));
-        boolean otherStock = policy.tryStartSync(2L, WEDNESDAY);
+        boolean first = policy.tryStartSync(stockId, FROM, WEDNESDAY);
+        boolean second = policy.tryStartSync(stockId, FROM, WEDNESDAY);
+        boolean nextDay = policy.tryStartSync(stockId, FROM, WEDNESDAY.plusDays(1));
+        boolean otherStock = policy.tryStartSync(2L, FROM, WEDNESDAY);
 
         // then
         assertThat(first).isTrue();
         assertThat(second).isFalse();
         assertThat(nextDay).isTrue();
         assertThat(otherStock).isTrue();
+    }
+
+    @Test
+    void 같은_날_더_이른_시작일을_요청하면_다시_동기화한다() {
+        // given
+        // 아침에 1개월 구간으로 이미 동기화를 시도했다.
+        Long stockId = 1L;
+        policy.tryStartSync(stockId, WEDNESDAY.minusMonths(1), WEDNESDAY);
+
+        // when
+        // 같은 날 줌 아웃으로 3년 구간을 요청한다. 저장된 봉이 덮지 못하므로 받아 와야 한다.
+        boolean retried = policy.tryStartSync(stockId, WEDNESDAY.minusYears(3), WEDNESDAY);
+
+        // then
+        assertThat(retried).isTrue();
+    }
+
+    @Test
+    void 같은_날_같거나_늦은_시작일이면_다시_동기화하지_않는다() {
+        // given
+        Long stockId = 1L;
+        policy.tryStartSync(stockId, WEDNESDAY.minusYears(3), WEDNESDAY);
+
+        // when
+        boolean sameStart = policy.tryStartSync(stockId, WEDNESDAY.minusYears(3), WEDNESDAY);
+        boolean narrower = policy.tryStartSync(stockId, WEDNESDAY.minusMonths(1), WEDNESDAY);
+
+        // then
+        assertThat(sameStart).isFalse();
+        assertThat(narrower).isFalse();
+    }
+
+    @Test
+    void 좁은_구간을_시도해도_그날_받아_둔_넓은_구간의_기록은_남는다() {
+        // given
+        // 넓게 받아 둔 뒤 좁은 요청이 여러 번 와도, 중간 구간 요청이 헛동기화를 일으키면 안 된다.
+        Long stockId = 1L;
+        policy.tryStartSync(stockId, WEDNESDAY.minusYears(3), WEDNESDAY);
+        policy.tryStartSync(stockId, WEDNESDAY.minusMonths(1), WEDNESDAY);
+
+        // when
+        boolean middle = policy.tryStartSync(stockId, WEDNESDAY.minusYears(1), WEDNESDAY);
+
+        // then
+        assertThat(middle).isFalse();
     }
 
     @Test
@@ -141,5 +193,39 @@ class StockDailyPriceSyncPolicyTest {
         // then
         assertThat(newYork).isEqualTo(LocalDate.of(2026, 3, 8));
         assertThat(seoul).isEqualTo(LocalDate.of(2026, 3, 9));
+    }
+
+    @Test
+    void 동시에_시도해도_한_요청만_시도권을_얻는다() throws Exception {
+        // given 경합 구간이 좁아 한 라운드로는 재현되지 않는다. 매 라운드 새 정책으로 여러 번 돈다
+        int threads = 32;
+        int rounds = 300;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+
+        // when 스레드가 미리 CPU에서 돌고 있다가 같은 종목·같은 구간을 동시에 시도한다
+        long maxGranted = 0;
+        for (int round = 0; round < rounds; round++) {
+            StockDailyPriceSyncPolicy policy = new StockDailyPriceSyncPolicy(
+                    Clock.fixed(Instant.parse("2026-08-12T00:00:00Z"), ZoneOffset.UTC));
+            AtomicBoolean go = new AtomicBoolean(false);
+            List<Future<Boolean>> results = IntStream.range(0, threads)
+                    .mapToObj(ignored -> pool.submit(() -> {
+                        while (!go.get()) {
+                            Thread.onSpinWait();
+                        }
+                        return policy.tryStartSync(1L, FROM, WEDNESDAY);
+                    }))
+                    .toList();
+            go.set(true);
+            long granted = 0;
+            for (Future<Boolean> result : results) {
+                granted += result.get() ? 1 : 0;
+            }
+            maxGranted = Math.max(maxGranted, granted);
+        }
+        pool.shutdown();
+
+        // then 둘이 같이 동기화하면 같은 거래일을 저장하다 유니크 제약에 걸린다
+        assertThat(maxGranted).isEqualTo(1);
     }
 }

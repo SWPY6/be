@@ -6,11 +6,13 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import org.springframework.stereotype.Component;
 
 import com.swyp.ploutos.industry.flow.IndustryFlowSnapshot;
-import com.swyp.ploutos.industry.flow.MajorStock;
+import com.swyp.ploutos.industry.flow.IndustryTradingValue;
+import com.swyp.ploutos.industry.flow.IndustryFlowStock;
 import com.swyp.ploutos.industry.flow.QuotedStock;
 
 /**
@@ -20,8 +22,15 @@ import com.swyp.ploutos.industry.flow.QuotedStock;
 @Component
 public class IndustryFlowCalculator {
 
-    private static final int MAJOR_STOCK_LIMIT = 2;
-    private static final int SCALE = 2;
+    /**
+     * 저장할 종목 수. 산업별 동향 카드가 4개를 보여준다(RQ-0601).
+     *
+     * <p>저장 자리 수가 아니라 <b>몇 개를 담을까</b>이다 — 자식 테이블이 개수를 제한하지 않으므로
+     * 이 값만 바꾸면 늘어난다. 시장 요약 카드는 이 중 앞 2개만 쓴다
+     * ({@code RankedIndustryFlow.majorStocks()}).
+     */
+    private static final int STORED_STOCK_COUNT = 4;
+
     private static final int DIVISION_SCALE = 6;
 
     public IndustryFlowSnapshot calculate(List<QuotedStock> quotedStocks) {
@@ -29,7 +38,26 @@ public class IndustryFlowCalculator {
         if (distinct.isEmpty()) {
             return IndustryFlowSnapshot.empty();
         }
-        return new IndustryFlowSnapshot(average(distinct), distinct.size(), majorStocks(distinct));
+        return new IndustryFlowSnapshot(average(distinct), distinct.size(),
+                count(distinct, QuotedStock::rose), count(distinct, QuotedStock::fell),
+                tradingValue(distinct), stocks(distinct));
+    }
+
+    /**
+     * 금액을 합치기만 하고 나누지 않는다. 비교는 조회 시점에 시장 전체와 함께 한다 —
+     * 여기서는 다른 산업의 숫자를 알 수 없다. 종목별 비율을 평균하지 않는 이유는 소형주 하나가
+     * 산업을 흔들기 때문이다.
+     *
+     * <p>견줄 수 있는 종목이 하나도 없으면 {@code null}이다 — 0 으로 채우면 실패가 숨는다.
+     */
+    private static IndustryTradingValue tradingValue(List<QuotedStock> stocks) {
+        return IndustryTradingValue.of(stocks.stream().map(QuotedStock::toTradingValue).toList())
+                .orElse(null);
+    }
+
+    /** 보합인 종목은 어느 쪽에도 세지 않는다. 그래서 두 수의 합이 종목 수보다 작을 수 있다. */
+    private static int count(List<QuotedStock> stocks, Predicate<QuotedStock> moved) {
+        return (int) stocks.stream().filter(moved).count();
     }
 
     /**
@@ -42,25 +70,31 @@ public class IndustryFlowCalculator {
         return List.copyOf(byTicker.values());
     }
 
+    /**
+     * 반올림하지 않는다. 표기용으로 자르는 것은 응답을 만들 때
+     * {@link RankedIndustryFlow#displayAvgChangeRate()}가 한다.
+     *
+     * <p>여기서 두 자리로 자르면 {@code +1.6149}와 {@code +1.6151}이 같은 값이 되어
+     * 순위 동률을 풀 수 없다(RQ-0603).
+     */
     private static BigDecimal average(List<QuotedStock> stocks) {
         BigDecimal sum = stocks.stream()
                 .map(QuotedStock::changeRate)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return sum.divide(BigDecimal.valueOf(stocks.size()), DIVISION_SCALE, RoundingMode.HALF_UP)
-                .setScale(SCALE, RoundingMode.HALF_UP);
+        return sum.divide(BigDecimal.valueOf(stocks.size()), DIVISION_SCALE, RoundingMode.HALF_UP);
     }
 
     /**
-     * 시가총액 상위 2개. 등락률 최고·최저가 아닌 이유는 대상이 전 종목이어서, 87개 중 최고·최저는
+     * 시가총액 상위 4개. 등락률 최고·최저가 아닌 이유는 대상이 전 종목이어서, 87개 중 최고·최저는
      * 상한가·급락한 소형주가 되어 산업 평균과 동떨어진 극단값이 뜨기 때문이다.
      * 시가총액이 같으면 ticker 순으로 정해 갱신마다 순서가 흔들리지 않게 한다.
      */
-    private static List<MajorStock> majorStocks(List<QuotedStock> stocks) {
+    private static List<IndustryFlowStock> stocks(List<QuotedStock> stocks) {
         return stocks.stream()
                 .sorted(Comparator.comparing(QuotedStock::marketCap, Comparator.reverseOrder())
                         .thenComparing(QuotedStock::ticker))
-                .limit(MAJOR_STOCK_LIMIT)
-                .map(QuotedStock::toMajorStock)
+                .limit(STORED_STOCK_COUNT)
+                .map(QuotedStock::toFlowStock)
                 .toList();
     }
 }

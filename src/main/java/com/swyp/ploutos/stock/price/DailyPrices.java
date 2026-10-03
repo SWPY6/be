@@ -45,6 +45,11 @@ public final class DailyPrices {
         return Optional.of(prices.getLast().tradeAt());
     }
 
+    /** 그 거래일의 봉을 이미 가지고 있는가. */
+    public boolean hasTradeOn(LocalDate tradeAt) {
+        return prices.stream().anyMatch(price -> price.tradedOn(tradeAt));
+    }
+
     /** 해당 거래일의 봉을 뺀다. 당일 진행 중 봉을 저장·집계에서 제외할 때 쓴다. */
     public DailyPrices without(LocalDate tradeAt) {
         return new DailyPrices(prices.stream()

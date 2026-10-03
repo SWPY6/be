@@ -4,15 +4,23 @@ import java.math.BigDecimal;
 
 import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.stock.StockWithMarket;
+import com.swyp.ploutos.industry.flow.IndustryTradingValue.StockTradingValue;
 import com.swyp.ploutos.stock.quote.Quote;
 
 /**
  * 시세를 붙인 종목. 평균을 내는 데 필요한 값만 한 단계로 노출해, 계산기가 종목과 시세 중
  * 어디에 있는 값인지 알 필요가 없게 한다.
+ *
+ * @param stockId 식별자를 {@code stock}에서 꺼내지 않는 이유는 DB가 정하기 때문이다 —
+ *                그러면 DB를 거치지 않은 객체로는 이 코드를 검증할 수 없다
+ * @param averageTradingValue20d 저장된 일봉으로 근사한 20거래일 평균 거래대금.
+ *                               일봉이 20개에 못 미치면 {@code null}이다
  */
 public record QuotedStock(
+        Long stockId,
         StockWithMarket stock,
-        Quote quote
+        Quote quote,
+        BigDecimal averageTradingValue20d
 ) {
 
     public String ticker() {
@@ -35,7 +43,23 @@ public record QuotedStock(
         return quote.marketCap();
     }
 
-    public MajorStock toMajorStock() {
-        return new MajorStock(ticker(), name(), changeRate());
+    /** 직전 거래일 종가보다 올랐는지. 보합(0.00)은 오른 것도 내린 것도 아니다. */
+    public boolean rose() {
+        return changeRate().signum() > 0;
+    }
+
+    /** 직전 거래일 종가보다 내렸는지. */
+    public boolean fell() {
+        return changeRate().signum() < 0;
+    }
+
+    /** 카드에 실을 한 줄. 현재가도 이미 손에 있는 {@code Quote}에서 꺼내므로 외부 호출이 없다. */
+    public IndustryFlowStock toFlowStock() {
+        return new IndustryFlowStock(stockId, ticker(), name(), quote.price(), changeRate());
+    }
+
+    /** 오늘 누적 거래대금과 20거래일 평균을 짝지어 낸다. 평균이 없으면 견줄 수 없는 종목이 된다. */
+    public StockTradingValue toTradingValue() {
+        return new StockTradingValue(quote.tradingValue(), averageTradingValue20d);
     }
 }

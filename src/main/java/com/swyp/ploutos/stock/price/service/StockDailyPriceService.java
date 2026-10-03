@@ -54,6 +54,14 @@ class StockDailyPriceService implements DailyPriceReader {
         return DailyPrices.of(latest).averageVolume20d();
     }
 
+    @Override
+    public DailyPrices readStoredLatest(Long stockId, int days) {
+        // 동기화하지 않는다. 종목을 훑는 호출자가 외부 호출을 종목 수만큼 늘리지 않게 하는 것이 목적이다.
+        return DailyPrices.of(repository.findByStockIdOrderByTradeAtDesc(stockId, Limit.of(days)).stream()
+                .map(StockDailyPrices::toDailyPrice)
+                .toList());
+    }
+
     private void syncIfNeeded(StockWithMarket stock, LocalDate from) {
         Long stockId = stock.stockId();
         LocalDate today = policy.today(stock.country());
@@ -64,11 +72,22 @@ class StockDailyPriceService implements DailyPriceReader {
         if (policy.covers(stored, from, stock, today)) {
             return;
         }
-        if (!policy.tryStartSync(stockId, today)) {
+        if (!policy.tryStartSync(stockId, from, today)) {
             return;
         }
-        List<DailyPrice> fetched = provider.fetch(stock, from.minusDays(FETCH_MARGIN_DAYS), today.minusDays(1));
+        List<DailyPrice> fetched = provider.fetch(stock, fetchFrom(stored, from), today.minusDays(1));
         saveNew(stockId, DailyPrices.of(fetched).without(today));
+    }
+
+    /**
+     * 외부에서 받아 올 시작일. 앞이 비어 있으면 요청 시작일부터, 끝만 낡았으면 저장된 마지막 거래일부터 받는다.
+     * 구간이 넓어도 매일 전체를 다시 받지 않게 한다 — 5년 구간이면 100건씩 13회가 매일 반복된다.
+     */
+    private LocalDate fetchFrom(StoredRange stored, LocalDate from) {
+        if (!stored.startsOnOrBefore(from)) {
+            return from.minusDays(FETCH_MARGIN_DAYS);
+        }
+        return stored.latest().orElse(from).minusDays(FETCH_MARGIN_DAYS);
     }
 
     private void saveNew(Long stockId, DailyPrices prices) {

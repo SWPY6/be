@@ -132,5 +132,10 @@ class StockQuoteDetailServiceTest {
         public Optional<Long> averageVolume20d(Long stockId) {
             return average;
         }
+
+        @Override
+        public DailyPrices readStoredLatest(Long stockId, int days) {
+            throw new UnsupportedOperationException();
+        }
     }
 }

@@ -188,6 +188,66 @@ class DailyPriceReaderTest {
         assertThat(average).isEmpty();
     }
 
+    @Test
+    void 저장된_일봉이_없어도_외부를_호출하지_않는다() {
+        // given 한 행도 없다. findBetween·averageVolume20d 라면 여기서 외부를 부른다
+        provider.willReturn(List.of(price(YESTERDAY)));
+
+        // when
+        DailyPrices found = reader.readStoredLatest(stockId, 20);
+
+        // then
+        assertThat(found.isEmpty()).isTrue();
+        assertThat(provider.calls).isEmpty();
+        assertThat(repository.count()).isZero();
+    }
+
+    @Test
+    void 저장된_일봉_중_최근_것부터_요청한_개수만큼_읽는다() {
+        // given 거래량이 오래된 순으로 1..5
+        repository.saveAll(IntStream.rangeClosed(1, 5)
+                .mapToObj(i -> new StockDailyPrices(stockId, price(YESTERDAY.minusDays(5 - i), i)))
+                .toList());
+
+        // when
+        DailyPrices found = reader.readStoredLatest(stockId, 3);
+
+        // then 최근 3개(3·4·5)를 거래일 오름차순으로 준다
+        assertThat(found.values()).extracting(DailyPrice::volume).containsExactly(3L, 4L, 5L);
+        assertThat(provider.calls).isEmpty();
+    }
+
+    @Test
+    void 저장된_일봉이_요청한_개수보다_적으면_있는_만큼_읽는다() {
+        // given 20개를 요청하는데 2개만 있다
+        repository.saveAll(List.of(
+                new StockDailyPrices(stockId, price(YESTERDAY.minusDays(1), 1)),
+                new StockDailyPrices(stockId, price(YESTERDAY, 2))
+        ));
+
+        // when
+        DailyPrices found = reader.readStoredLatest(stockId, 20);
+
+        // then 부족한 대로 준다. 부족을 메우려고 외부를 부르지 않는다
+        assertThat(found.values()).extracting(DailyPrice::volume).containsExactly(1L, 2L);
+        assertThat(provider.calls).isEmpty();
+    }
+
+    @Test
+    void 다른_종목의_일봉은_읽지_않는다() {
+        // given
+        repository.saveAll(List.of(
+                new StockDailyPrices(stockId, price(YESTERDAY, 1)),
+                new StockDailyPrices(stockId + 1, price(YESTERDAY, 99))
+        ));
+
+        // when
+        DailyPrices found = reader.readStoredLatest(stockId, 20);
+
+        // then
+        assertThat(found.values()).extracting(DailyPrice::volume).containsExactly(1L);
+    }
+
     private static DailyPrice price(LocalDate tradeAt) {
         return price(tradeAt, 100);
     }

@@ -3,6 +3,7 @@ package com.swyp.ploutos.industry.flow.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -17,7 +18,7 @@ import com.swyp.ploutos.common.enums.MarketCode;
 import com.swyp.ploutos.common.enums.StockStatus;
 import com.swyp.ploutos.common.enums.TradingSession;
 import com.swyp.ploutos.industry.flow.IndustryFlowSnapshot;
-import com.swyp.ploutos.industry.flow.MajorStock;
+import com.swyp.ploutos.industry.flow.IndustryFlowStock;
 import com.swyp.ploutos.industry.flow.QuotedStock;
 import com.swyp.ploutos.market.Markets;
 import com.swyp.ploutos.stock.StockWithMarket;
@@ -46,9 +47,11 @@ class IndustryFlowCalculatorTest {
         assertThat(snapshot.avgChangeRate()).isEqualByComparingTo("1.00");
     }
 
+
+
     @Test
-    void 평균은_소수_둘째_자리로_반올림한다() {
-        // given 등락률 1.00 · 1.00 · 2.00 → 4.00 / 3 = 1.333...
+    void 평균을_반올림하지_않고_그대로_담는다() {
+        // given 등락률 1.00 · 1.00 · 2.00 → 4.00 / 3 = 1.333333
         List<QuotedStock> stocks = List.of(
                 quoted("A", "가", "1.00", 300),
                 quoted("B", "나", "1.00", 200),
@@ -57,9 +60,26 @@ class IndustryFlowCalculatorTest {
         // when
         IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
 
-        // then
-        assertThat(snapshot.avgChangeRate()).isEqualByComparingTo("1.33");
-        assertThat(snapshot.avgChangeRate().scale()).isEqualTo(2);
+        // then 여기서 두 자리로 자르면 순위 동률을 풀 수 없다 (RQ-0603).
+        // 표기용으로 자르는 것은 RankedIndustryFlow 가 한다
+        assertThat(snapshot.avgChangeRate()).isEqualByComparingTo("1.333333");
+    }
+
+    @Test
+    void 표기가_같아도_반올림_전_값이_다르면_구분된다() {
+        // given 종목 등락률은 Quote 가 이미 두 자리로 반올림해 주므로,
+        // 추가 정밀도는 종목 수로 나눌 때 생긴다
+        IndustryFlowSnapshot divided = calculator.calculate(List.of(
+                quoted("A", "가", "1.00", 300),
+                quoted("B", "나", "1.00", 200),
+                quoted("C", "다", "2.00", 100)));          // 4.00 / 3 = 1.333333
+        IndustryFlowSnapshot exact = calculator.calculate(List.of(
+                quoted("D", "라", "1.33", 300)));          // 1.330000
+
+        // when & then 표기하면 둘 다 1.33 이지만 저장되는 값은 다르다
+        assertThat(divided.avgChangeRate()).isNotEqualByComparingTo(exact.avgChangeRate());
+        assertThat(divided.avgChangeRate().setScale(2, RoundingMode.HALF_UP))
+                .isEqualByComparingTo(exact.avgChangeRate().setScale(2, RoundingMode.HALF_UP));
     }
 
     @Test
@@ -74,6 +94,101 @@ class IndustryFlowCalculatorTest {
 
         // then
         assertThat(snapshot.stockCount()).isEqualTo(2);
+    }
+
+    @Test
+    void 오른_종목과_내린_종목을_각각_센다() {
+        // given 상승 2 · 하락 1
+        List<QuotedStock> stocks = List.of(
+                quoted("A", "가", "3.00", 300),
+                quoted("B", "나", "1.00", 200),
+                quoted("C", "다", "-1.00", 100));
+
+        // when
+        IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
+
+        // then
+        assertThat(snapshot.risingCount()).isEqualTo(2);
+        assertThat(snapshot.fallingCount()).isEqualTo(1);
+    }
+
+    @Test
+    void 보합인_종목은_상승에도_하락에도_세지_않는다() {
+        // given 상승 2 · 보합 1 · 하락 1
+        List<QuotedStock> stocks = List.of(
+                quoted("A", "가", "3.00", 400),
+                quoted("B", "나", "1.00", 300),
+                quoted("C", "다", "0.00", 200),
+                quoted("D", "라", "-1.00", 100));
+
+        // when
+        IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
+
+        // then 합이 종목 수보다 작다. stockCount − risingCount 로 하락 수를 역산할 수 없다
+        assertThat(snapshot.stockCount()).isEqualTo(4);
+        assertThat(snapshot.risingCount()).isEqualTo(2);
+        assertThat(snapshot.fallingCount()).isEqualTo(1);
+    }
+
+    @Test
+    void 거래대금_변화율을_금액_합계로_계산한다() {
+        // given 대형주 600/400(1.5배) · 소형주 3/1(3배)
+        List<QuotedStock> stocks = List.of(
+                quoted("A", "가", "1.00", 300, 60_000_000_000L, 40_000_000_000L),
+                quoted("B", "나", "1.00", 100, 300_000_000L, 100_000_000L));
+
+        // when
+        IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
+
+        // then 종목별 비율을 단순 평균하면 2.25배가 된다
+        assertThat(snapshot.tradingValue().ratio()).isEqualByComparingTo("1.503741");
+    }
+
+    @Test
+    void 이십일_평균이_없는_종목은_거래대금에서_빠진다() {
+        // given 두 번째 종목은 일봉이 모자라 20일 평균이 없다
+        List<QuotedStock> stocks = List.of(
+                quoted("A", "가", "1.00", 300, 1_000L, 500L),
+                quoted("B", "나", "1.00", 100, 9_000L, 0L));
+
+        // when
+        IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
+
+        // then 9000을 분자에만 넣으면 20배가 나온다. 등락률에는 두 종목 모두 반영된다
+        assertThat(snapshot.tradingValue().today()).isEqualByComparingTo("1000");
+        assertThat(snapshot.tradingValue().average20d()).isEqualByComparingTo("500");
+        assertThat(snapshot.stockCount()).isEqualTo(2);
+    }
+
+    @Test
+    void 견줄_수_있는_종목이_없으면_거래대금이_없다() {
+        // given 전부 20일 평균이 없다
+        List<QuotedStock> stocks = List.of(
+                quoted("A", "가", "1.00", 300, 1_000L, 0L),
+                quoted("B", "나", "2.00", 100, 2_000L, 0L));
+
+        // when
+        IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
+
+        // then 0 으로 채우면 "계산 실패"가 "거래 없음"으로 위장한다
+        assertThat(snapshot.tradingValue()).isNull();
+        assertThat(snapshot.avgChangeRate()).isEqualByComparingTo("1.50");
+    }
+
+    @Test
+    void 중복_제거된_뒤의_종목만_센다() {
+        // given TSLA 가 두 시장에 있어 목록에 두 번 들어왔다
+        List<QuotedStock> stocks = List.of(
+                quoted("TSLA", "Tesla", "10.00", 300),
+                quoted("TSLA", "Tesla", "10.00", 300),
+                quoted("F", "Ford", "-1.00", 100));
+
+        // when
+        IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
+
+        // then 두 번 세면 상승이 2가 된다
+        assertThat(snapshot.risingCount()).isEqualTo(1);
+        assertThat(snapshot.fallingCount()).isEqualTo(1);
     }
 
     @Test
@@ -103,41 +218,60 @@ class IndustryFlowCalculatorTest {
         // then
         assertThat(snapshot.avgChangeRate()).isEqualByComparingTo("0.00");
         assertThat(snapshot.stockCount()).isZero();
-        assertThat(snapshot.majorStocks()).isEmpty();
+        assertThat(snapshot.risingCount()).isZero();
+        assertThat(snapshot.fallingCount()).isZero();
+        assertThat(snapshot.stocks()).isEmpty();
         assertThat(snapshot.hasNoStock()).isTrue();
     }
 
     @Test
-    void 시가총액_상위_2개를_대표_종목으로_고른다() {
-        // given 시가총액이 낮은 순으로 넣어 정렬이 실제로 일어나는지 본다
+    void 시가총액_상위_네_개를_대표_종목으로_고른다() {
+        // given 시가총액이 낮은 순으로 넣어 정렬이 실제로 일어나는지 본다. 다섯 종목 중 넷을 고른다
         List<QuotedStock> stocks = List.of(
                 quoted("012330", "현대모비스", "-0.78", 100),
                 quoted("005380", "현대차", "3.24", 866),
                 quoted("018880", "한온시스템", "2.13", 15),
+                quoted("000270", "기아", "1.85", 349),
+                quoted("204320", "HL만도", "0.40", 200));
+
+        // when
+        IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
+
+        // then 시가총액 866 · 349 · 200 · 100 순. 가장 작은 15 는 빠진다
+        assertThat(snapshot.stocks()).extracting(IndustryFlowStock::ticker)
+                .containsExactly("005380", "000270", "204320", "012330");
+    }
+
+    @Test
+    void 종목이_네_개보다_적으면_있는_만큼만_고른다() {
+        // given
+        List<QuotedStock> stocks = List.of(
+                quoted("005380", "현대차", "3.24", 866),
                 quoted("000270", "기아", "1.85", 349));
 
         // when
         IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
 
-        // then 시가총액 866 · 349 순
-        assertThat(snapshot.majorStocks()).extracting(MajorStock::ticker)
-                .containsExactly("005380", "000270");
+        // then 배열 길이가 가변이다. 화면이 4개를 가정하면 안 된다
+        assertThat(snapshot.stocks()).hasSize(2);
     }
 
     @Test
     void 시가총액이_같으면_ticker_순으로_고른다() {
-        // given 셋 다 시가총액 100
+        // given 다섯 다 시가총액 100. 순서를 정하는 것은 ticker 뿐이다
         List<QuotedStock> stocks = List.of(
                 quoted("C", "다", "1.00", 100),
                 quoted("A", "가", "2.00", 100),
-                quoted("B", "나", "3.00", 100));
+                quoted("E", "마", "0.50", 100),
+                quoted("B", "나", "3.00", 100),
+                quoted("D", "라", "0.10", 100));
 
         // when
         IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
 
-        // then
-        assertThat(snapshot.majorStocks()).extracting(MajorStock::ticker)
-                .containsExactly("A", "B");
+        // then 갱신마다 순서가 흔들리지 않는다
+        assertThat(snapshot.stocks()).extracting(IndustryFlowStock::ticker)
+                .containsExactly("A", "B", "C", "D");
     }
 
     @Test
@@ -149,12 +283,12 @@ class IndustryFlowCalculatorTest {
         IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
 
         // then
-        assertThat(snapshot.majorStocks()).hasSize(1);
-        assertThat(snapshot.majorStocks().get(0).ticker()).isEqualTo("005380");
+        assertThat(snapshot.stocks()).hasSize(1);
+        assertThat(snapshot.stocks().get(0).ticker()).isEqualTo("005380");
     }
 
     @Test
-    void 대표_종목은_계산_시점의_종목명과_등락률을_담는다() {
+    void 대표_종목은_계산_시점의_종목명과_현재가와_등락률을_담는다() {
         // given
         List<QuotedStock> stocks = List.of(
                 quoted("005380", "현대차", "3.24", 866),
@@ -164,13 +298,29 @@ class IndustryFlowCalculatorTest {
         IndustryFlowSnapshot snapshot = calculator.calculate(stocks);
 
         // then
-        assertThat(snapshot.majorStocks()).containsExactly(
-                new MajorStock("005380", "현대차", new BigDecimal("3.24")),
-                new MajorStock("000270", "기아", new BigDecimal("1.85")));
+        // 현재가는 전일 종가(100)에 등락률을 더해 만든다. Quote 가 이미 들고 있는 값을 그대로 담는다
+        assertThat(snapshot.stocks()).containsExactly(
+                new IndustryFlowStock(stockIdOf("005380"), "005380", "현대차",
+                        new BigDecimal("103.24"), new BigDecimal("3.24")),
+                new IndustryFlowStock(stockIdOf("000270"), "000270", "기아",
+                        new BigDecimal("101.85"), new BigDecimal("1.85")));
     }
 
-    /** 전일 종가를 100 으로 고정해, 넘긴 등락률이 그대로 나오게 한다. */
+    /** 전일 종가를 100 으로 고정해, 넘긴 등락률이 그대로 나오게 한다. 거래대금은 보지 않는 테스트용. */
     private static QuotedStock quoted(String ticker, String name, String changeRate, long marketCap) {
+        return quoted(ticker, name, changeRate, marketCap, 1L, 1L);
+    }
+
+    /** 거래대금을 함께 지정한다. {@code average20d}가 0이면 20일 평균이 없는 종목으로 만든다. */
+    private static QuotedStock quoted(String ticker, String name, String changeRate, long marketCap,
+            long tradingValue, long average20d) {
+        QuotedStock base = build(ticker, name, changeRate, marketCap, tradingValue);
+        return new QuotedStock(base.stockId(), base.stock(), base.quote(),
+                average20d == 0 ? null : BigDecimal.valueOf(average20d));
+    }
+
+    private static QuotedStock build(String ticker, String name, String changeRate, long marketCap,
+            long tradingValue) {
         Stocks stock = new Stocks(1L, ticker, name, null, StockStatus.ACTIVE, Exchange.KRX,
                 1L, "대표", LocalDate.of(2000, 1, 1));
         Markets market = new Markets(MarketCode.KOSPI, Country.KR, TradingSession.REGULAR, Currency.KRW);
@@ -181,12 +331,21 @@ class IndustryFlowCalculatorTest {
                 BigDecimal.ONE,
                 BigDecimal.ONE,
                 1L,
-                BigDecimal.ONE,
+                BigDecimal.valueOf(tradingValue),
                 BigDecimal.valueOf(marketCap),
                 Currency.KRW,
                 OffsetDateTime.of(2026, 9, 28, 10, 0, 0, 0, ZoneOffset.ofHours(9)),
                 PriceTiming.REALTIME);
-        return new QuotedStock(new StockWithMarket(stock, market), quote);
+        return new QuotedStock(stockIdOf(ticker), new StockWithMarket(stock, market), quote,
+                BigDecimal.ONE);
+    }
+
+    /**
+     * ticker 로 식별자를 만든다. {@code Stocks.stockId}는 DB가 정하므로 직접 만든 엔티티에는
+     * 없다 — 그래서 {@code QuotedStock}이 식별자를 따로 받는다.
+     */
+    private static Long stockIdOf(String ticker) {
+        return (long) Math.abs(ticker.hashCode() % 100_000);
     }
 
 }

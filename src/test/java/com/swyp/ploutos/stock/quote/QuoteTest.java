@@ -3,6 +3,7 @@ package com.swyp.ploutos.stock.quote;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
@@ -10,6 +11,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 import com.swyp.ploutos.common.enums.Currency;
+import com.swyp.ploutos.stock.price.DailyPrice;
 
 import tools.jackson.databind.json.JsonMapper;
 
@@ -50,22 +52,10 @@ class QuoteTest {
         Quote quote = quote(new BigDecimal("248000"), new BigDecimal("240217"), new BigDecimal("244280"), 245_000);
 
         // when
-        BigDecimal ratio = quote.volumeRatio(Optional.of(258_000L));
+        Optional<BigDecimal> ratio = quote.volumeRatioTo(258_000L);
 
         // then
-        assertThat(ratio).isEqualTo(new BigDecimal("0.95"));
-    }
-
-    @Test
-    void 평균_거래량이_없으면_배수는_null이다() {
-        // given
-        Quote quote = quote(new BigDecimal("248000"), new BigDecimal("240217"), new BigDecimal("244280"), 245_000);
-
-        // when
-        BigDecimal ratio = quote.volumeRatio(Optional.empty());
-
-        // then
-        assertThat(ratio).isNull();
+        assertThat(ratio).contains(new BigDecimal("0.95"));
     }
 
     @Test
@@ -106,15 +96,30 @@ class QuoteTest {
     }
 
     @Test
-    void 평균_거래량이_0이면_배수는_null이다() {
+    void 평균_거래량이_0이면_배수는_없다() {
         // given
         Quote quote = quote(new BigDecimal("248000"), new BigDecimal("240217"), new BigDecimal("244280"), 245_000);
 
         // when
-        BigDecimal ratio = quote.volumeRatio(Optional.of(0L));
+        Optional<BigDecimal> ratio = quote.volumeRatioTo(0L);
 
         // then
-        assertThat(ratio).isNull();
+        assertThat(ratio).isEmpty();
+    }
+
+    @Test
+    void 현재가를_당일자_일봉으로_바꾼다() {
+        // given 진행 중인 봉은 종가 자리에 현재가가 들어간다
+        Quote quote = quote(new BigDecimal("248000"), new BigDecimal("240217"), new BigDecimal("244280"), 245_000);
+
+        // when
+        DailyPrice price = quote.asDailyPrice(LocalDate.of(2026, 8, 12));
+
+        // then
+        assertThat(price.tradeAt()).isEqualTo(LocalDate.of(2026, 8, 12));
+        assertThat(price.open()).isEqualByComparingTo("244280");
+        assertThat(price.close()).isEqualByComparingTo("248000");
+        assertThat(price.volume()).isEqualTo(245_000L);
     }
 
     private static Quote quote(BigDecimal price, BigDecimal previousClose, BigDecimal open, long volume) {

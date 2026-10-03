@@ -13,7 +13,7 @@
 | 모듈 id | 책임 | 의존 대상 | 명세 | 상태 |
 | --- | --- | --- | --- | --- |
 | `stock-summary` | 1차: 종목 기본정보 API(`GET /api/v1/stocks/{stockId}`)와 기존 시세 API의 화면 조합. 후속: 근거 기반 변동 배경(RQ-0501) | 1차: 종목·시장 조회, `industry`(종목별 산업 조회, 협의 중). 화면에서 `stock-quote` 조합. 후속: `stock-news`, `stock-disclosure` | `SPEC-stock-summary.md` | 1차 기본정보 API 구현, 산업 연결 대기 |
-| `stock-news` | RQ-0502 뉴스 조회, RQ-0802 뉴스 연결·중복 제거 | 종목·시장 조회, NAVER API HUB 뉴스 검색 | `SPEC-stock-news.md` |
+| `stock-news` | RQ-0502 뉴스 조회, RQ-0802 뉴스 연결·중복 제거 | 종목·시장 조회, NAVER API HUB 뉴스 검색 | [SPEC-stock-news.md](SPEC-stock-news.md) |
 | `stock-disclosure` | RQ-0502 공시 조회, RQ-0802 발행 법인 연결·중복 제거 | 종목·시장 조회, 공시 공급 계약 | `SPEC-stock-disclosure.md` | 요구사항 초안 |
 
 빌드 순서: 종목·시장 조회(기존) → `stock-summary` 1차 → `stock-news`, `stock-disclosure` → `stock-summary` 변동 배경
