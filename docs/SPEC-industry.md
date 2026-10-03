@@ -74,10 +74,10 @@ MySQL은 ENUM을 **선언 순서의 정수**로 정렬한다. 문자열로 비�
 ### 종목 매핑
 
 `StockIndustries`(`stock_industries`)가 종목↔산업 N:M 매핑을 갖는다. **시드 데이터는 아직 넣지 않는다.**
-산업별 종목 조회는 `industry-flow`를 만들 때 추가한다(아래 "추후 구현" 1번) — 지금 만들면
+매핑을 읽는 메서드는 `industry-flow`를 만들 때 추가한다(아래 "추후 구현" 1번) — 지금 만들면
 쓰는 곳이 없는 추측성 코드다.
 
-종목별 산업 조회(`readByStockId`)는 [종목 요약](SPEC-stock-summary.md)이 쓰므로 추가했다(2026-10-02).
+종목별 산업 조회(`readByStockId`)는 [종목 요약](SPEC-stock-summary.md)이 쓰므로 추가했다.
 `stock_industries`에 (stock_id, industry_id) 유니크 제약이 없어 쿼리에서 중복을 제거하고,
 정렬은 `readAll()`과 같이 Java에서 한글 표시명 가나다순으로 한다. 연결이 없으면 빈 목록이다.
 
