@@ -105,6 +105,18 @@ class IndustryFlowControllerTest {
     }
 
     @Test
+    void 대표_종목에_종목_식별자를_내려준다() throws Exception {
+        // given 종목 API 는 /api/v1/stocks/{stockId} 만 받는다
+        given(industryFlowService.read(Country.KR)).willReturn(List.of(
+                flow(IndustryCode.AUTOMOBILE, 1, "1.61", 87)));
+
+        // when & then 이 값이 없으면 프론트가 종목 상세로 이동할 수 없다
+        mockMvc.perform(get(PATH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].majorStocks[0].stockId").value(10));
+    }
+
+    @Test
     void 대표_종목이_없으면_빈_배열을_응답한다() throws Exception {
         // given 계산된 적 없는 산업
         given(industryFlowService.read(Country.KR)).willReturn(List.of(

@@ -53,7 +53,11 @@ record IndustryFlowResponse(
     @Schema(description = "산업의 대표 종목")
     record MajorStockResponse(
 
-            @Schema(description = "종목 코드", example = "005380")
+            @Schema(description = "종목 식별자. 종목 상세·현재가·차트 조회에 이 값을 쓴다",
+                    example = "10")
+            Long stockId,
+
+            @Schema(description = "종목 코드. 화면에 표시한다", example = "005380")
             String ticker,
 
             @Schema(description = "종목명. 계산 시점의 값", example = "현대차")
@@ -63,8 +67,10 @@ record IndustryFlowResponse(
             BigDecimal changeRate
     ) {
 
+        /** {@code stockId}를 싣는 이유는 {@code IndustryTrendResponse.TrendStockResponse}와 같다. */
         static MajorStockResponse from(IndustryFlowStock stock) {
-            return new MajorStockResponse(stock.ticker(), stock.name(), stock.changeRate());
+            return new MajorStockResponse(stock.stockId(), stock.ticker(), stock.name(),
+                    stock.changeRate());
         }
     }
 }

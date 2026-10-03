@@ -65,7 +65,11 @@ record IndustryTrendResponse(
     @Schema(description = "산업 카드에 표시하는 종목")
     record TrendStockResponse(
 
-            @Schema(description = "종목 코드. 종목 상세로 이동할 때 이 값을 쓴다", example = "005380")
+            @Schema(description = "종목 식별자. 종목 상세·현재가·차트 조회에 이 값을 쓴다",
+                    example = "10")
+            Long stockId,
+
+            @Schema(description = "종목 코드. 화면에 표시한다", example = "005380")
             String ticker,
 
             @Schema(description = "종목명. 계산 시점의 값", example = "현대차")
@@ -78,10 +82,16 @@ record IndustryTrendResponse(
             BigDecimal changeRate
     ) {
 
-        /** {@code stockId}는 싣지 않는다. 환경마다 auto_increment 값이 달라 외부 식별자가 못 된다. */
+        /**
+         * 종목 API가 {@code /api/v1/stocks/{stockId}}만 받고 {@code ticker}로 조회하는 경로를
+         * 주지 않아, 이 값이 없으면 프론트가 종목 상세로 이동할 수 없다.
+         *
+         * <p>auto_increment 값이라 환경마다 다를 수 있으므로 프론트는 저장하지 않고 그 화면에서
+         * 이동용으로만 쓴다.
+         */
         static TrendStockResponse from(IndustryFlowStock stock) {
-            return new TrendStockResponse(stock.ticker(), stock.name(), stock.price(),
-                    stock.changeRate());
+            return new TrendStockResponse(stock.stockId(), stock.ticker(), stock.name(),
+                    stock.price(), stock.changeRate());
         }
     }
 }

@@ -377,8 +377,8 @@ API를 그대로 살려 둘 수 있어 유력하지만 로그인 방식이 정�
       "avgChangeRate": 1.61,
       "stockCount": 87,
       "majorStocks": [
-        { "ticker": "005380", "name": "현대차", "changeRate": 3.24 },
-        { "ticker": "000270", "name": "기아", "changeRate": 1.85 }
+        { "stockId": 10, "ticker": "005380", "name": "현대차", "changeRate": 3.24 },
+        { "stockId": 30, "ticker": "000270", "name": "기아", "changeRate": 1.85 }
       ],
       "calculatedAt": "2026-09-28T10:00:07+09:00"
     },
@@ -389,8 +389,8 @@ API를 그대로 살려 둘 수 있어 유력하지만 로그인 방식이 정�
       "avgChangeRate": 0.45,
       "stockCount": 94,
       "majorStocks": [
-        { "ticker": "000720", "name": "현대건설", "changeRate": 1.68 },
-        { "ticker": "047040", "name": "대우건설", "changeRate": 0.49 }
+        { "stockId": 60, "ticker": "000720", "name": "현대건설", "changeRate": 1.68 },
+        { "stockId": 61, "ticker": "047040", "name": "대우건설", "changeRate": 0.49 }
       ],
       "calculatedAt": "2026-09-28T10:00:07+09:00"
     }
@@ -406,13 +406,19 @@ API를 그대로 살려 둘 수 있어 유력하지만 로그인 방식이 정�
 | `avgChangeRate` | number | X | 평균 등락률 %, 소수 둘째 자리. 음수 가능 |
 | `stockCount` | integer | X | **평균에 실제로 반영된** 종목 수. 0일 수 있다 |
 | `majorStocks` | array | X | 시가총액 상위 대표 종목. **0~2개.** 빈 배열일 수 있다 |
-| `majorStocks[].ticker` | string | X | 종목 코드 (`005380`, `TSLA`) |
+| `majorStocks[].stockId` | integer | X | 종목 식별자. 종목 상세·현재가·차트 조회에 이 값을 쓴다 |
+| `majorStocks[].ticker` | string | X | 종목 코드 (`005380`, `TSLA`). 화면 표시용 |
 | `majorStocks[].name` | string | X | 종목명. 계산 시점의 값 |
 | `majorStocks[].changeRate` | number | X | 그 종목의 등락률 %, 소수 둘째 자리 |
 | `calculatedAt` | string(ISO-8601, 오프셋 포함) | **O** | 이 산업의 값이 계산된 시각(시장 현지). 한 번도 계산되지 않았으면 `null` — 과거 시차는 한 바퀴 시간만큼이다 |
 
 `majorStocks`를 배열로 두면 종목이 0·1개인 산업도 같은 형태로 표현되고, 나중에 4개로 늘릴 때
 프론트 계약이 깨지지 않는다.
+
+`majorStocks[].stockId`는 종목 상세로 이동하는 데 쓴다. 종목 API가 `/api/v1/stocks/{stockId}`로
+`stockId`를 받고 `ticker`로 조회하는 경로가 없어서, 이 값이 없으면 카드의 종목을 눌러도 이동할
+수 없다. 산업은 `code`라는 안정된 외부 식별자가 있어 `industryId`를 숨길 수 있지만 종목에는
+그런 대안이 없다.
 
 배열은 항상 **9개**이며 `rank` 오름차순으로 정렬돼 있다. 다만 `rank`는 값이므로 프론트는 배열
 인덱스가 아니라 이 필드를 써야 한다 — 관심 산업 고정이 들어오면 둘이 어긋난다. `industryId`는
