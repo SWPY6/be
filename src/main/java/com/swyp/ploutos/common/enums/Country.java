@@ -29,7 +29,9 @@ public enum Country {
 	 * 이 나라 시장의 표시 통화. 금액을 화면에 쓸 때 기호를 고르는 데 쓴다.
 	 *
 	 * <p>값의 출처는 {@code markets.currency}이고 여기 둔 것은 그 사본이다 — 한 나라의 시장이
-	 * 하나뿐이라 성립한다. 시장이 둘 이상 생기면 시장에서 읽어야 한다.
+	 * 모두 같은 통화를 쓰기 때문에 성립한다. 나라당 시장은 이미 둘 이상이지만(KOSPI·KOSDAQ,
+	 * NASDAQ·SP500) 통화는 각각 KRW·USD로 같다. 한 나라 안에 통화가 다른 시장이 생기면
+	 * 이 사본을 버리고 {@code markets.currency}에서 읽어야 한다.
 	 */
 	private final Currency currency;
 
