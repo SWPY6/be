@@ -97,4 +97,20 @@ class JpaIndustryReaderTest {
         assertThat(stockIds).isEmpty();
     }
 
+    @Test
+    void 종목의_산업을_읽으면_가나다순으로_돌려준다() {
+        // given
+        given(industryRepository.findByStockId(1L)).willReturn(List.of(
+                new Industries(IndustryCode.STEEL),
+                new Industries(IndustryCode.AUTOMOBILE),
+                new Industries(IndustryCode.ENERGY)));
+
+        // when
+        List<Industries> result = industryReader.readByStockId(1L);
+
+        // then
+        assertThat(result).extracting(Industries::displayName)
+                .containsExactly("에너지", "자동차", "철강");
+    }
+
 }
