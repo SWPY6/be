@@ -15,7 +15,10 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
 
+@Getter
 @Entity
 @Table(name = "users")
 public class Users {
@@ -31,6 +34,7 @@ public class Users {
     @Column(nullable = false, unique = true)
     private String email;
 
+    @Getter(AccessLevel.NONE)
     @Column(nullable = false)
     private String password;
 
@@ -50,7 +54,19 @@ public class Users {
     private LocalDateTime updatedAt;
 
     protected Users() {
-    	
+
     }
-    
+
+    public Users(String loginId, String email, String password, String name, UserStatus status) {
+        this.loginId = loginId;
+        this.email = email;
+        this.password = password;
+        this.name = name;
+        this.status = status;
+    }
+
+    public boolean canLogin() {
+        return status == UserStatus.ACTIVE;
+    }
+
 }

@@ -89,6 +89,7 @@
 | 415 | `P005` | `UnsupportedMediaTypeException` | 지원하지 않는 미디어 타입입니다. | 지원하지 않는 `Content-Type` 요청 |
 | 500 | `P006` | `InternalServerErrorException` | 서버 내부 오류가 발생했습니다. | 핸들러에 전달된 그 밖의 모든 `Exception` |
 | 502 | `P007` | `MarketDataUnavailableException` | 시세 정보를 불러올 수 없습니다. | `BusinessException(MARKET_DATA_UNAVAILABLE)` — 외부 시세 제공자(KIS) 호출 실패. `SPEC-kis-client.md` 참고 |
+| 401 | `P008` | `LoginFailedException` | 로그인에 실패했습니다. | `BusinessException(LOGIN_FAILED)` — 없는 `loginId` 또는 비활성 사용자. `SPEC-auth.md` 참고 |
 
 ### 예외 → 응답 매핑
 
