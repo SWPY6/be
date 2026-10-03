@@ -2,6 +2,7 @@ package com.swyp.ploutos.industry.flow.service;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -13,9 +14,13 @@ import org.springframework.stereotype.Service;
 
 import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.industry.Industries;
+import com.swyp.ploutos.industry.flow.IndustryFlowStock;
+import com.swyp.ploutos.industry.flow.IndustryFlowStocks;
 import com.swyp.ploutos.industry.flow.IndustryFlows;
+import com.swyp.ploutos.industry.flow.IndustryTradingValue;
 import com.swyp.ploutos.industry.flow.RankedIndustryFlow;
 import com.swyp.ploutos.industry.flow.repository.IndustryFlowRepository;
+import com.swyp.ploutos.industry.flow.repository.IndustryFlowStockRepository;
 import com.swyp.ploutos.industry.service.IndustryReader;
 
 import lombok.RequiredArgsConstructor;
@@ -32,6 +37,7 @@ public class IndustryFlowService {
 
     private final IndustryReader industryReader;
     private final IndustryFlowRepository industryFlowRepository;
+    private final IndustryFlowStockRepository industryFlowStockRepository;
 
     /**
      * 국가의 산업 흐름을 평균 등락률이 높은 순으로 읽는다. 계산된 적 없는 산업도 평균 0 · 종목 0
@@ -46,22 +52,44 @@ public class IndustryFlowService {
         Map<Long, IndustryFlows> stored = industryFlowRepository.findByCountry(country).stream()
                 .collect(Collectors.toMap(IndustryFlows::industryId, Function.identity()));
 
-        // 평균 등락률 내림차순. 동점이면 표시명 가나다순으로 정해 순위가 매 요청 흔들리지 않게 한다.
         List<Industries> byChangeRate = industryReader.readAll().stream()
-                .sorted(Comparator.comparing((Industries industry) -> avgChangeRateOf(stored, industry),
-                                Comparator.reverseOrder())
-                        .thenComparing(Industries::displayName))
+                .sorted(byRank(stored))
                 .toList();
+
+        // 산업마다 따로 읽으면 조회가 9번 된다. 한 번에 읽어 산업별로 나눈다
+        Map<Long, List<IndustryFlowStock>> stocksByFlowId = readStocks(stored.values());
 
         // 순위는 이 순서에서 나오지만 응답에 값으로 실려 나간다. 뒤에서 순서를 바꿔도(관심 산업 고정,
         // 동향 탭의 가나다순 필터) 각 원소가 자기 순위를 들고 다니므로 다시 매길 필요가 없다.
         return IntStream.range(0, byChangeRate.size())
-                .mapToObj(index -> toRanked(byChangeRate.get(index), index + 1, stored, country))
+                .mapToObj(index -> toRanked(byChangeRate.get(index), index + 1, stored,
+                        stocksByFlowId, country))
                 .toList();
     }
 
+    /**
+     * 저장된 종목 행을 산업별로 모은다. {@code displayOrder}로 정렬해 시가총액 순서를 되살린다 —
+     * 조회 결과의 순서에 기대지 않는다.
+     */
+    private Map<Long, List<IndustryFlowStock>> readStocks(Collection<IndustryFlows> flows) {
+        List<Long> flowIds = flows.stream().map(IndustryFlows::industryFlowId).toList();
+        if (flowIds.isEmpty()) {
+            return Map.of();
+        }
+        return industryFlowStockRepository.findByIndustryFlowIdIn(flowIds).stream()
+                .sorted(Comparator.comparingInt(IndustryFlowStocks::displayOrder))
+                .collect(Collectors.groupingBy(IndustryFlowStocks::industryFlowId,
+                        Collectors.mapping(IndustryFlowService::toFlowStock, Collectors.toList())));
+    }
+
+    private static IndustryFlowStock toFlowStock(IndustryFlowStocks stock) {
+        return new IndustryFlowStock(stock.stockId(), stock.ticker(), stock.name(),
+                stock.price(), stock.changeRate());
+    }
+
     private static RankedIndustryFlow toRanked(Industries industry, int rank,
-            Map<Long, IndustryFlows> stored, Country country) {
+            Map<Long, IndustryFlows> stored, Map<Long, List<IndustryFlowStock>> stocksByFlowId,
+            Country country) {
         IndustryFlows flow = stored.get(industry.industryId());
         if (flow == null) {
             return new RankedIndustryFlow(industry.name(), rank, NOT_CALCULATED, 0, 0, 0, null,
@@ -69,7 +97,44 @@ public class IndustryFlowService {
         }
         return new RankedIndustryFlow(industry.name(), rank, flow.avgChangeRate(), flow.stockCount(),
                 flow.risingCount(), flow.fallingCount(), flow.tradingValue().orElse(null),
-                flow.majorStocks(), localTime(flow, country));
+                stocksByFlowId.getOrDefault(flow.industryFlowId(), List.of()),
+                localTime(flow, country));
+    }
+
+    /**
+     * 순위를 매기는 비교자. 세 단계로 가른다 (RQ-0603).
+     * 1) 반올림 전 평균 등락률  내림차순
+     * 2) 거래대금 비율          내림차순   ← 측정하지 못한 산업은 뒤로
+     * 3) 산업 표시명            가나다순
+     *
+     *
+     * <p>1번이 <b>반올림 전</b> 값이어야 하는 이유는, 응답에 나가는 두 자리로는
+     * {@code 1.333333}과 {@code 1.330000}이 둘 다 {@code 1.33}이라 구분할 수 없기 때문이다.
+     *
+     * <p>3번까지 두는 것은 순위가 매 요청 흔들리지 않게 하기 위해서다
+     */
+    private static Comparator<Industries> byRank(Map<Long, IndustryFlows> stored) {
+        return Comparator
+                .comparing((Industries industry) -> avgChangeRateOf(stored, industry),
+                        Comparator.reverseOrder())
+                .thenComparing(industry -> tradingRatioOf(stored, industry),
+                        Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(Industries::displayName);
+    }
+
+    /**
+     * 오늘 거래대금이 그 산업의 20거래일 평균의 몇 배인지. 측정하지 못했으면 {@code null}이고
+     * 비교자가 뒤로 보낸다 — 모르는 산업을 "거래가 활발했다"고 볼 수 없다.
+     *
+     * <p>시장 전체 대비 상대비율을 쓰지 않는 이유는 모든 산업을 같은 값으로 나누는 것이라
+     * <b>순서가 바뀌지 않기</b> 때문이다. 더 단순한 쪽을 쓴다.
+     */
+    private static BigDecimal tradingRatioOf(Map<Long, IndustryFlows> stored, Industries industry) {
+        IndustryFlows flow = stored.get(industry.industryId());
+        if (flow == null) {
+            return null;
+        }
+        return flow.tradingValue().map(IndustryTradingValue::ratio).orElse(null);
     }
 
     private static BigDecimal avgChangeRateOf(Map<Long, IndustryFlows> stored, Industries industry) {

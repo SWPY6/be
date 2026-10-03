@@ -11,6 +11,7 @@ import static org.mockito.Mockito.never;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -38,8 +39,7 @@ import com.swyp.ploutos.common.enums.TradingSession;
 import com.swyp.ploutos.common.exception.BusinessException;
 import com.swyp.ploutos.common.exception.ErrorCode;
 import com.swyp.ploutos.industry.Industries;
-import com.swyp.ploutos.industry.flow.IndustryFlows;
-import com.swyp.ploutos.industry.flow.repository.IndustryFlowRepository;
+import com.swyp.ploutos.industry.flow.IndustryFlowSnapshot;
 import com.swyp.ploutos.industry.service.IndustryReader;
 import com.swyp.ploutos.market.Markets;
 import com.swyp.ploutos.stock.StockWithMarket;
@@ -73,10 +73,16 @@ class IndustryFlowRefresherTest {
     private DailyPriceReader dailyPriceReader;
 
     @Mock
-    private IndustryFlowRepository industryFlowRepository;
+    private IndustryFlowWriter industryFlowWriter;
 
     @Captor
-    private ArgumentCaptor<IndustryFlows> saved;
+    private ArgumentCaptor<Country> savedCountry;
+
+    @Captor
+    private ArgumentCaptor<IndustryFlowSnapshot> savedSnapshot;
+
+    @Captor
+    private ArgumentCaptor<LocalDateTime> savedCalculatedAt;
 
     private IndustryFlowRefresher refresher;
 
@@ -84,9 +90,8 @@ class IndustryFlowRefresherTest {
     void setUp() {
         // 초당 1000건 = 호출 사이 1ms. 테스트가 기다리지 않게 한다.
         refresher = new IndustryFlowRefresher(industryReader, stockReader, quoteReader, dailyPriceReader,
-                new IndustryFlowCalculator(), industryFlowRepository, new IndustryFlowProperties(1000),
+                new IndustryFlowCalculator(), industryFlowWriter, new IndustryFlowProperties(1000),
                 Clock.fixed(Instant.parse("2026-09-28T01:00:07Z"), ZoneOffset.UTC));
-        given(industryFlowRepository.findByIndustryIdAndCountry(any(), any())).willReturn(Optional.empty());
         // 기본은 저장된 일봉 없음. 거래대금을 보는 테스트만 따로 stub 한다.
         given(dailyPriceReader.readStoredLatest(any(), anyInt())).willReturn(DailyPrices.of(List.of()));
     }
@@ -136,8 +141,9 @@ class IndustryFlowRefresherTest {
 
         // then 30번도 조회했고, 국내 평균은 성공한 둘의 것이다
         then(stockReader).should().read(30L);
-        then(industryFlowRepository).should(org.mockito.Mockito.times(2)).save(saved.capture());
-        IndustryFlows domestic = savedOf(Country.KR);
+        then(industryFlowWriter).should(org.mockito.Mockito.times(2))
+                .save(any(), savedCountry.capture(), savedSnapshot.capture(), savedCalculatedAt.capture());
+        IndustryFlowSnapshot domestic = savedOf(Country.KR);
         assertThat(domestic.stockCount()).isEqualTo(2);
         assertThat(domestic.avgChangeRate()).isEqualByComparingTo("2.00");
     }
@@ -156,9 +162,10 @@ class IndustryFlowRefresherTest {
         refresher.refreshNext();
 
         // then 국내는 직전 값을 남기고, 매핑이 없는 해외만 0으로 저장한다
-        then(industryFlowRepository).should(org.mockito.Mockito.times(1)).save(saved.capture());
-        assertThat(saved.getValue().country()).isEqualTo(Country.US);
-        assertThat(saved.getValue().stockCount()).isZero();
+        then(industryFlowWriter).should(org.mockito.Mockito.times(1))
+                .save(any(), savedCountry.capture(), savedSnapshot.capture(), savedCalculatedAt.capture());
+        assertThat(savedCountry.getValue()).isEqualTo(Country.US);
+        assertThat(savedSnapshot.getValue().stockCount()).isZero();
     }
 
     @Test
@@ -171,12 +178,13 @@ class IndustryFlowRefresherTest {
         refresher.refreshNext();
 
         // then 평균 0 · 종목 0 이 사실이므로 저장한다. calculatedAt 이 찍혀야 계산이 돌고 있음이 드러난다
-        then(industryFlowRepository).should(org.mockito.Mockito.times(2)).save(saved.capture());
-        assertThat(saved.getAllValues()).allSatisfy(flow -> {
+        then(industryFlowWriter).should(org.mockito.Mockito.times(2))
+                .save(any(), savedCountry.capture(), savedSnapshot.capture(), savedCalculatedAt.capture());
+        assertThat(savedSnapshot.getAllValues()).allSatisfy(flow -> {
             assertThat(flow.stockCount()).isZero();
             assertThat(flow.avgChangeRate()).isEqualByComparingTo("0.00");
-            assertThat(flow.majorStocks()).isEmpty();
-            assertThat(flow.calculatedAt()).isNotNull();
+            assertThat(flow.stocks()).isEmpty();
+            assertThat(flow).isNotNull();
         });
     }
 
@@ -192,7 +200,8 @@ class IndustryFlowRefresherTest {
         refresher.refreshNext();
 
         // then 두 행이 저장되고 국가별로 평균이 나뉜다
-        then(industryFlowRepository).should(org.mockito.Mockito.times(2)).save(saved.capture());
+        then(industryFlowWriter).should(org.mockito.Mockito.times(2))
+                .save(any(), savedCountry.capture(), savedSnapshot.capture(), savedCalculatedAt.capture());
         assertThat(savedOf(Country.KR).avgChangeRate()).isEqualByComparingTo("3.00");
         assertThat(savedOf(Country.KR).stockCount()).isEqualTo(1);
         assertThat(savedOf(Country.US).avgChangeRate()).isEqualByComparingTo("-1.00");
@@ -210,9 +219,10 @@ class IndustryFlowRefresherTest {
         refresher.refreshNext();
 
         // then 같은 순간이지만 행마다 그 시장의 현지 시각으로 남는다
-        then(industryFlowRepository).should(org.mockito.Mockito.times(2)).save(saved.capture());
-        assertThat(savedOf(Country.KR).calculatedAt()).isEqualTo("2026-09-28T10:00:07");
-        assertThat(savedOf(Country.US).calculatedAt()).isEqualTo("2026-09-27T21:00:07");
+        then(industryFlowWriter).should(org.mockito.Mockito.times(2))
+                .save(any(), savedCountry.capture(), savedSnapshot.capture(), savedCalculatedAt.capture());
+        assertThat(calculatedAtOf(Country.KR)).isEqualTo("2026-09-28T10:00:07");
+        assertThat(calculatedAtOf(Country.US)).isEqualTo("2026-09-27T21:00:07");
     }
 
     @Test
@@ -225,15 +235,28 @@ class IndustryFlowRefresherTest {
 
         // then
         then(industryReader).should(never()).readStockIds(any());
-        then(industryFlowRepository).should(never()).save(any());
+        then(industryFlowWriter).should(never()).save(any(), any(), any(), any());
     }
 
-    /** 저장된 행 중 그 국가의 것. 국내·해외가 각각 한 행씩 저장되므로 첫 건이 곧 그 국가의 행이다. */
-    private IndustryFlows savedOf(Country country) {
-        return saved.getAllValues().stream()
-                .filter(flow -> flow.country() == country)
+    /** 저장된 것 중 그 국가의 스냅샷. 국내·해외가 각각 한 번씩 저장되므로 첫 건이 곧 그 국가의 것이다. */
+    private LocalDateTime calculatedAtOf(Country country) {
+        List<Country> countries = savedCountry.getAllValues();
+        List<LocalDateTime> times = savedCalculatedAt.getAllValues();
+        return java.util.stream.IntStream.range(0, countries.size())
+                .filter(index -> countries.get(index) == country)
+                .mapToObj(times::get)
                 .findFirst()
-                .orElseThrow(() -> new AssertionError(country + " 행이 저장되지 않았다"));
+                .orElseThrow(() -> new AssertionError(country + " 가 저장되지 않았다"));
+    }
+
+    private IndustryFlowSnapshot savedOf(Country country) {
+        List<Country> countries = savedCountry.getAllValues();
+        List<IndustryFlowSnapshot> snapshots = savedSnapshot.getAllValues();
+        return java.util.stream.IntStream.range(0, countries.size())
+                .filter(index -> countries.get(index) == country)
+                .mapToObj(snapshots::get)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError(country + " 가 저장되지 않았다"));
     }
 
     @Test
@@ -249,8 +272,9 @@ class IndustryFlowRefresherTest {
         refresher.refreshNext();
 
         // then
-        then(industryFlowRepository).should(org.mockito.Mockito.atLeastOnce()).save(saved.capture());
-        assertThat(savedOf(Country.KR).tradingValue().orElseThrow().ratio())
+        then(industryFlowWriter).should(org.mockito.Mockito.atLeastOnce())
+                .save(any(), savedCountry.capture(), savedSnapshot.capture(), savedCalculatedAt.capture());
+        assertThat(savedOf(Country.KR).tradingValue().ratio())
                 .isEqualByComparingTo("1.5");
     }
 
@@ -266,8 +290,9 @@ class IndustryFlowRefresherTest {
         refresher.refreshNext();
 
         // then 등락률은 그대로 저장한다. 둘은 독립된 값이다
-        then(industryFlowRepository).should(org.mockito.Mockito.atLeastOnce()).save(saved.capture());
-        assertThat(savedOf(Country.KR).tradingValue()).isEmpty();
+        then(industryFlowWriter).should(org.mockito.Mockito.atLeastOnce())
+                .save(any(), savedCountry.capture(), savedSnapshot.capture(), savedCalculatedAt.capture());
+        assertThat(savedOf(Country.KR).tradingValue()).isNull();
         assertThat(savedOf(Country.KR).avgChangeRate()).isEqualByComparingTo("3.00");
     }
 
@@ -284,8 +309,9 @@ class IndustryFlowRefresherTest {
         refresher.refreshNext();
 
         // then 거래대금만 잃고 종목은 평균에 남는다
-        then(industryFlowRepository).should(org.mockito.Mockito.atLeastOnce()).save(saved.capture());
-        assertThat(savedOf(Country.KR).tradingValue()).isEmpty();
+        then(industryFlowWriter).should(org.mockito.Mockito.atLeastOnce())
+                .save(any(), savedCountry.capture(), savedSnapshot.capture(), savedCalculatedAt.capture());
+        assertThat(savedOf(Country.KR).tradingValue()).isNull();
         assertThat(savedOf(Country.KR).stockCount()).isEqualTo(1);
         assertThat(savedOf(Country.KR).avgChangeRate()).isEqualByComparingTo("3.00");
     }

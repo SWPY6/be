@@ -25,7 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.common.enums.IndustryCode;
 import com.swyp.ploutos.common.exception.GlobalExceptionHandler;
-import com.swyp.ploutos.industry.flow.MajorStock;
+import com.swyp.ploutos.industry.flow.IndustryFlowStock;
 import com.swyp.ploutos.industry.flow.RankedIndustryFlow;
 import com.swyp.ploutos.industry.flow.service.IndustryFlowService;
 import com.swyp.ploutos.stock.quote.service.QuoteReader;
@@ -34,6 +34,8 @@ import com.swyp.ploutos.stock.quote.service.QuoteReader;
 @AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
 class IndustryFlowControllerTest {
+
+    private static final java.math.BigDecimal PRICE = new java.math.BigDecimal("248000");
 
     private static final String PATH = "/api/v1/industries/flows";
     private static final OffsetDateTime CALCULATED_AT =
@@ -141,7 +143,7 @@ class IndustryFlowControllerTest {
 
     private static RankedIndustryFlow flow(IndustryCode code, int rank, String avgChangeRate, int stockCount) {
         return new RankedIndustryFlow(code, rank, new BigDecimal(avgChangeRate), stockCount, 0, 0,
-                null, List.of(new MajorStock(10L, "005380", "현대차", new BigDecimal("3.24"))),
+                null, List.of(new IndustryFlowStock(10L, "005380", "현대차", PRICE, new BigDecimal("3.24"))),
                 CALCULATED_AT);
     }
 

@@ -16,10 +16,8 @@ import org.springframework.stereotype.Component;
 import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.industry.Industries;
 import com.swyp.ploutos.industry.flow.IndustryFlowSnapshot;
-import com.swyp.ploutos.industry.flow.IndustryFlows;
 import com.swyp.ploutos.industry.flow.IndustryTradingValue;
 import com.swyp.ploutos.industry.flow.QuotedStock;
-import com.swyp.ploutos.industry.flow.repository.IndustryFlowRepository;
 import com.swyp.ploutos.industry.service.IndustryReader;
 import com.swyp.ploutos.stock.StockWithMarket;
 import com.swyp.ploutos.stock.price.DailyPrices;
@@ -47,7 +45,7 @@ class IndustryFlowRefresher {
     private final QuoteReader quoteReader;
     private final DailyPriceReader dailyPriceReader;
     private final IndustryFlowCalculator calculator;
-    private final IndustryFlowRepository industryFlowRepository;
+    private final IndustryFlowWriter industryFlowWriter;
     private final IndustryFlowProperties properties;
     private final Clock clock;
 
@@ -102,7 +100,7 @@ class IndustryFlowRefresher {
         if (hasMappedStock && snapshot.hasNoStock()) {
             return;
         }
-        save(industry.industryId(), country, snapshot, nowIn(country));
+        industryFlowWriter.save(industry.industryId(), country, snapshot, nowIn(country));
     }
 
     /**
@@ -168,18 +166,6 @@ class IndustryFlowRefresher {
         } catch (RuntimeException ignored) {
             return null;
         }
-    }
-
-    private void save(Long industryId, Country country, IndustryFlowSnapshot snapshot,
-            LocalDateTime calculatedAt) {
-        Optional<IndustryFlows> stored = industryFlowRepository.findByIndustryIdAndCountry(industryId, country);
-        if (stored.isEmpty()) {
-            industryFlowRepository.save(new IndustryFlows(industryId, country, snapshot, calculatedAt));
-            return;
-        }
-        IndustryFlows flow = stored.get();
-        flow.refresh(snapshot, calculatedAt);
-        industryFlowRepository.save(flow);
     }
 
     private static List<QuotedStock> ofCountry(List<QuotedStock> quotedStocks, Country country) {

@@ -66,7 +66,7 @@ record IndustryNewsResponse(
                 flow.displayName(),
                 detail.direction(),
                 flow.rank(),
-                flow.avgChangeRate(),
+                flow.displayAvgChangeRate(),
                 flow.stockCount(),
                 flow.risingCount(),
                 flow.fallingCount(),

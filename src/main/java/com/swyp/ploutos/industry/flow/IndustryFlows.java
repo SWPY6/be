@@ -46,7 +46,12 @@ public class IndustryFlows {
     @Column(nullable = false, length = 10)
     private Country country;
 
-    @Column(nullable = false, precision = 10, scale = 2)
+    /**
+     * 소속 종목 등락률의 단순평균. <b>반올림하지 않은 값</b>이다 — 표기용으로 두 자리로 자르는 것은
+     * 응답을 만들 때 한다. 반올림해 저장하면 1.6149 와 1.6151 을 구분할 수 없어 순위 동률을
+     * 풀 수 없다(RQ-0603).
+     */
+    @Column(nullable = false, precision = 12, scale = 6)
     private BigDecimal avgChangeRate;
 
     /** 평균에 실제로 반영된 종목 수. 시세를 못 구한 종목은 빠진다. */
@@ -79,33 +84,6 @@ public class IndustryFlows {
     @Column(nullable = false)
     private LocalDateTime calculatedAt;
 
-    // 시가총액 상위 2개의 계산 시점 스냅샷. 반영된 종목이 0·1개면 비어 있다.
-    // 조회 시점에 종목명·등락률을 다시 구하면 KIS를 호출하게 되므로 여기 박아둔다.
-    // stockId 도 함께 저장한다 — 관련 뉴스를 이 식별자로 찾는다.
-    @Column
-    private Long firstStockId;
-
-    @Column(length = 20)
-    private String firstTicker;
-
-    @Column(length = 100)
-    private String firstName;
-
-    @Column(precision = 10, scale = 2)
-    private BigDecimal firstChangeRate;
-
-    @Column
-    private Long secondStockId;
-
-    @Column(length = 20)
-    private String secondTicker;
-
-    @Column(length = 100)
-    private String secondName;
-
-    @Column(precision = 10, scale = 2)
-    private BigDecimal secondChangeRate;
-
     protected IndustryFlows() {
 
     }
@@ -120,18 +98,6 @@ public class IndustryFlows {
     /** 같은 산업·국가의 행을 새 계산 결과로 덮어쓴다. */
     public void refresh(IndustryFlowSnapshot snapshot, LocalDateTime calculatedAt) {
         apply(snapshot, calculatedAt);
-    }
-
-    public List<MajorStock> majorStocks() {
-        if (firstTicker == null) {
-            return List.of();
-        }
-        if (secondTicker == null) {
-            return List.of(new MajorStock(firstStockId, firstTicker, firstName, firstChangeRate));
-        }
-        return List.of(
-                new MajorStock(firstStockId, firstTicker, firstName, firstChangeRate),
-                new MajorStock(secondStockId, secondTicker, secondName, secondChangeRate));
     }
 
     /**
@@ -162,39 +128,6 @@ public class IndustryFlows {
         this.fallingCount = snapshot.fallingCount();
         applyTradingValue(snapshot.tradingValue());
         this.calculatedAt = calculatedAt;
-        clearMajorStocks();
-        List<MajorStock> majorStocks = snapshot.majorStocks();
-        if (majorStocks.size() > IndustryFlowSnapshot.MAJOR_STOCK_LIMIT) {
-            throw new IllegalArgumentException(
-                    "대표 종목은 " + IndustryFlowSnapshot.MAJOR_STOCK_LIMIT + "개까지다: " + majorStocks.size());
-        }
-        if (majorStocks.isEmpty()) {
-            return;
-        }
-        MajorStock first = majorStocks.get(0);
-        this.firstStockId = first.stockId();
-        this.firstTicker = first.ticker();
-        this.firstName = first.name();
-        this.firstChangeRate = first.changeRate();
-        if (majorStocks.size() == 1) {
-            return;
-        }
-        MajorStock second = majorStocks.get(1);
-        this.secondStockId = second.stockId();
-        this.secondTicker = second.ticker();
-        this.secondName = second.name();
-        this.secondChangeRate = second.changeRate();
-    }
-
-    private void clearMajorStocks() {
-        this.firstStockId = null;
-        this.firstTicker = null;
-        this.firstName = null;
-        this.firstChangeRate = null;
-        this.secondStockId = null;
-        this.secondTicker = null;
-        this.secondName = null;
-        this.secondChangeRate = null;
     }
 
 }

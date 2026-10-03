@@ -20,11 +20,8 @@ public record IndustryFlowSnapshot(
         int risingCount,
         int fallingCount,
         IndustryTradingValue tradingValue,
-        List<MajorStock> majorStocks
+        List<IndustryFlowStock> stocks
 ) {
-
-    /** 한 산업이 담을 수 있는 대표 종목 수. {@link IndustryFlows}의 컬럼 수가 정하는 상한이다. */
-    public static final int MAJOR_STOCK_LIMIT = 2;
 
     public static IndustryFlowSnapshot empty() {
         return new IndustryFlowSnapshot(BigDecimal.ZERO.setScale(2), 0, 0, 0, null, List.of());

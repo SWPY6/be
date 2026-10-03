@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.industry.flow.IndustryCard;
 import com.swyp.ploutos.industry.flow.IndustryCardSelector;
-import com.swyp.ploutos.industry.flow.MajorStock;
+import com.swyp.ploutos.industry.flow.IndustryFlowStock;
 import com.swyp.ploutos.industry.flow.RankedIndustryFlow;
 import com.swyp.ploutos.industry.service.IndustryReader;
 import com.swyp.ploutos.news.RelatedNews;
@@ -91,7 +91,7 @@ public class IndustryNewsService {
     private List<RelatedNews> search(RankedIndustryFlow flow, List<Long> stockIds,
             LocalDateTime from, LocalDateTime to) {
         List<Long> majorStockIds = flow.majorStocks().stream()
-                .map(MajorStock::stockId)
+                .map(IndustryFlowStock::stockId)
                 .filter(Objects::nonNull)
                 .toList();
         List<RelatedNews> fromMajor = majorStockIds.isEmpty()

@@ -53,8 +53,9 @@ public record QuotedStock(
         return changeRate().signum() < 0;
     }
 
-    public MajorStock toMajorStock() {
-        return new MajorStock(stockId, ticker(), name(), changeRate());
+    /** 카드에 실을 한 줄. 현재가도 이미 손에 있는 {@code Quote}에서 꺼내므로 외부 호출이 없다. */
+    public IndustryFlowStock toFlowStock() {
+        return new IndustryFlowStock(stockId, ticker(), name(), quote.price(), changeRate());
     }
 
     /** 오늘 누적 거래대금과 20거래일 평균을 짝지어 낸다. 평균이 없으면 견줄 수 없는 종목이 된다. */
