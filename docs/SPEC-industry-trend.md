@@ -340,7 +340,8 @@ Hibernate가 생성한 DDL에서 옮긴다(PLO-41에서 `avg_trading_value_20d`�
 | `stockCount` | number | X | 평균에 실제로 반영된 종목 수 |
 | `currency` | string | X | `KRW` \| `USD`. 현재가의 표시 단위 |
 | `stocks` | array | X | 시가총액 상위 **0~4개**. 빈 배열일 수 있다 |
-| `stocks[].ticker` | string | X | 종목 코드 (`"005380"`) |
+| `stocks[].stockId` | number | X | 종목 식별자. 종목 상세·현재가·차트 조회에 이 값을 쓴다 |
+| `stocks[].ticker` | string | X | 종목 코드 (`"005380"`). 화면 표시용 |
 | `stocks[].name` | string | X | 종목명. 계산 시점의 값 |
 | `stocks[].price` | number | X | 현재가 |
 | `stocks[].changeRate` | number | X | 그 종목의 등락률 %, 소수 둘째 자리 |
@@ -357,10 +358,10 @@ Hibernate가 생성한 DDL에서 옮긴다(PLO-41에서 `avg_trading_value_20d`�
       "stockCount": 4,
       "currency": "KRW",
       "stocks": [
-        { "ticker": "005380", "name": "현대차",   "price": 248000, "changeRate": 3.24 },
-        { "ticker": "012330", "name": "현대모비스", "price": 254500, "changeRate": -0.78 },
-        { "ticker": "000270", "name": "기아",     "price": 102000, "changeRate": 1.85 },
-        { "ticker": "018880", "name": "한온시스템", "price": 4320,   "changeRate": 2.13 }
+        { "stockId": 10, "ticker": "005380", "name": "현대차",   "price": 248000, "changeRate": 3.24 },
+        { "stockId": 20, "ticker": "012330", "name": "현대모비스", "price": 254500, "changeRate": -0.78 },
+        { "stockId": 30, "ticker": "000270", "name": "기아",     "price": 102000, "changeRate": 1.85 },
+        { "stockId": 40, "ticker": "018880", "name": "한온시스템", "price": 4320,   "changeRate": 2.13 }
       ],
       "calculatedAt": "2026-09-04T15:30:00+09:00"
     }
@@ -368,8 +369,14 @@ Hibernate가 생성한 DDL에서 옮긴다(PLO-41에서 `avg_trading_value_20d`�
 }
 ```
 
-**`stockId`는 응답에 넣지 않는다.** 환경마다 auto_increment 값이 달라질 수 있어 외부 식별자로
-쓸 수 없다. 종목 상세로 이동할 때는 `ticker`를 쓴다 — 기존 `/flows`의 결정과 같다.
+**`stockId`를 응답에 넣는다.** 종목 API가 `/api/v1/stocks/{stockId}`와 그 아래 `/quote`·`/chart`
+까지 모두 `stockId`를 경로 변수로 받고, `ticker`로 조회하는 경로는 없다. `ticker`만 주면
+프론트가 종목 상세로 이동할 수 없다.
+
+auto_increment 값이라 환경마다 다를 수 있는 것은 사실이므로 **프론트는 이 값을 저장하거나
+URL에 영구 보관하지 않고 그 화면에서 이동용으로만 쓴다.** `ticker`는 화면에 종목 코드를
+표시하는 용도로 함께 남긴다. `/flows`의 `majorStocks`도 같이 바꾼다 — 두 탭의 카드가 같은
+동작을 해야 한다.
 
 **프론트가 하는 일**
 
@@ -464,7 +471,7 @@ JUnit 6, BDD(`// given` `// when` `// then`), 메서드명은 한글 `조건_결
 **E2E (10%)**
 
 - `IndustryTrendController` (`@WebMvcTest`) — `ALL`이 9건 / `country=JP`·`filter=UP`이
-  400 `P001` / **`QuoteReader` mock이 한 번도 호출되지 않는다** / `stockId`가 응답에 없다 /
+  400 `P001` / **`QuoteReader` mock이 한 번도 호출되지 않는다** / `stockId`가 응답에 있다 /
   고정 관련 필드가 없다
 
 ## 경계
@@ -543,7 +550,7 @@ JUnit 6, BDD(`// given` `// when` `// then`), 메서드명은 한글 `조건_결
 - 고정해도 `rank`는 바뀌지 않는다. 목업대로 "평균 등락률 6위"가 유지된다.
 - `stocks`는 **0~4개 가변**이다. 4개를 가정하면 안 된다.
 - `currency`로 통화 기호를 고른다. 국내 `KRW`, 해외 `USD`.
-- 종목 상세로 이동할 때는 `ticker`를 쓴다. `stockId`는 주지 않는다.
+- 종목 상세·현재가·차트로 이동할 때는 `stockId`를 쓴다. `ticker`는 화면에 표시하는 종목 코드다.
 
 **`industry-flow`·`industry-news`를 함께 보는 사람**
 

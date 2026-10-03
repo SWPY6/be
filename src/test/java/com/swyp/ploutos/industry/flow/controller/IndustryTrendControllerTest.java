@@ -113,6 +113,7 @@ class IndustryTrendControllerTest {
         // when & then
         mockMvc.perform(get(PATH))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].stocks[0].stockId").value(10))
                 .andExpect(jsonPath("$.data[0].stocks[0].ticker").value("005380"))
                 .andExpect(jsonPath("$.data[0].stocks[0].name").value("현대차"))
                 .andExpect(jsonPath("$.data[0].stocks[0].price").value(248000))
@@ -120,15 +121,16 @@ class IndustryTrendControllerTest {
     }
 
     @Test
-    void 종목_식별자는_응답에_넣지_않는다() throws Exception {
-        // given 환경마다 auto_increment 값이 달라 외부 식별자가 못 된다
+    void 종목_식별자를_응답에_넣는다() throws Exception {
+        // given 종목 API 는 /api/v1/stocks/{stockId} 만 받는다
         given(industryTrendService.read(Country.KR, IndustryTrendFilter.ALL))
                 .willReturn(List.of(flow(IndustryCode.AUTOMOBILE, 1, "1.61")));
 
-        // when & then 종목 상세로 이동할 때는 ticker 를 쓴다
+        // when & then 이 값이 없으면 프론트가 종목 상세로 이동할 수 없다
         mockMvc.perform(get(PATH))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].stocks[0].stockId").doesNotExist());
+                .andExpect(jsonPath("$.data[0].stocks[0].stockId").value(10))
+                .andExpect(jsonPath("$.data[0].stocks[3].stockId").value(40));
     }
 
     @Test
