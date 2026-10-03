@@ -12,7 +12,7 @@
 | --- | --- | --- | --- |
 | `industry` | 산업 마스터 9종(`IndustryCode`, 한글 표시명), 산업별 종목 조회. HTTP API 없음 | — | `SPEC-industry.md` |
 | `industry-flow` | 산업별 평균 등락률·순위·소속 종목 수. `GET /api/v1/industries/flows` | `industry`, `stock-quote` | **다음** — `SPEC-industry-flow.md` |
-| `industry-trend` | 산업별 동향 화면: 산업 카드 + 시가총액 상위 4종목(현재가 포함). `GET /api/v1/industries/trends` | `industry`, `industry-flow`, `stock-quote` | **다음** — `SPEC-industry-trend.md` |
+| `industry-trend` | 산업별 동향 화면: 산업 카드 + 시가총액 상위 4종목(현재가 포함). `GET /api/v1/industries/trends` | `industry`, `industry-flow`, `stock-quote` | **완료** — `SPEC-industry-trend.md` |
 | `industry-news` | 오늘의 핵심 뉴스: 상승·하락 산업 각 1건, 상승·하락 종목 수, 관련 뉴스. `GET /api/v1/industries/news` | `industry`, `industry-flow`, `stock-daily-price`, `news` | **완료** — `SPEC-industry-news.md` |
 | `industry-pin` | 관심 산업 최대 3개 고정 | `industry`, 인증 | **추후** — 로그인 도입 후 |
 
