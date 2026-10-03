@@ -12,8 +12,8 @@ import com.swyp.ploutos.common.exception.BusinessException;
 import com.swyp.ploutos.common.exception.ErrorCode;
 import com.swyp.ploutos.news.service.NewsCache;
 
-import lombok.RequiredArgsConstructor;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.cfg.DateTimeFeature;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -21,7 +21,6 @@ import tools.jackson.databind.json.JsonMapper;
  * 호출 예산도 같은 Redis에 있어 어차피 네이버를 부를 수 없다. 저장된 값을 읽지 못하면 캐시 미스로 본다.
  */
 @Component
-@RequiredArgsConstructor
 class RedisNewsCache implements NewsCache {
 
     private static final Logger log = LoggerFactory.getLogger(RedisNewsCache.class);
@@ -31,6 +30,16 @@ class RedisNewsCache implements NewsCache {
     private final StringRedisTemplate redisTemplate;
     private final JsonMapper jsonMapper;
     private final NewsRedisProperties properties;
+
+    // Jackson은 읽을 때 시각을 컨텍스트 타임존으로 옮긴다. 그대로 두면 캐시에서 읽은 기사만
+    // 오프셋이 UTC로 바뀐다.
+    RedisNewsCache(StringRedisTemplate redisTemplate, JsonMapper jsonMapper, NewsRedisProperties properties) {
+        this.redisTemplate = redisTemplate;
+        this.jsonMapper = jsonMapper.rebuild()
+                .disable(DateTimeFeature.ADJUST_DATES_TO_CONTEXT_TIME_ZONE)
+                .build();
+        this.properties = properties;
+    }
 
     @Override
     public Optional<CachedSearch> find(Long stockId) {

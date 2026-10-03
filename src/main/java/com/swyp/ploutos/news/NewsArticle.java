@@ -12,8 +12,6 @@ import java.util.Optional;
 
 import org.springframework.web.util.HtmlUtils;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
-
 /**
  * 검색 결과 한 건을 화면에 보여 줄 수 있게 정제한 기사.
  * 출처는 원문 호스트이고 언론사명은 사전에 있을 때만 채운다. 시각은 공급자가 준 값이며
@@ -27,9 +25,6 @@ public record NewsArticle(
         LinkKind linkKind,
         String source,
         String publisherName,
-        // Jackson은 읽을 때 시각을 컨텍스트 타임존으로 옮긴다. 그대로 두면 캐시에서 읽은 기사만
-        // 오프셋이 UTC로 바뀐다.
-        @JsonFormat(without = JsonFormat.Feature.ADJUST_DATES_TO_CONTEXT_TIME_ZONE)
         OffsetDateTime publishedAt
 ) {
 
