@@ -39,10 +39,14 @@ class RedisNewsCallBudget implements NewsCallBudget {
     @Override
     public void consume() {
         long count = increment(todayKey());
-        if (count > properties.dailyCallLimit()) {
-            log.warn("뉴스 검색 일일 호출 상한을 넘었다. limit={}, count={}", properties.dailyCallLimit(), count);
-            throw new BusinessException(ErrorCode.NEWS_QUOTA_EXCEEDED);
+        if (count <= properties.dailyCallLimit()) {
+            return;
         }
+        // 넘는 순간에만 남긴다. 이후 요청마다 남기면 그날 내내 같은 로그가 쌓인다.
+        if (count == properties.dailyCallLimit() + 1) {
+            log.warn("뉴스 검색 일일 호출 상한을 넘었다. limit={}", properties.dailyCallLimit());
+        }
+        throw new BusinessException(ErrorCode.NEWS_QUOTA_EXCEEDED);
     }
 
     private long increment(String key) {
@@ -56,7 +60,7 @@ class RedisNewsCallBudget implements NewsCallBudget {
             }
             return count;
         } catch (DataAccessException e) {
-            log.error("뉴스 호출 예산 저장소에 접근하지 못했습니다: {}", e.getMessage());
+            // 같은 Redis를 먼저 조회하는 뉴스 캐시가 접근 실패를 이미 기록하므로 여기서는 남기지 않는다.
             throw new BusinessException(ErrorCode.NEWS_QUOTA_EXCEEDED);
         }
     }
