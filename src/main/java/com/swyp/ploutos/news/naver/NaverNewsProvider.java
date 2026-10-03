@@ -39,6 +39,8 @@ class NaverNewsProvider implements NewsProvider {
 
     static final String PATH = "/search/v1/news";
     static final int DISPLAY = 100;
+    // 첫 시도 + 일시적 실패 시 재시도 한 번
+    private static final int MAX_ATTEMPTS = 2;
 
     private final RestClient naverRestClient;
     private final NewsCallBudget newsCallBudget;
@@ -60,15 +62,15 @@ class NaverNewsProvider implements NewsProvider {
     }
 
     private NaverNewsResponse fetch(String query) {
-        try {
-            return request(query);
-        } catch (HttpServerErrorException | ResourceAccessException e) {
-            log.warn("네이버 뉴스 검색이 일시적으로 실패해 한 번 재시도한다. cause={}", e.getClass().getSimpleName());
-        }
-        try {
-            return request(query);
-        } catch (HttpServerErrorException | ResourceAccessException e) {
-            throw unavailable("재시도 후에도 실패", e);
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return request(query);
+            } catch (HttpServerErrorException | ResourceAccessException e) {
+                if (attempt == MAX_ATTEMPTS) {
+                    throw unavailable("재시도 후에도 실패", e);
+                }
+                log.warn("네이버 뉴스 검색이 일시적으로 실패해 한 번 재시도한다. cause={}", e.getClass().getSimpleName());
+            }
         }
     }
 
