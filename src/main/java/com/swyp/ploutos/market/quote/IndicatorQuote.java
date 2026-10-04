@@ -2,10 +2,12 @@ package com.swyp.ploutos.market.quote;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.swyp.ploutos.market.MarketIndicator;
+import com.swyp.ploutos.stock.price.DailyPrice;
 
 /**
  * 한 시점의 시장 지표 시세 스냅샷. 값은 KIS 원값 그대로이고(환율은 소수 넷째 자리까지),
@@ -26,6 +28,9 @@ public record IndicatorQuote(
     private static final int SCALE = 2;
     private static final int DIVISION_SCALE = 6;
 
+    /** 지표에는 거래량이 없다. */
+    private static final long NO_VOLUME = 0L;
+
     /** 직전 거래일 종가 대비 등락폭. 음수일 수 있다. */
     public BigDecimal change() {
         return value.subtract(previousClose);
@@ -40,5 +45,22 @@ public record IndicatorQuote(
                 .divide(previousClose, DIVISION_SCALE, RoundingMode.HALF_UP)
                 .movePointRight(SCALE)
                 .setScale(SCALE, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * 아직 개장하지 않았는가. KIS는 장 시작 전 시가를 0으로 준다.
+     *
+     * <p>시가가 0이 아니어도 전날 시세일 수 있다. 그 경우는 확정 봉과의 연속성으로 가려낸다.
+     */
+    public boolean notOpenedToday() {
+        return open.signum() == 0;
+    }
+
+    /**
+     * 진행 중인 봉으로 쓸 당일자 일봉. 종가 자리에 현재값이 들어간다.
+     * 필드를 하나씩 꺼내 바깥에서 조립하지 않도록 변환을 여기 둔다.
+     */
+    public DailyPrice asDailyPrice(LocalDate tradeAt) {
+        return new DailyPrice(tradeAt, open, high, low, value, NO_VOLUME);
     }
 }
