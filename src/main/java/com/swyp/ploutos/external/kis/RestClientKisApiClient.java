@@ -22,7 +22,7 @@ class RestClientKisApiClient implements KisApiClient {
 
     private static final Logger log = LoggerFactory.getLogger(RestClientKisApiClient.class);
 
-    private final RestClient restClient;
+    private final RestClient kisRestClient;
     private final KisAccessTokenProvider tokenProvider;
     private final KisProperties properties;
 
@@ -45,7 +45,7 @@ class RestClientKisApiClient implements KisApiClient {
 
     private <T extends KisResponse> T exchange(String path, String trId, Map<String, String> queryParams, Class<T> responseType) {
         try {
-            T body = restClient.get()
+            T body = kisRestClient.get()
                     .uri(builder -> {
                         builder.path(path);
                         queryParams.forEach(builder::queryParam);
