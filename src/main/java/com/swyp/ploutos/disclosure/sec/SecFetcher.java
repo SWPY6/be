@@ -25,22 +25,22 @@ import lombok.RequiredArgsConstructor;
 class SecFetcher {
 
     private static final Logger log = LoggerFactory.getLogger(SecFetcher.class);
+    private static final int MAX_ATTEMPTS = 2;
 
     private final RestClient secRestClient;
     private final DisclosureCallBudget secCallBudget;
 
     /** 본문을 문자열로 돌려준다. 실패하면 {@code DISCLOSURE_UNAVAILABLE}·{@code DISCLOSURE_QUOTA_EXCEEDED}다. */
     String get(String url, String api) {
-        try {
-            return request(url, api);
-        } catch (HttpServerErrorException | ResourceAccessException e) {
-            log.warn("SEC {} 호출이 일시적으로 실패해 한 번 재시도한다. cause={}", api, e.getClass().getSimpleName());
+        RestClientException last = null;
+        for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+            try {
+                return request(url, api);
+            } catch (HttpServerErrorException | ResourceAccessException e) {
+                last = e;
+            }
         }
-        try {
-            return request(url, api);
-        } catch (HttpServerErrorException | ResourceAccessException e) {
-            throw unavailable(api, "재시도 후에도 실패", e);
-        }
+        throw unavailable(api, "재시도 후에도 실패", last);
     }
 
     private String request(String url, String api) {

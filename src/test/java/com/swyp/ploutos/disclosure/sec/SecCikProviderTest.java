@@ -95,6 +95,17 @@ class SecCikProviderTest {
     }
 
     @Test
+    void 열_순서가_다르면_공급_실패다() {
+        // given
+        server.expect(once(), requestTo(FILE_URL)).andRespond(withSuccess(
+                "{\"fields\":[\"ticker\",\"cik\",\"name\",\"exchange\"],\"data\":[[\"AAPL\",320193,\"Apple Inc.\",\"Nasdaq\"]]}",
+                MediaType.APPLICATION_JSON));
+
+        // when & then
+        assertError(ErrorCode.DISCLOSURE_UNAVAILABLE);
+    }
+
+    @Test
     void 쓸_수_있는_행이_없으면_공급_실패다() {
         // given
         server.expect(once(), requestTo(FILE_URL)).andRespond(withSuccess(

@@ -1,13 +1,11 @@
 package com.swyp.ploutos.disclosure.sec;
 
-import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import com.swyp.ploutos.common.enums.Exchange;
 import com.swyp.ploutos.disclosure.DisclosureSource;
 import com.swyp.ploutos.disclosure.service.IssuerCodeCollector;
 import com.swyp.ploutos.disclosure.service.IssuerCodeProvider;
@@ -42,18 +40,14 @@ class SecCikProvider implements IssuerCodeProvider {
     @Override
     public Map<String, String> fetchAll() {
         SecTickerFile file = parse(secFetcher.get(secApiProperties.wwwBaseUrl() + PATH, API));
-        if (file.fields() == null || file.data() == null) {
-            throw SecFetcher.unavailable(API, "fields·data가 없음", null);
-        }
-        int cikAt = file.fields().indexOf("cik");
-        int tickerAt = file.fields().indexOf("ticker");
-        int exchangeAt = file.fields().indexOf("exchange");
-        if (cikAt < 0 || tickerAt < 0 || exchangeAt < 0) {
-            throw SecFetcher.unavailable(API, "필요한 열이 없음 fields=" + file.fields(), null);
+        if (!file.hasExpectedFields() || file.data() == null) {
+            throw SecFetcher.unavailable(API, "열 구성이 다름 fields=" + file.fields(), null);
         }
         IssuerCodeCollector collector = new IssuerCodeCollector();
-        for (List<Object> row : file.data()) {
-            put(collector, row, cikAt, tickerAt, exchangeAt);
+        for (SecTickerRow row : file.data()) {
+            if (row != null) {
+                row.putInto(collector);
+            }
         }
         if (collector.conflictedCount() > 0) {
             log.warn("SEC 티커 파일에서 CIK가 둘 이상인 거래소·티커 {}개를 매핑에서 뺐다.", collector.conflictedCount());
@@ -63,40 +57,6 @@ class SecCikProvider implements IssuerCodeProvider {
             throw SecFetcher.unavailable(API, "쓸 수 있는 행이 없음", null);
         }
         return codes;
-    }
-
-    private static void put(IssuerCodeCollector collector, List<Object> row, int cikAt, int tickerAt, int exchangeAt) {
-        if (row == null || row.size() <= Math.max(cikAt, Math.max(tickerAt, exchangeAt))) {
-            return;
-        }
-        Exchange exchange = exchangeOf(row.get(exchangeAt));
-        String cik = cikOf(row.get(cikAt));
-        if (exchange == null || cik == null || !(row.get(tickerAt) instanceof String ticker) || ticker.isBlank()) {
-            return;
-        }
-        collector.put(exchange, ticker, cik);
-    }
-
-    private static Exchange exchangeOf(Object value) {
-        if ("Nasdaq".equals(value)) {
-            return Exchange.NASDAQ;
-        }
-        if ("NYSE".equals(value)) {
-            return Exchange.NYSE;
-        }
-        return null;
-    }
-
-    /** 숫자 CIK를 10자리 문자열로 맞춘다. 범위를 벗어나면 null이다. */
-    private static String cikOf(Object value) {
-        if (!(value instanceof Number number)) {
-            return null;
-        }
-        long cik = number.longValue();
-        if (cik <= 0 || cik > 9_999_999_999L) {
-            return null;
-        }
-        return String.format("%010d", cik);
     }
 
     private SecTickerFile parse(String body) {
