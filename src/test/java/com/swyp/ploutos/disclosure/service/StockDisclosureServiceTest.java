@@ -151,18 +151,19 @@ class StockDisclosureServiceTest {
     }
 
     @Test
-    void 과거_기간은_양_끝이_걸친_시장_날짜_전체를_조회한다() {
+    void 과거에서_끝나는_기간은_시작을_바꿔도_끝_날짜_기준_최근_90일로_한_번만_조회한다() {
         // given
         dart.result = new DisclosureSearchResult(List.of(), true);
-        OffsetDateTime from = OffsetDateTime.of(2026, 8, 1, 15, 30, 0, 0, KST);
         OffsetDateTime to = OffsetDateTime.of(2026, 8, 31, 9, 0, 0, 0, KST);
 
         // when
-        StockDisclosures.Fetched disclosures = fetched(service.read(KR_STOCK_ID, from, to));
+        StockDisclosures.Fetched first = fetched(service.read(KR_STOCK_ID, to.minusDays(30), to));
+        StockDisclosures.Fetched second = fetched(service.read(KR_STOCK_ID, to.minusDays(3), to.plusHours(5)));
 
         // then
-        FiledDateRange expected = new FiledDateRange(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31));
-        assertThat(disclosures.filedDateRange()).isEqualTo(expected);
+        FiledDateRange expected = new FiledDateRange(LocalDate.of(2026, 6, 2), LocalDate.of(2026, 8, 31));
+        assertThat(first.filedDateRange()).isEqualTo(expected);
+        assertThat(second.filedDateRange()).isEqualTo(expected);
         assertThat(dart.requests).containsExactly(CORP_CODE + "/" + expected);
     }
 

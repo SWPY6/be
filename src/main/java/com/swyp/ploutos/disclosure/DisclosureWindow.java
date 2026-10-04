@@ -55,16 +55,13 @@ public record DisclosureWindow(
     }
 
     /**
-     * 공급자에 요청할 접수일 범위. 기간이 {@code today}(해당 시장 날짜)에서 끝나면 오늘 기준 최근 90일로 고정해,
-     * 같은 날에는 기간을 어떻게 고르든 같은 범위(같은 캐시)를 쓴다 — 날짜 조합만 바꿔 캐시를 피할 수 없다.
-     * 오늘에서 끝나는 기간은 90일 이하라 이 범위 안에 든다. 과거 기간은 {@link #filedDatesIn} 그대로다.
+     * 공급자에 요청할 접수일 범위. 끝 날짜(해당 시장 날짜) 기준 최근 90일로 고정해, 끝 날짜가 같으면
+     * 기간을 어떻게 고르든 같은 범위(같은 캐시)를 쓴다 — 시작만 바꿔 캐시를 피할 수 없다.
+     * 기간은 90일 이하라 이 범위 안에 든다.
      */
-    public FiledDateRange searchRangeIn(ZoneId zone, LocalDate today) {
-        FiledDateRange filed = filedDatesIn(zone);
-        if (!filed.to().equals(today)) {
-            return filed;
-        }
-        return new FiledDateRange(today.minusDays(MAX_LENGTH.toDays()), today);
+    public FiledDateRange searchRangeIn(ZoneId zone) {
+        LocalDate end = to.atZoneSameInstant(zone).toLocalDate();
+        return new FiledDateRange(end.minusDays(MAX_LENGTH.toDays()), end);
     }
 
     /** 접수일 조회 범위. 양 끝을 포함한다. */
