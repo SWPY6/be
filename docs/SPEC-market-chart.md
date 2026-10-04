@@ -105,6 +105,7 @@
   - `static Optional<LiveCandle> of(IndicatorQuote quote, DailyPrices closed, ChartRange range, LocalDate today)`.
   - "붙이지 않는다" 조건 1~3을 판정한다. 조건 4는 `Chart`가 한다.
 - `IndicatorQuote.notOpenedToday()` (`market/quote`): 시가가 0이면 true. `SPEC-market-quote.md`에 "차트가 필요해질 때 추가한다"고 적어 둔 메서드다.
+- `IndicatorQuote.asDailyPrice(LocalDate)` (`market/quote`): 진행 중인 봉으로 쓸 당일자 일봉. 종가 자리에 현재값이 들어가고 거래량은 0이다. 필드를 하나씩 꺼내 바깥에서 조립하지 않도록 `Quote.asDailyPrice`와 같은 자리에 둔다.
 - `DailyPrices.lastClose()` (`stock/price`): 마지막 확정 봉의 종가 `Optional<BigDecimal>`. 조건 2에 쓴다.
 - `MarketChartService` (`market/chart/service`, `@Service`, `public`)
   - `MarketChartDetail read(MarketIndicator indicator, LocalDate from, LocalDate to, String intervalCode)`.
@@ -311,7 +312,7 @@ src/main/java/com/swyp/ploutos/stock/chart/LiveCandle.java               → 신
 src/main/java/com/swyp/ploutos/stock/chart/Chart.java                    → of(...) 시그니처 변경, Quote 의존 제거
 src/main/java/com/swyp/ploutos/stock/chart/service/StockChartService.java → Quote → LiveCandle 변환
 src/main/java/com/swyp/ploutos/stock/price/DailyPrices.java              → lastClose() 추가
-src/main/java/com/swyp/ploutos/market/quote/IndicatorQuote.java          → notOpenedToday() 추가
+src/main/java/com/swyp/ploutos/market/quote/IndicatorQuote.java          → notOpenedToday(), asDailyPrice() 추가
 src/main/java/com/swyp/ploutos/market/chart/IndicatorLiveCandle.java     → 신규
 src/main/java/com/swyp/ploutos/market/chart/service/                     → MarketChartService, MarketChartDetail (신규)
 src/main/java/com/swyp/ploutos/market/chart/controller/                  → MarketChartController, MarketChartResponse (신규)
@@ -321,27 +322,30 @@ src/test/java/com/swyp/ploutos/market/chart/**                           → 신
 
 ## 코드 스타일
 
-- 응답 DTO는 `record`이고 `@Schema`로 설명과 예시를 단다. `asOf`에는 `StockChartResponse`처럼 `@JsonFormat(without = ADJUST_DATES_TO_CONTEXT_TIME_ZONE)`을 붙인다.
+- 응답 DTO는 `record`이고 `@Schema`로 설명과 예시를 단다. `asOf`에는 `StockChartResponse`처럼 `@JsonFormat(without = ADJUST_DATES_TO_CONTEXT_TIME_ZONE)`을 붙인다 — 다만 **응답 DTO에서는 효과가 없다**(아래 "오프셋 보존" 참고). 형제 응답들과 모양을 맞추려고 붙여 둔다.
 - `else` 없이 guard clause를 쓴다. `@Setter`는 쓰지 않는다. 파일 끝에 개행을 넣는다.
 - 오늘 날짜는 `Clock`과 `MarketIndicator.zoneId()`로 구한다.
 
 ```java
 // IndicatorLiveCandle
 public static Optional<LiveCandle> of(IndicatorQuote quote, DailyPrices closed, ChartRange range, LocalDate today) {
-    if (quote.notOpenedToday()) {
+    if (cannotAttach(quote, closed, range, today)) {
         return Optional.empty();
     }
-    if (range.to().isBefore(today)) {
-        return Optional.empty();
-    }
-    boolean continuesLastClose = closed.lastClose()
+    return Optional.of(new LiveCandle(quote.asDailyPrice(today), quote.valueAt()));
+}
+
+/** "붙이지 않는다" 조건 1~3. 하나라도 해당하면 진행 중인 봉이 없다. */
+private static boolean cannotAttach(IndicatorQuote quote, DailyPrices closed, ChartRange range, LocalDate today) {
+    return quote.notOpenedToday()
+            || range.to().isBefore(today)
+            || !continuesLastClose(quote, closed);
+}
+
+private static boolean continuesLastClose(IndicatorQuote quote, DailyPrices closed) {
+    return closed.lastClose()
             .filter(close -> close.compareTo(quote.previousClose()) == 0)
             .isPresent();
-    if (!continuesLastClose) {
-        return Optional.empty();
-    }
-    DailyPrice price = new DailyPrice(today, quote.open(), quote.high(), quote.low(), quote.value(), 0L);
-    return Optional.of(new LiveCandle(price, quote.valueAt()));
 }
 ```
 
@@ -392,10 +396,44 @@ public static Optional<LiveCandle> of(IndicatorQuote quote, DailyPrices closed, 
 | 15 | 시세 조회에 실패하면 502 / `P007`. | `시세_조회에_실패하면_502와_P007을_반환한다` |
 | 16 | KIS 스텁에서 KOSPI 차트 요청 전체 흐름이 확정 봉과 진행 중인 봉을 돌려준다. | `MarketChartE2ETest.코스피_차트는_확정봉과_진행중인_봉을_돌려준다` |
 
+## 오프셋 보존 (2026-10-04 실측)
+
+`@JsonFormat(without = ADJUST_DATES_TO_CONTEXT_TIME_ZONE)`이 **역직렬화에만** 듣는다. Jackson 3에서 직렬화 쪽은
+`WRITE_DATES_WITH_CONTEXT_TIME_ZONE`이 결정하고, 그 상수는 `JsonFormat.Feature`에 없어 애너테이션으로 지정할 수 없다.
+
+측정값(`OffsetDateTime` `2026-09-30T10:15:03+09:00`):
+
+| 경로 | 애너테이션 없음 | 애너테이션 있음 |
+| --- | --- | --- |
+| 쓰기(기본 매퍼) | `+09:00` 유지 | `+09:00` 유지 |
+| 쓰기(컨텍스트 타임존 UTC) | `Z`로 바뀜 | **`Z`로 바뀜 — 못 막는다** |
+| 읽기(기본 매퍼) | `Z`로 바뀜 | **`+09:00` 유지 — 막는다** |
+
+따라서 자리마다 뜻이 다르다.
+
+- **`IndicatorQuote.valueAt`, `Quote.priceAt`** — Redis에 JSON으로 쓰고 다시 읽는다. 읽기에서 오프셋이 바뀌므로
+  애너테이션이 **반드시 필요하다**. 없으면 캐시 히트 응답만 UTC로 나간다.
+- **`MarketChartResponse.asOf`, `StockChartResponse.asOf`, `MarketSummaryResponse.valueAt`** — HTTP 응답으로 쓰기만 한다.
+  역직렬화가 없어 애너테이션이 **아무 일도 하지 않는다**. 지금 `+09:00`이 나가는 이유는 애너테이션이 아니라
+  `spring.jackson.time-zone`을 설정하지 않았기 때문이다(`MarketChartE2ETest`가 실제 스프링 경로로 확인한다).
+
+**결정할 것:** 응답 DTO 세 자리의 애너테이션을 지울지, 아니면 `spring.jackson.time-zone`을 명시해 못 박을지.
+지우면 "오프셋을 지키고 있다"는 오해가 사라지지만 보호 장치가 하나도 남지 않는다. 주식 쪽 두 자리가 함께 걸려
+이 명세의 범위를 넘으므로 따로 합의한다.
+
 ## 미해결 질문
 
-- **장중에 지수 일봉이 오늘 날짜의 행을 주는가?** 준다면 `market-daily-price`가 저장 전에 버리므로 차트는 영향이 없다. 한국 장중 실측(`kis-probe-delay.sh`)으로 확인한다.
+- **장중에 지수 일봉이 오늘 날짜의 행을 주는가?** 준다면 `market-daily-price`가 저장 전에 버리므로 차트는 영향이 없다. 한국 장중(평일 09:00~15:30 KST)에 확인한다.
+  - 호출: `GET /uapi/domestic-stock/v1/quotations/inquire-daily-indexchartprice`, TR `FHKUP03500100`,
+    `FID_COND_MRKT_DIV_CODE=U`, `FID_INPUT_ISCD=0001`, `FID_INPUT_DATE_1`=5일 전, `FID_INPUT_DATE_2`=오늘, `FID_PERIOD_DIV_CODE=D`.
+  - 볼 것: `output2[0].stck_bsop_date`가 오늘인가.
+  - 명세가 참조했던 `kis-probe-delay.sh`는 저장소에 없다(커밋된 적 없음). 다시 만들거나 수동 호출한다.
+    스크립트는 앱키·토큰을 출력하지 않아야 한다.
 - **환율 전날 행이 언제 들어오는가?** 새벽 5시에는 9/29 행이 없어서 9/29 값이 9/30 날짜의 진행 중인 봉으로 붙는다("알려진 한계"). 한국 낮에 들어와 있다면 새벽 몇 시간만의 문제라 보정하지 않는다. 계속 늦다면 진행 중인 봉 날짜를 보정할지 정한다.
+  - 호출: `GET /uapi/overseas-price/v1/quotations/inquire-daily-chartprice`, TR `FHKST03030100`,
+    `FID_COND_MRKT_DIV_CODE=X`, `FID_INPUT_ISCD=FX@KRW`, 기간은 최근 5일, `FID_PERIOD_DIV_CODE=D`.
+  - 볼 것: `output2`의 가장 최근 `stck_bsop_date`. 같은 시각 지수(`0001`)의 최근 행과 비교한다.
+  - 한국 낮(평일 09:00~15:30)과 장 마감 후(16:00 이후) 두 번 본다.
 - **조건 2의 예외:** KIS가 전일 종가를 정정해서 저장된 종가와 달라지면 장중에도 진행 중인 봉이 빠진다. 실측에서 본 적은 없다. 운영 중에 발견하면 허용 오차를 둘지 정한다.
 
 ## 추후 구현
