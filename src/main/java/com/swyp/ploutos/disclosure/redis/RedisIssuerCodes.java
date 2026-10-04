@@ -11,6 +11,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
+import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 
@@ -72,8 +73,8 @@ class RedisIssuerCodes implements IssuerCodes {
     public Optional<String> issuerIdOf(Exchange exchange, String ticker) {
         try {
             refreshIfStale();
-            Object issuerId = redisTemplate.opsForHash().get(codesKey, IssuerCodes.key(exchange, ticker));
-            return Optional.ofNullable((String) issuerId);
+            HashOperations<String, String, String> codes = redisTemplate.opsForHash();
+            return Optional.ofNullable(codes.get(codesKey, IssuerCodes.key(exchange, ticker)));
         } catch (DataAccessException e) {
             log.error("공시 법인 매핑 저장소에 접근하지 못했습니다: {}", e.getMessage());
             throw new BusinessException(ErrorCode.DISCLOSURE_QUOTA_EXCEEDED);

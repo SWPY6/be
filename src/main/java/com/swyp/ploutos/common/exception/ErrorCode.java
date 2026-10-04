@@ -49,6 +49,18 @@ public enum ErrorCode {
             "시세 정보를 불러올 수 없습니다."
     ),
 
+    NEWS_UNAVAILABLE(
+            HttpStatus.BAD_GATEWAY,
+            "P008", "NewsUnavailableException",
+            "뉴스를 불러올 수 없습니다."
+    ),
+
+    NEWS_QUOTA_EXCEEDED(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "P009", "NewsQuotaExceededException",
+            "뉴스 조회가 일시적으로 제한되었습니다."
+    ),
+
     DISCLOSURE_UNAVAILABLE(
             HttpStatus.BAD_GATEWAY,
             "P010", "DisclosureUnavailableException",

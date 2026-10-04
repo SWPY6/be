@@ -102,8 +102,8 @@ class DisclosureWindowTest {
         DisclosureWindow longest = new DisclosureWindow(NOW.minusDays(90), NOW);
 
         // when
-        FiledDateRange oneDayRange = oneDay.searchRangeIn(SEOUL, LocalDate.of(2026, 10, 2));
-        FiledDateRange longestRange = longest.searchRangeIn(SEOUL, LocalDate.of(2026, 10, 2));
+        FiledDateRange oneDayRange = oneDay.searchRangeIn(SEOUL);
+        FiledDateRange longestRange = longest.searchRangeIn(SEOUL);
 
         // then
         FiledDateRange expected = new FiledDateRange(LocalDate.of(2026, 7, 4), LocalDate.of(2026, 10, 2));
@@ -112,15 +112,33 @@ class DisclosureWindowTest {
     }
 
     @Test
-    void 과거에서_끝나는_기간의_공급자_범위는_양_끝_날짜_그대로다() {
+    void 과거에서_끝나는_기간의_공급자_범위는_시작과_관계없이_끝_날짜_기준_최근_90일이다() {
         // given
-        DisclosureWindow window = new DisclosureWindow(NOW.minusDays(10), NOW.minusDays(1));
+        DisclosureWindow tenDays = new DisclosureWindow(NOW.minusDays(10), NOW.minusDays(1));
+        DisclosureWindow twoDays = new DisclosureWindow(NOW.minusDays(2), NOW.minusDays(1).plusHours(5));
 
         // when
-        FiledDateRange range = window.searchRangeIn(SEOUL, LocalDate.of(2026, 10, 2));
+        FiledDateRange tenDaysRange = tenDays.searchRangeIn(SEOUL);
+        FiledDateRange twoDaysRange = twoDays.searchRangeIn(SEOUL);
 
         // then
-        assertThat(range).isEqualTo(window.filedDatesIn(SEOUL));
+        FiledDateRange expected = new FiledDateRange(LocalDate.of(2026, 7, 3), LocalDate.of(2026, 10, 1));
+        assertThat(tenDaysRange).isEqualTo(expected);
+        assertThat(twoDaysRange).isEqualTo(expected);
+    }
+
+    @Test
+    void 공급자_범위의_끝_날짜는_시장_날짜로_정한다() {
+        // given 2026-10-01 16:00 UTC = 2026-10-02 01:00 KST
+        DisclosureWindow window = new DisclosureWindow(
+                NOW.minusDays(5), OffsetDateTime.of(2026, 10, 1, 16, 0, 0, 0, ZoneOffset.UTC)
+        );
+
+        // when
+        FiledDateRange range = window.searchRangeIn(SEOUL);
+
+        // then
+        assertThat(range.to()).isEqualTo(LocalDate.of(2026, 10, 2));
     }
 
     private static void assertInvalid(OffsetDateTime from, OffsetDateTime to) {

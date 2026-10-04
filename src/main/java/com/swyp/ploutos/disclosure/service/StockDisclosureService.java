@@ -23,8 +23,8 @@ import com.swyp.ploutos.stock.service.StockReader;
 /**
  * 종목 공시를 조회한다. 종목과 기간을 먼저 검증해 잘못된 요청이면 공급자를 부르지 않는다.
  * 종목 시장으로 공급자 하나(KR=DART, US=SEC)를 고르며 다른 시장 공급자로 대체하지 않는다.
- * 목록은 공급자·법인·접수일 범위별로 캐시하고, 공급자 실패는 캐시하지 않는다. 오늘에서 끝나는 기간은
- * 공급자 범위를 최근 90일로 고정하므로 같은 날 같은 종목은 기간과 관계없이 캐시 하나를 쓴다.
+ * 목록은 공급자·법인·접수일 범위별로 캐시하고, 공급자 실패는 캐시하지 않는다. 공급자 범위를
+ * 기간 끝 날짜 기준 최근 90일로 고정하므로 끝 날짜가 같은 종목은 기간과 관계없이 캐시 하나를 쓴다.
  * 공급자마다 법인 매핑과 공급자가 하나씩 있어야 하며, 빠지면 기동에 실패한다.
  */
 @Service
@@ -62,7 +62,7 @@ public class StockDisclosureService {
             return new StockDisclosures.Unmapped(stockId, stock.country(), source, window);
         }
         ZoneId zone = stock.country().zoneId();
-        FiledDateRange range = window.searchRangeIn(zone, stock.localDateAt(now));
+        FiledDateRange range = window.searchRangeIn(zone);
         CachedSearch search = disclosureCache.find(source, issuerId.get(), range)
                 .orElseGet(() -> fetch(source, issuerId.get(), range, now));
         return new StockDisclosures.Fetched(

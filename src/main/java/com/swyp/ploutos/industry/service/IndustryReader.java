@@ -25,4 +25,7 @@ public interface IndustryReader {
      * 시장을 다시 읽어야 하지만 이 메서드는 조회 한 번으로 끝난다.
      */
     List<Long> readStockIds(Long industryId, Country country);
+
+    /** 종목에 연결된 산업을 중복 없이 한글 표시명 가나다순으로 읽는다. 연결이 없으면 빈 목록이다. */
+    List<Industries> readByStockId(Long stockId);
 }
