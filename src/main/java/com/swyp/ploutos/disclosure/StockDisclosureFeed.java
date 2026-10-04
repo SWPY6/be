@@ -29,9 +29,7 @@ public record StockDisclosureFeed(
         /** 요청 기간에 공급자 공시가 더 남아 있을 수 있다. 최신 일부만 담았다. */
         PARTIAL,
         /** 종목을 공급자 법인 코드에 연결하지 못했다. 공시 0건과 다르다. */
-        UNMAPPED,
-        /** 종목 시장에 아직 공시 공급자가 없다(미국). 공시 0건과 다르다. */
-        UNSUPPORTED_MARKET
+        UNMAPPED
     }
 
     /**

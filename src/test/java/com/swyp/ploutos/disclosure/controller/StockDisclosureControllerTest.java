@@ -111,23 +111,39 @@ class StockDisclosureControllerTest {
     }
 
     @Test
-    void 공급자가_없는_시장이면_빈_목록이지만_0건과_구분되고_공급자와_조회_정보는_null이다() throws Exception {
+    void 미국_종목은_SEC_접수_시각을_뉴욕_시각으로_주고_Form_원문과_한글_라벨을_함께_준다() throws Exception {
         // given
-        given(stockDisclosureService.read(STOCK_ID, null, null)).willReturn(new StockDisclosures.Unsupported(
-                STOCK_ID, Country.US, WINDOW
+        OffsetDateTime nyNow = OffsetDateTime.parse("2026-10-01T20:00:00-04:00");
+        DisclosureWindow usWindow = DisclosureWindow.of(null, null, nyNow);
+        Disclosure disclosure = Disclosure.sec(
+                "0000320193", "0001140361-26-038028", "4", "FORM 4", "Apple Inc.", "2026-09-29",
+                "2026-09-29T22:44:50.000Z", "xslF345X06/form4.xml"
+        ).orElseThrow();
+        given(stockDisclosureService.read(STOCK_ID, null, null)).willReturn(new StockDisclosures.Fetched(
+                STOCK_ID, Country.US, DisclosureSource.SEC, usWindow,
+                new FiledDateRange(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 10, 1)), nyNow,
+                StockDisclosureFeed.of(List.of(disclosure), true, usWindow, ZoneId.of("America/New_York"))
         ));
 
         // when & then
         mockMvc.perform(get(URL, STOCK_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.country").value("US"))
-                .andExpect(jsonPath("$.data.coverage").value("UNSUPPORTED_MARKET"))
-                .andExpect(jsonPath("$.data.items", hasSize(0)))
-                .andExpect(jsonPath("$.data.total").value(0))
-                .andExpect(jsonPath("$.data.source").value(nullValue()))
-                .andExpect(jsonPath("$.data.windowPrecision").value(nullValue()))
-                .andExpect(jsonPath("$.data.filedDateRange").value(nullValue()))
-                .andExpect(jsonPath("$.data.fetchedAt").value(nullValue()));
+                .andExpect(jsonPath("$.data.source").value("SEC"))
+                .andExpect(jsonPath("$.data.windowPrecision").value("EXACT"))
+                .andExpect(jsonPath("$.data.items[0].provider").value("SEC"))
+                .andExpect(jsonPath("$.data.items[0].providerDocumentId").value("0001140361-26-038028"))
+                .andExpect(jsonPath("$.data.items[0].title").value("Apple Inc. 4"))
+                .andExpect(jsonPath("$.data.items[0].formType").value("4"))
+                .andExpect(jsonPath("$.data.items[0].formLabel").value("내부자 지분 변동"))
+                .andExpect(jsonPath("$.data.items[0].filerName").value(nullValue()))
+                .andExpect(jsonPath("$.data.items[0].filedDate").value("2026-09-29"))
+                .andExpect(jsonPath("$.data.items[0].publishedAt").value("2026-09-29T18:44:50-04:00"))
+                .andExpect(jsonPath("$.data.items[0].datePrecision").value("SECOND"))
+                .andExpect(jsonPath("$.data.items[0].timeBasis").value("ACCEPTANCE_TIME"))
+                .andExpect(jsonPath("$.data.items[0].url").value(
+                        "https://www.sec.gov/Archives/edgar/data/320193/000114036126038028/xslF345X06/form4.xml"))
+                .andExpect(jsonPath("$.data.items[0].linkKind").value("SEC_DOCUMENT"));
     }
 
     @Test

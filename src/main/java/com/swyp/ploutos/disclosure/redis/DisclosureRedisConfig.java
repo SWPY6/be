@@ -41,4 +41,12 @@ class DisclosureRedisConfig {
     ) {
         return new RedisIssuerCodes(redisTemplate, dartCorpCodeProvider, properties, clock);
     }
+
+    @Bean
+    IssuerCodes secIssuerCodes(
+            StringRedisTemplate redisTemplate, IssuerCodeProvider secCikProvider,
+            DisclosureRedisProperties properties, Clock clock
+    ) {
+        return new RedisIssuerCodes(redisTemplate, secCikProvider, properties, clock);
+    }
 }

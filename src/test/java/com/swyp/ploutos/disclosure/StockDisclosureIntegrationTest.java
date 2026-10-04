@@ -11,13 +11,17 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,8 +52,8 @@ import com.swyp.ploutos.stock.Stocks;
 import com.swyp.ploutos.stock.repository.StockRepository;
 
 /**
- * 실제 DB(MySQL)·Redis 컨테이너와 로컬 DART 스텁 서버로 HTTP 요청부터 응답까지 검증한다.
- * 스텁은 실제 형식대로 고유번호는 ZIP, 공시검색은 JSON으로 준다. 실제 키·운영 호출은 쓰지 않는다.
+ * 실제 DB(MySQL)·Redis 컨테이너와 로컬 DART·SEC 스텁 서버로 HTTP 요청부터 응답까지 검증한다.
+ * 스텁은 실제 형식대로 DART 고유번호는 ZIP, 공시검색·SEC 티커·submissions는 JSON으로 준다. 실제 키·운영 호출은 쓰지 않는다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -88,7 +92,14 @@ class StockDisclosureIntegrationTest {
             }
             """.formatted(OLDER_KST, OLDER_KST, RECENT_KST, RECENT_KST);
 
+    private static final String TEST_USER_AGENT = "Ploutos-test test@example.com";
+
+    private static final String TICKERS = """
+            {"fields":["cik","name","ticker","exchange"],"data":[[320193,"Apple Inc.","AAPL","Nasdaq"]]}
+            """;
+
     private static final List<String> stubRequests = new CopyOnWriteArrayList<>();
+    private static final List<String> secUserAgents = new CopyOnWriteArrayList<>();
     private static final HttpServer stub = startStub();
 
     @Container
@@ -106,6 +117,9 @@ class StockDisclosureIntegrationTest {
         registry.add("spring.data.redis.port", () -> redis.getMappedPort(REDIS_PORT));
         registry.add("ploutos.dart.base-url", () -> "http://localhost:" + stub.getAddress().getPort());
         registry.add("ploutos.dart.api-key", () -> TEST_API_KEY);
+        registry.add("ploutos.sec.data-base-url", () -> "http://localhost:" + stub.getAddress().getPort());
+        registry.add("ploutos.sec.www-base-url", () -> "http://localhost:" + stub.getAddress().getPort());
+        registry.add("ploutos.sec.user-agent", () -> TEST_USER_AGENT);
     }
 
     @Autowired
@@ -129,6 +143,7 @@ class StockDisclosureIntegrationTest {
     void clearState() {
         redisTemplate.delete(redisTemplate.keys("disclosure:*"));
         stubRequests.clear();
+        secUserAgents.clear();
     }
 
     @Test
@@ -163,7 +178,7 @@ class StockDisclosureIntegrationTest {
     }
 
     @Test
-    void 미국_종목은_외부를_부르지_않고_미지원_시장이다() throws Exception {
+    void 미국_종목은_CIK를_받아_SEC_공시를_접수_시각과_한글_라벨로_반환하고_DART는_부르지_않는다() throws Exception {
         // given
         Markets nasdaq = marketRepository.save(new Markets(MarketCode.NASDAQ, Country.US, TradingSession.REGULAR, Currency.USD));
         Stocks apple = stockRepository.save(stock(nasdaq, "AAPL", "애플", Exchange.NASDAQ));
@@ -172,10 +187,20 @@ class StockDisclosureIntegrationTest {
         mockMvc.perform(get("/api/v1/stocks/{stockId}/disclosures", apple.stockId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.country").value("US"))
-                .andExpect(jsonPath("$.data.source").value(nullValue()))
-                .andExpect(jsonPath("$.data.coverage").value("UNSUPPORTED_MARKET"))
-                .andExpect(jsonPath("$.data.items").isEmpty());
-        assertThat(stubRequests).isEmpty();
+                .andExpect(jsonPath("$.data.source").value("SEC"))
+                .andExpect(jsonPath("$.data.windowPrecision").value("EXACT"))
+                .andExpect(jsonPath("$.data.coverage").value("COMPLETE"))
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].provider").value("SEC"))
+                .andExpect(jsonPath("$.data.items[0].formType").value("10-Q"))
+                .andExpect(jsonPath("$.data.items[0].formLabel").value("분기보고서"))
+                .andExpect(jsonPath("$.data.items[0].datePrecision").value("SECOND"))
+                .andExpect(jsonPath("$.data.items[0].url").value(Matchers.startsWith(
+                        "https://www.sec.gov/Archives/edgar/data/320193/000032019326000001/")));
+        assertThat(stubRequests).containsExactly(
+                "/files/company_tickers_exchange.json", "/submissions/CIK0000320193.json"
+        );
+        assertThat(secUserAgents).containsOnly(TEST_USER_AGENT);
     }
 
     @Test
@@ -226,11 +251,37 @@ class StockDisclosureIntegrationTest {
             server.createContext("/api/corpCode.xml", exchange -> respond(exchange, "application/zip", zip(CORP_CODES)));
             server.createContext("/api/list.json", exchange ->
                     respond(exchange, "application/json", LIST.getBytes(StandardCharsets.UTF_8)));
+            server.createContext("/files/company_tickers_exchange.json", exchange ->
+                    respondSec(exchange, TICKERS));
+            server.createContext("/submissions/", exchange -> respondSec(exchange, submissions()));
             server.start();
             return server;
         } catch (IOException e) {
             throw new IllegalStateException("공급자 스텁 서버를 띄우지 못했다.", e);
         }
+    }
+
+    private static void respondSec(HttpExchange exchange, String json) throws IOException {
+        secUserAgents.add(exchange.getRequestHeaders().getFirst("User-Agent"));
+        respond(exchange, "application/json", json.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** 기본 기간(최근 30일) 안에 접수 시각이 들도록 요청 시점 기준 하루 전 10-Q 한 건과 기간 밖 한 건을 준다. */
+    private static String submissions() {
+        Instant recent = Instant.now().minus(Duration.ofDays(1)).truncatedTo(ChronoUnit.SECONDS);
+        Instant old = Instant.now().minus(Duration.ofDays(400)).truncatedTo(ChronoUnit.SECONDS);
+        String recentDate = recent.atZone(Country.US.zoneId()).toLocalDate().toString();
+        String oldDate = old.atZone(Country.US.zoneId()).toLocalDate().toString();
+        return """
+                {"cik":"320193","name":"Apple Inc.","filings":{"recent":{
+                  "accessionNumber":["0000320193-26-000001","0000320193-25-000001"],
+                  "filingDate":["%s","%s"],
+                  "acceptanceDateTime":["%s","%s"],
+                  "form":["10-Q","10-K"],
+                  "primaryDocument":["aapl-q.htm","aapl-k.htm"],
+                  "primaryDocDescription":["10-Q","10-K"]
+                },"files":[]}}
+                """.formatted(recentDate, oldDate, recent, old);
     }
 
     private static void respond(HttpExchange exchange, String contentType, byte[] body) throws IOException {

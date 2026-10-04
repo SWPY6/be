@@ -39,11 +39,18 @@ public record Disclosure(
 ) {
 
     private static final Pattern DART_RECEIPT_NO = Pattern.compile("\\d{14}");
+    private static final Pattern SEC_ACCESSION_NO = Pattern.compile("\\d{10}-\\d{2}-\\d{6}");
     private static final String DART_VIEWER_URL = "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=";
+    private static final String SEC_ARCHIVES_URL = "https://www.sec.gov/Archives/edgar/data/";
+    private static final String SEC_PLACEHOLDER_DESCRIPTION = "PRIMARY DOCUMENT";
 
     public enum LinkKind {
         /** DART 공시 뷰어 */
-        DART_VIEWER
+        DART_VIEWER,
+        /** SEC 제출 문서 본문 */
+        SEC_DOCUMENT,
+        /** 본문 경로가 없어 대신 준 SEC 제출 문서 목록 */
+        SEC_FILING_INDEX
     }
 
     /** 공시 시각의 정밀도. */
@@ -80,6 +87,34 @@ public record Disclosure(
                 DisclosureSource.DART, id, title.strip(), null, null,
                 blankToNull(issuerName), blankToNull(filerName), blankToNull(remark),
                 date, null, DART_VIEWER_URL + id, LinkKind.DART_VIEWER
+        ));
+    }
+
+    /**
+     * SEC submissions 원본으로 공시를 만든다. accession number 형식이 틀리거나, Form이 비었거나,
+     * 접수일을 읽을 수 없으면 비어 있다. 접수 시각을 읽을 수 없으면 시각 없이 만든다.
+     * 원문 경로의 CIK는 accession 앞자리(제출 대행사일 수 있음)가 아니라 조회한 법인의 CIK다.
+     */
+    public static Optional<Disclosure> sec(
+            String cik, String accessionNumber, String form, String description, String issuerName,
+            String filingDate, String acceptanceDateTime, String primaryDocument
+    ) {
+        if (accessionNumber == null || !SEC_ACCESSION_NO.matcher(accessionNumber.strip()).matches()) {
+            return Optional.empty();
+        }
+        if (form == null || form.isBlank()) {
+            return Optional.empty();
+        }
+        String id = accessionNumber.strip();
+        String formType = form.strip();
+        String folder = SEC_ARCHIVES_URL + Long.parseLong(cik) + "/" + id.replace("-", "") + "/";
+        boolean hasDocument = primaryDocument != null && !primaryDocument.isBlank();
+        return parseDate(filingDate, DateTimeFormatter.ISO_LOCAL_DATE).map(date -> new Disclosure(
+                DisclosureSource.SEC, id, secTitle(formType, description, issuerName), formType,
+                SecFormLabels.labelOf(formType), blankToNull(issuerName), null, null,
+                date, parseInstant(acceptanceDateTime),
+                hasDocument ? folder + primaryDocument.strip() : folder + id + "-index.htm",
+                hasDocument ? LinkKind.SEC_DOCUMENT : LinkKind.SEC_FILING_INDEX
         ));
     }
 
@@ -124,6 +159,22 @@ public record Disclosure(
         return acceptedAt.atZone(zone).toLocalDate();
     }
 
+    /**
+     * 설명이 비었거나, Form 코드와 같거나, 제출자가 적지 않아 SEC가 넣은 기본값({@code PRIMARY DOCUMENT})이면
+     * 무슨 공시인지 알 수 없으므로 법인명과 Form으로 제목을 만든다.
+     */
+    private static String secTitle(String form, String description, String issuerName) {
+        String text = description == null ? "" : description.strip();
+        if (!text.isEmpty() && !text.equalsIgnoreCase(form) && !text.equalsIgnoreCase("FORM " + form)
+                && !text.equalsIgnoreCase(SEC_PLACEHOLDER_DESCRIPTION)) {
+            return text;
+        }
+        if (issuerName == null || issuerName.isBlank()) {
+            return form;
+        }
+        return issuerName.strip() + " " + form;
+    }
+
     private static Optional<LocalDate> parseDate(String value, DateTimeFormatter format) {
         if (value == null) {
             return Optional.empty();
@@ -132,6 +183,17 @@ public record Disclosure(
             return Optional.of(LocalDate.parse(value.strip(), format));
         } catch (DateTimeParseException e) {
             return Optional.empty();
+        }
+    }
+
+    private static Instant parseInstant(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Instant.parse(value.strip());
+        } catch (DateTimeParseException e) {
+            return null;
         }
     }
 

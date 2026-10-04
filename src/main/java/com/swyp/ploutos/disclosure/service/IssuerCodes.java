@@ -7,7 +7,7 @@ import com.swyp.ploutos.common.enums.Exchange;
 import com.swyp.ploutos.disclosure.DisclosureSource;
 
 /**
- * 거래소·티커 → 공급자 법인 ID(DART corp_code) 조회. 매핑은 주기적으로 갱신된다.
+ * 거래소·티커 → 공급자 법인 ID(DART corp_code, SEC CIK) 조회. 매핑은 주기적으로 갱신된다.
  */
 public interface IssuerCodes {
 
@@ -20,8 +20,8 @@ public interface IssuerCodes {
      */
     Optional<String> issuerIdOf(Exchange exchange, String ticker);
 
-    /** 매핑 키. 티커는 대문자로 맞춘다. */
+    /** 매핑 키. 티커는 대문자로, 클래스 구분 {@code .}은 SEC 표기인 {@code -}로 맞춘다(BRK.B → BRK-B). */
     static String key(Exchange exchange, String ticker) {
-        return exchange.name() + ":" + ticker.strip().toUpperCase(Locale.ROOT);
+        return exchange.name() + ":" + ticker.strip().toUpperCase(Locale.ROOT).replace('.', '-');
     }
 }

@@ -122,13 +122,13 @@ class RedisDartCallBudgetTest {
     @Test
     void 설정값이_0이하면_기동에_실패한다() {
         // when & then
-        assertThatThrownBy(() -> new DisclosureRedisProperties(600, 0, 1, 24))
+        assertThatThrownBy(() -> new DisclosureRedisProperties(600, 0, 1, 5, 24))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("ploutos.disclosure.daily-call-limit");
-        assertThatThrownBy(() -> new DisclosureRedisProperties(0, 16_000, 15_000, 24))
+        assertThatThrownBy(() -> new DisclosureRedisProperties(0, 16_000, 15_000, 5, 24))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("ploutos.disclosure.cache-ttl-seconds");
-        assertThatThrownBy(() -> new DisclosureRedisProperties(600, 16_000, 15_000, 0))
+        assertThatThrownBy(() -> new DisclosureRedisProperties(600, 16_000, 15_000, 5, 0))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("ploutos.disclosure.issuer-code-refresh-hours");
     }
@@ -136,10 +136,10 @@ class RedisDartCallBudgetTest {
     @Test
     void 공시검색_상한이_전체_상한_이상이면_기동에_실패한다() {
         // when & then
-        assertThatThrownBy(() -> new DisclosureRedisProperties(600, 16_000, 16_000, 24))
+        assertThatThrownBy(() -> new DisclosureRedisProperties(600, 16_000, 16_000, 5, 24))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("ploutos.disclosure.daily-search-call-limit");
-        assertThatThrownBy(() -> new DisclosureRedisProperties(600, 16_000, 0, 24))
+        assertThatThrownBy(() -> new DisclosureRedisProperties(600, 16_000, 0, 5, 24))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("ploutos.disclosure.daily-search-call-limit");
     }

@@ -50,6 +50,7 @@ services:
       KIS_APP_KEY: ${KIS_APP_KEY}
       KIS_APP_SECRET: ${KIS_APP_SECRET}
       DART_API_KEY: ${DART_API_KEY}
+      SEC_USER_AGENT: ${SEC_USER_AGENT}
     ports:
       - "8080:8080"
 

@@ -67,12 +67,31 @@ class RedisIssuerCodesTest {
     }
 
     @Test
-    void 티커는_대문자로_맞춰_찾는다() {
+    void 티커는_대문자와_SEC_클래스_표기로_맞춰_찾는다() {
         // given
-        provider.willReturn(Map.of("KRX:0088M0", "01234567"));
+        FakeProvider sec = new FakeProvider(DisclosureSource.SEC);
+        sec.willReturn(Map.of("NYSE:BRK-B", "0001067983"));
+        RedisIssuerCodes secCodes = issuerCodesOn(redisTemplate, sec);
 
         // when & then
-        assertThat(issuerCodes.issuerIdOf(Exchange.KRX, " 0088m0 ")).contains("01234567");
+        assertThat(secCodes.issuerIdOf(Exchange.NYSE, "brk.b")).contains("0001067983");
+        assertThat(secCodes.issuerIdOf(Exchange.NASDAQ, "BRK-B")).isEmpty();
+    }
+
+    @Test
+    void 공급자마다_다른_키에_저장한다() {
+        // given
+        provider.willReturn(CODES);
+        FakeProvider sec = new FakeProvider(DisclosureSource.SEC);
+        sec.willReturn(Map.of("NASDAQ:AAPL", "0000320193"));
+
+        // when
+        issuerCodes.issuerIdOf(Exchange.KRX, "005930");
+        issuerCodesOn(redisTemplate, sec).issuerIdOf(Exchange.NASDAQ, "AAPL");
+
+        // then
+        assertThat(redisTemplate.opsForHash().entries("disclosure:dart:issuer-codes:v2")).hasSize(2);
+        assertThat(redisTemplate.opsForHash().entries("disclosure:sec:issuer-codes:v2")).hasSize(1);
     }
 
     @Test
@@ -210,7 +229,7 @@ class RedisIssuerCodesTest {
         return new RedisIssuerCodes(
                 template,
                 provider,
-                new DisclosureRedisProperties(600, 16_000, 15_000, 24),
+                new DisclosureRedisProperties(600, 16_000, 15_000, 5, 24),
                 Clock.fixed(NOW, ZoneOffset.UTC)
         );
     }

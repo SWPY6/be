@@ -20,6 +20,7 @@ DB_ROOT_PASSWORD=<루트 비밀번호>
 KIS_APP_KEY=<한국투자증권 Open API 앱키>
 KIS_APP_SECRET=<한국투자증권 Open API 앱시크릿>
 DART_API_KEY=<Open DART 인증키>
+SEC_USER_AGENT=<서비스명 연락이메일, 예: Ploutos dev@example.com>
 ```
 
 `KIS_BASE_URL`은 생략하면 모의투자 도메인(`https://openapivts.koreainvestment.com:29443`)을 쓴다.
@@ -28,7 +29,9 @@ DART_API_KEY=<Open DART 인증키>
 
 `DART_API_KEY`는 공시 조회용 Open DART 인증키다. 요청 쿼리에 실리므로 URL을 로그·문서에 남기지 않는다.
 
-값은 팀에 문의한다. `KIS_APP_KEY`·`KIS_APP_SECRET`·`DART_API_KEY`가 없으면 앱이 기동 시점에 실패한다.
+`SEC_USER_AGENT`는 미국 공시(SEC EDGAR) 요청마다 보내는 User-Agent다. SEC는 API 키 대신 서비스명과 실제 연락 이메일을 요구하며, 없으면 요청을 막는다.
+
+값은 팀에 문의한다. `KIS_APP_KEY`·`KIS_APP_SECRET`·`DART_API_KEY`·`SEC_USER_AGENT`가 없으면 앱이 기동 시점에 실패한다.
 Redis 접속 정보(`REDIS_HOST`, `REDIS_PORT`)는 docker-compose가 넣어 주고, IDE에서 띄울 때는 기본값 `localhost:6379`를 쓴다.
 
 ## 테스트

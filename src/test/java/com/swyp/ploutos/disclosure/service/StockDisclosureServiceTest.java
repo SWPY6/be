@@ -42,17 +42,22 @@ class StockDisclosureServiceTest {
     private static final Long ETF_STOCK_ID = 3L;
     private static final Long MISSING_STOCK_ID = 99L;
     private static final String CORP_CODE = "00126380";
+    private static final String CIK = "0000320193";
     // 2026-10-02 14:00:00.5 KST = 2026-10-02 01:00:00.5 EDT
     private static final Instant NOW = Instant.parse("2026-10-02T05:00:00.500Z");
     private static final ZoneOffset KST = ZoneOffset.ofHours(9);
     private static final OffsetDateTime NOW_KST = OffsetDateTime.of(2026, 10, 2, 14, 0, 0, 0, KST);
-    // 기본 기간은 오늘에서 끝나므로 공급자 범위는 오늘(서울 10-02) 기준 최근 90일이다.
+    // 기본 기간은 오늘에서 끝나므로 공급자 범위는 오늘(서울·뉴욕 모두 10-02) 기준 최근 90일이다.
     private static final FiledDateRange KR_DEFAULT_RANGE =
+            new FiledDateRange(LocalDate.of(2026, 7, 4), LocalDate.of(2026, 10, 2));
+    private static final FiledDateRange US_DEFAULT_RANGE =
             new FiledDateRange(LocalDate.of(2026, 7, 4), LocalDate.of(2026, 10, 2));
 
     private FakeIssuerCodes dartCodes;
+    private FakeIssuerCodes secCodes;
     private FakeDisclosureCache cache;
     private FakeDisclosureProvider dart;
+    private FakeDisclosureProvider sec;
     private StockDisclosureService service;
 
     @BeforeEach
@@ -73,10 +78,12 @@ class StockDisclosureServiceTest {
             throw new BusinessException(ErrorCode.STOCK_NOT_FOUND);
         };
         dartCodes = new FakeIssuerCodes(DisclosureSource.DART, Map.of("KRX:005930", CORP_CODE));
+        secCodes = new FakeIssuerCodes(DisclosureSource.SEC, Map.of("NASDAQ:AAPL", CIK));
         cache = new FakeDisclosureCache();
         dart = new FakeDisclosureProvider(DisclosureSource.DART);
+        sec = new FakeDisclosureProvider(DisclosureSource.SEC);
         service = new StockDisclosureService(
-                stockReader, List.of(dartCodes), cache, List.of(dart), Clock.fixed(NOW, ZoneOffset.UTC)
+                stockReader, List.of(dartCodes, secCodes), cache, List.of(dart, sec), Clock.fixed(NOW, ZoneOffset.UTC)
         );
     }
 
@@ -91,6 +98,7 @@ class StockDisclosureServiceTest {
         // then
         assertThat(disclosures.source()).isEqualTo(DisclosureSource.DART);
         assertThat(dart.requests).containsExactly(CORP_CODE + "/" + KR_DEFAULT_RANGE);
+        assertThat(sec.requests).isEmpty();
         assertThat(cache.store).containsKey("DART/" + CORP_CODE + "/" + KR_DEFAULT_RANGE);
         assertThat(disclosures.feed().items()).hasSize(1);
         assertThat(disclosures.feed().coverage()).isEqualTo(Coverage.COMPLETE);
@@ -99,16 +107,34 @@ class StockDisclosureServiceTest {
     }
 
     @Test
-    void 미국_종목은_공급자가_없어_매핑과_공급자를_부르지_않고_미지원이다() {
+    void 미국_종목은_SEC에서_CIK와_기간의_뉴욕_날짜로_조회하고_DART는_부르지_않는다() {
+        // given
+        sec.result = new DisclosureSearchResult(List.of(secDisclosure("2026-09-30T14:00:00.000Z")), true);
+
         // when
-        StockDisclosures disclosures = service.read(US_STOCK_ID, null, null);
+        StockDisclosures.Fetched disclosures = fetched(service.read(US_STOCK_ID, null, null));
 
         // then
-        assertThat(disclosures).isInstanceOf(StockDisclosures.Unsupported.class);
+        assertThat(disclosures.source()).isEqualTo(DisclosureSource.SEC);
         assertThat(disclosures.country()).isEqualTo(Country.US);
-        assertThat(dartCodes.lookups).isEmpty();
+        assertThat(sec.requests).containsExactly(CIK + "/" + US_DEFAULT_RANGE);
         assertThat(dart.requests).isEmpty();
-        assertThat(cache.store).isEmpty();
+        assertThat(dartCodes.lookups).isEmpty();
+        assertThat(disclosures.feed().items()).hasSize(1);
+        assertThat(disclosures.fetchedAt()).isEqualTo(OffsetDateTime.parse("2026-10-02T01:00:00-04:00"));
+    }
+
+    @Test
+    void 접수_시각이_기간_밖인_SEC_공시는_뺀다() {
+        // given 기간 시작 = 2026-09-02 01:00 EDT = 05:00 UTC
+        sec.result = new DisclosureSearchResult(List.of(secDisclosure("2026-09-02T04:59:59.000Z")), true);
+
+        // when
+        StockDisclosures.Fetched disclosures = fetched(service.read(US_STOCK_ID, null, null));
+
+        // then
+        assertThat(disclosures.feed().items()).isEmpty();
+        assertThat(disclosures.feed().coverage()).isEqualTo(Coverage.COMPLETE);
     }
 
     @Test
@@ -172,8 +198,8 @@ class StockDisclosureServiceTest {
         StockDisclosures disclosures = service.read(ETF_STOCK_ID, null, null);
 
         // then
-        assertThat(disclosures).isInstanceOfSatisfying(StockDisclosures.Unmapped.class,
-                unmapped -> assertThat(unmapped.source()).isEqualTo(DisclosureSource.DART));
+        assertThat(disclosures).isInstanceOf(StockDisclosures.Unmapped.class);
+        assertThat(disclosures.source()).isEqualTo(DisclosureSource.DART);
         assertThat(dartCodes.lookups).containsExactly("KRX:069500");
         assertThat(dart.requests).isEmpty();
     }
@@ -183,6 +209,7 @@ class StockDisclosureServiceTest {
         // when & then
         assertError(() -> service.read(MISSING_STOCK_ID, null, null), ErrorCode.STOCK_NOT_FOUND);
         assertThat(dartCodes.lookups).isEmpty();
+        assertThat(secCodes.lookups).isEmpty();
     }
 
     @Test
@@ -191,16 +218,18 @@ class StockDisclosureServiceTest {
         assertError(() -> service.read(KR_STOCK_ID, NOW_KST.minusDays(1), null), ErrorCode.INVALID_INPUT_VALUE);
         assertError(() -> service.read(US_STOCK_ID, NOW_KST.minusDays(91), NOW_KST), ErrorCode.INVALID_INPUT_VALUE);
         assertThat(dartCodes.lookups).isEmpty();
+        assertThat(secCodes.lookups).isEmpty();
     }
 
     @Test
-    void 공급자가_실패하면_캐시하지_않는다() {
+    void 공급자가_실패하면_캐시하지_않고_다른_시장_공급자로_대체하지_않는다() {
         // given
-        dart.error = ErrorCode.DISCLOSURE_UNAVAILABLE;
+        sec.error = ErrorCode.DISCLOSURE_UNAVAILABLE;
 
         // when & then
-        assertError(() -> service.read(KR_STOCK_ID, null, null), ErrorCode.DISCLOSURE_UNAVAILABLE);
+        assertError(() -> service.read(US_STOCK_ID, null, null), ErrorCode.DISCLOSURE_UNAVAILABLE);
         assertThat(cache.store).isEmpty();
+        assertThat(dart.requests).isEmpty();
     }
 
     @Test
@@ -213,11 +242,11 @@ class StockDisclosureServiceTest {
 
         // when & then
         assertThatThrownBy(() -> new StockDisclosureService(
-                stockReader, List.of(), cache, List.of(dart), clock
-        )).isInstanceOf(IllegalStateException.class).hasMessageContaining("DART 법인 매핑");
+                stockReader, List.of(dartCodes), cache, List.of(dart, sec), clock
+        )).isInstanceOf(IllegalStateException.class).hasMessageContaining("SEC 법인 매핑");
         assertThatThrownBy(() -> new StockDisclosureService(
-                stockReader, List.of(dartCodes), cache, List.of(), clock
-        )).isInstanceOf(IllegalStateException.class).hasMessageContaining("DART 공시 공급자");
+                stockReader, List.of(dartCodes, secCodes), cache, List.of(dart), clock
+        )).isInstanceOf(IllegalStateException.class).hasMessageContaining("SEC 공시 공급자");
     }
 
     private static StockDisclosures.Fetched fetched(StockDisclosures disclosures) {
@@ -234,6 +263,11 @@ class StockDisclosureServiceTest {
 
     private static Disclosure dartDisclosure(String receiptNo, String filedDate) {
         return Disclosure.dart(receiptNo, "분기보고서", "삼성전자", "삼성전자", null, filedDate).orElseThrow();
+    }
+
+    private static Disclosure secDisclosure(String acceptance) {
+        return Disclosure.sec(CIK, "0000320193-26-000001", "8-K", "Current report", "Apple Inc.",
+                acceptance.substring(0, 10), acceptance, "a.htm").orElseThrow();
     }
 
     private static StockWithMarket stock(

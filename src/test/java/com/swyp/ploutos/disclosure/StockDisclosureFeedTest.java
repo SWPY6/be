@@ -2,8 +2,6 @@ package com.swyp.ploutos.disclosure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.time.Instant;
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -43,9 +41,9 @@ class StockDisclosureFeedTest {
     @Test
     void 같은_날짜는_접수_시각_내림차순이고_시각이_없으면_뒤로_간다() {
         // given
-        Disclosure morning = timed("20260930000001", "2026-09-30", "2026-09-30T13:00:00.000Z");
-        Disclosure evening = timed("20260930000002", "2026-09-30", "2026-09-30T22:00:00.000Z");
-        Disclosure untimed = timed("20260930000003", "2026-09-30", null);
+        Disclosure morning = sec("0000320193-26-000001", "2026-09-30", "2026-09-30T13:00:00.000Z");
+        Disclosure evening = sec("0000320193-26-000002", "2026-09-30", "2026-09-30T22:00:00.000Z");
+        Disclosure untimed = sec("0000320193-26-000003", "2026-09-30", null);
 
         // when
         StockDisclosureFeed feed = StockDisclosureFeed.of(List.of(untimed, morning, evening), true, US_WINDOW, NEW_YORK);
@@ -57,8 +55,8 @@ class StockDisclosureFeedTest {
     @Test
     void 시각이_있는_공시는_기간_밖이면_뺀다() {
         // given 기간 시작(2026-09-29 12:00 EDT = 16:00 UTC) 이전
-        Disclosure before = timed("20260930000001", "2026-09-29", "2026-09-29T15:59:59.000Z");
-        Disclosure inside = timed("20260930000002", "2026-09-29", "2026-09-29T16:00:01.000Z");
+        Disclosure before = sec("0000320193-26-000001", "2026-09-29", "2026-09-29T15:59:59.000Z");
+        Disclosure inside = sec("0000320193-26-000002", "2026-09-29", "2026-09-29T16:00:01.000Z");
 
         // when
         StockDisclosureFeed feed = StockDisclosureFeed.of(List.of(before, inside), true, US_WINDOW, NEW_YORK);
@@ -149,12 +147,8 @@ class StockDisclosureFeedTest {
         return Disclosure.dart(receiptNo, "분기보고서", "삼성전자", "삼성전자", null, filedDate).orElseThrow();
     }
 
-    /** 접수 시각이 있을 수 있는 공시. 시각을 주는 공급자가 아직 없어 직접 만든다. */
-    private static Disclosure timed(String documentId, String filedDate, String acceptedAt) {
-        return new Disclosure(
-                DisclosureSource.DART, documentId, "보고서", null, null, null, null, null,
-                LocalDate.parse(filedDate), acceptedAt == null ? null : Instant.parse(acceptedAt),
-                "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=" + documentId, Disclosure.LinkKind.DART_VIEWER
-        );
+    private static Disclosure sec(String accession, String filingDate, String acceptance) {
+        return Disclosure.sec("0000320193", accession, "8-K", "Current report", "Apple Inc.", filingDate, acceptance,
+                "a.htm").orElseThrow();
     }
 }
