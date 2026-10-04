@@ -23,6 +23,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.swyp.ploutos.common.exception.BusinessException;
 import com.swyp.ploutos.common.exception.ErrorCode;
+import com.swyp.ploutos.external.redis.RedisCounter;
 
 @Testcontainers
 class RedisNewsCallBudgetTest {
@@ -112,6 +113,38 @@ class RedisNewsCallBudgetTest {
     }
 
     @Test
+    void 상한에_걸린_호출은_세지_않는다() {
+        // given
+        RedisNewsCallBudget budget = budgetAt(redisTemplate, BEFORE_MIDNIGHT_KST);
+        for (int i = 0; i < LIMIT; i++) {
+            budget.consume();
+        }
+
+        // when
+        for (int i = 0; i < 3; i++) {
+            assertQuotaExceeded(budget);
+        }
+
+        // then
+        assertThat(redisTemplate.opsForValue().get("news:naver:calls:20260930")).isEqualTo(String.valueOf(LIMIT));
+    }
+
+    @Test
+    void 만료_없이_남은_카운터도_다음_호출에서_만료를_건다() {
+        // given
+        redisTemplate.opsForValue().set("news:naver:calls:20260930", "1");
+        RedisNewsCallBudget budget = budgetAt(redisTemplate, BEFORE_MIDNIGHT_KST);
+
+        // when
+        budget.consume();
+
+        // then
+        assertThat(redisTemplate.opsForValue().get("news:naver:calls:20260930")).isEqualTo("2");
+        Long ttl = redisTemplate.getExpire("news:naver:calls:20260930", TimeUnit.SECONDS);
+        assertThat(ttl).isBetween(Duration.ofDays(1).toSeconds(), Duration.ofDays(2).toSeconds());
+    }
+
+    @Test
     void Redis에_접근하지_못하면_호출을_막는다() {
         // given
         RedisNewsCallBudget broken = budgetAt(template("localhost", CLOSED_PORT), BEFORE_MIDNIGHT_KST);
@@ -137,7 +170,7 @@ class RedisNewsCallBudgetTest {
 
     private static RedisNewsCallBudget budgetAt(StringRedisTemplate template, Instant now) {
         return new RedisNewsCallBudget(
-                template,
+                new RedisCounter(template),
                 new NewsRedisProperties(600, LIMIT),
                 Clock.fixed(now, ZoneOffset.UTC)
         );

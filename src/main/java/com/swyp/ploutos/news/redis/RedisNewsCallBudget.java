@@ -5,15 +5,16 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.OptionalLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import com.swyp.ploutos.common.exception.BusinessException;
 import com.swyp.ploutos.common.exception.ErrorCode;
+import com.swyp.ploutos.external.redis.RedisCounter;
 import com.swyp.ploutos.news.service.NewsCallBudget;
 
 import lombok.RequiredArgsConstructor;
@@ -32,33 +33,25 @@ class RedisNewsCallBudget implements NewsCallBudget {
     // 날짜가 바뀐 뒤에도 전날 카운터를 확인할 수 있게 하루 더 남긴다.
     private static final Duration KEY_TTL = Duration.ofDays(2);
 
-    private final StringRedisTemplate redisTemplate;
+    private final RedisCounter redisCounter;
     private final NewsRedisProperties properties;
     private final Clock clock;
 
     @Override
     public void consume() {
-        long count = increment(todayKey());
-        if (count <= properties.dailyCallLimit()) {
-            return;
+        OptionalLong count = increment(todayKey());
+        if (count.isEmpty()) {
+            throw new BusinessException(ErrorCode.NEWS_QUOTA_EXCEEDED);
         }
-        // 넘는 순간에만 남긴다. 이후 요청마다 남기면 그날 내내 같은 로그가 쌓인다.
-        if (count == properties.dailyCallLimit() + 1) {
-            log.warn("뉴스 검색 일일 호출 상한을 넘었다. limit={}", properties.dailyCallLimit());
+        // 상한에 닿는 마지막 허용 호출에서만 남긴다. 거절될 때마다 남기면 그날 내내 같은 로그가 쌓인다.
+        if (count.getAsLong() == properties.dailyCallLimit()) {
+            log.warn("뉴스 검색 일일 호출 상한에 닿았다. 이후 호출은 막는다. limit={}", properties.dailyCallLimit());
         }
-        throw new BusinessException(ErrorCode.NEWS_QUOTA_EXCEEDED);
     }
 
-    private long increment(String key) {
+    private OptionalLong increment(String key) {
         try {
-            Long count = redisTemplate.opsForValue().increment(key);
-            if (count == null) {
-                throw new BusinessException(ErrorCode.NEWS_QUOTA_EXCEEDED);
-            }
-            if (count == 1) {
-                redisTemplate.expire(key, KEY_TTL);
-            }
-            return count;
+            return redisCounter.increment(key, properties.dailyCallLimit(), KEY_TTL);
         } catch (DataAccessException e) {
             // 같은 Redis를 먼저 조회하는 뉴스 캐시가 접근 실패를 이미 기록하므로 여기서는 남기지 않는다.
             throw new BusinessException(ErrorCode.NEWS_QUOTA_EXCEEDED);
