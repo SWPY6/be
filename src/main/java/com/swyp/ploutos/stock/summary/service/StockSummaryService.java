@@ -2,6 +2,7 @@ package com.swyp.ploutos.stock.summary.service;
 
 import org.springframework.stereotype.Service;
 
+import com.swyp.ploutos.industry.service.IndustryReader;
 import com.swyp.ploutos.stock.service.StockReader;
 import com.swyp.ploutos.stock.summary.StockSummary;
 
@@ -15,8 +16,9 @@ import lombok.RequiredArgsConstructor;
 public class StockSummaryService {
 
     private final StockReader stockReader;
+    private final IndustryReader industryReader;
 
     public StockSummary read(Long stockId) {
-        return StockSummary.from(stockReader.read(stockId));
+        return StockSummary.from(stockReader.read(stockId), industryReader.readByStockId(stockId));
     }
 }
