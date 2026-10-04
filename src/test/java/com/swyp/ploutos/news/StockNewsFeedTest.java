@@ -2,6 +2,7 @@ package com.swyp.ploutos.news;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.net.URI;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -152,6 +153,6 @@ class StockNewsFeedTest {
     }
 
     private static NewsArticle article(String title, String summary, String url, OffsetDateTime publishedAt) {
-        return NewsArticle.from(title, summary, url, null, publishedAt).orElseThrow();
+        return NewsArticle.of(title, summary, URI.create(url), NewsArticle.LinkKind.ORIGINAL, publishedAt).orElseThrow();
     }
 }

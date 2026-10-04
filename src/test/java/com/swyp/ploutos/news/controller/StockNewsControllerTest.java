@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.net.URI;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -26,9 +27,10 @@ import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.common.exception.BusinessException;
 import com.swyp.ploutos.common.exception.ErrorCode;
 import com.swyp.ploutos.news.NewsArticle;
+import com.swyp.ploutos.news.NewsArticle.LinkKind;
 import com.swyp.ploutos.news.NewsWindow;
 import com.swyp.ploutos.news.StockNewsFeed;
-import com.swyp.ploutos.news.service.StockNews;
+import com.swyp.ploutos.news.service.StockNewsResult;
 import com.swyp.ploutos.news.service.StockNewsService;
 
 @WebMvcTest(StockNewsController.class)
@@ -52,8 +54,8 @@ class StockNewsControllerTest {
     @Test
     void 명세의_응답_필드를_공통_봉투에_담는다() throws Exception {
         // given
-        NewsArticle article = NewsArticle.from(
-                "<b>삼성전자</b>, HBM 공급 확대", "", "https://news.mt.co.kr/mtview.php?no=1", null,
+        NewsArticle article = NewsArticle.of(
+                "삼성전자, HBM 공급 확대", "", URI.create("https://news.mt.co.kr/mtview.php?no=1"), LinkKind.ORIGINAL,
                 OffsetDateTime.parse("2026-09-30T09:12:00+09:00")
         ).orElseThrow();
         given(stockNewsService.read(STOCK_ID, null, null)).willReturn(news(List.of(article), true));
@@ -62,7 +64,7 @@ class StockNewsControllerTest {
         mockMvc.perform(get(URL, STOCK_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stockId").value(1))
-                .andExpect(jsonPath("$.data.market").value("KR"))
+                .andExpect(jsonPath("$.data.country").value("KR"))
                 .andExpect(jsonPath("$.data.window.from").value("2026-09-23T14:00:00+09:00"))
                 .andExpect(jsonPath("$.data.window.to").value("2026-09-30T14:00:00+09:00"))
                 .andExpect(jsonPath("$.data.fetchedAt").value("2026-09-30T13:55:12+09:00"))
@@ -173,8 +175,8 @@ class StockNewsControllerTest {
                 .andExpect(jsonPath("$.error.name").value("NewsQuotaExceededException"));
     }
 
-    private static StockNews news(List<NewsArticle> candidates, boolean exhausted) {
-        return new StockNews(
+    private static StockNewsResult news(List<NewsArticle> candidates, boolean exhausted) {
+        return new StockNewsResult(
                 STOCK_ID,
                 Country.KR,
                 WINDOW,

@@ -18,7 +18,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 뉴스 검색 결과를 Redis에 JSON으로 캐시한다. Redis에 접근하지 못하면 {@code NEWS_QUOTA_EXCEEDED}를 던진다 —
- * 호출 예산도 같은 Redis에 있어 어차피 네이버를 부를 수 없다. 저장된 값을 읽지 못하면 캐시 미스로 본다.
+ * 호출 예산도 같은 Redis에 있어 어차피 네이버를 부를 수 없다. 저장된 값을 읽지 못하면 캐시 미스로 보고,
+ * 저장에 실패하면 로그만 남긴다.
  */
 @Component
 class RedisNewsCache implements NewsCache {
@@ -57,12 +58,13 @@ class RedisNewsCache implements NewsCache {
         }
     }
 
+    /** 예산을 써서 받은 결과를 버리지 않도록 저장에 실패해도 로그만 남긴다. 다음 요청은 캐시 미스가 된다. */
     @Override
     public void put(Long stockId, CachedSearch search) {
         try {
             redisTemplate.opsForValue().set(key(stockId), jsonMapper.writeValueAsString(search), properties.cacheTtl());
-        } catch (DataAccessException e) {
-            throw unavailable(e);
+        } catch (DataAccessException | JacksonException e) {
+            log.warn("뉴스를 캐시에 저장하지 못했다. stockId={}, cause={}", stockId, e.getClass().getSimpleName());
         }
     }
 

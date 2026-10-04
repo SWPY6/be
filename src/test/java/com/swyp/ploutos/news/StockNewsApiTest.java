@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.net.URI;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -30,6 +31,7 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import com.swyp.ploutos.news.NewsArticle.LinkKind;
 import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.common.enums.Currency;
 import com.swyp.ploutos.common.enums.Exchange;
@@ -41,7 +43,7 @@ import com.swyp.ploutos.common.exception.ErrorCode;
 import com.swyp.ploutos.market.Markets;
 import com.swyp.ploutos.market.repository.MarketRepository;
 import com.swyp.ploutos.news.service.NewsProvider;
-import com.swyp.ploutos.news.service.NewsProvider.SearchResult;
+import com.swyp.ploutos.news.service.NewsSearchResult;
 import com.swyp.ploutos.stock.Stocks;
 import com.swyp.ploutos.stock.repository.StockRepository;
 
@@ -93,20 +95,20 @@ class StockNewsApiTest {
         // given
         Stocks samsung = saveSamsung();
         OffsetDateTime publishedAt = OffsetDateTime.now(ZoneOffset.ofHours(9)).minusHours(1).withNano(0);
-        NewsArticle related = NewsArticle.from(
-                "<b>삼성전자</b> HBM 증설", "요약", "https://news.mt.co.kr/mtview.php?no=1", null, publishedAt
+        NewsArticle related = NewsArticle.of(
+                "삼성전자 HBM 증설", "요약", URI.create("https://news.mt.co.kr/mtview.php?no=1"), LinkKind.ORIGINAL, publishedAt
         ).orElseThrow();
-        NewsArticle unrelated = NewsArticle.from(
-                "SK하이닉스 실적", "요약", "https://www.hankyung.com/article/1", null, publishedAt
+        NewsArticle unrelated = NewsArticle.of(
+                "SK하이닉스 실적", "요약", URI.create("https://www.hankyung.com/article/1"), LinkKind.ORIGINAL, publishedAt
         ).orElseThrow();
-        given(newsProvider.search("삼성전자")).willReturn(new SearchResult(List.of(related, unrelated), true));
+        given(newsProvider.search("삼성전자")).willReturn(new NewsSearchResult(List.of(related, unrelated), true));
 
         // when & then
         for (int i = 0; i < 2; i++) {
             mockMvc.perform(get("/api/v1/stocks/{stockId}/news", samsung.stockId()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.stockId").value(samsung.stockId()))
-                    .andExpect(jsonPath("$.data.market").value("KR"))
+                    .andExpect(jsonPath("$.data.country").value("KR"))
                     .andExpect(jsonPath("$.data.total").value(1))
                     .andExpect(jsonPath("$.data.items[0].title").value("삼성전자 HBM 증설"))
                     .andExpect(jsonPath("$.data.items[0].publisherName").value("머니투데이"))

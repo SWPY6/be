@@ -1,8 +1,10 @@
 package com.swyp.ploutos.news.redis;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -23,8 +25,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import com.swyp.ploutos.common.exception.BusinessException;
 import com.swyp.ploutos.common.exception.ErrorCode;
 import com.swyp.ploutos.news.NewsArticle;
+import com.swyp.ploutos.news.NewsArticle.LinkKind;
 import com.swyp.ploutos.news.service.NewsCache.CachedSearch;
-import com.swyp.ploutos.news.service.NewsProvider.SearchResult;
+import com.swyp.ploutos.news.service.NewsSearchResult;
 
 import tools.jackson.databind.json.JsonMapper;
 
@@ -111,13 +114,21 @@ class RedisNewsCacheTest {
     }
 
     @Test
-    void Redis에_접근하지_못하면_조회와_저장이_실패한다() {
+    void Redis에_접근하지_못하면_조회는_실패한다() {
         // given
         RedisNewsCache broken = cacheOn(template("localhost", CLOSED_PORT));
 
         // when & then
         assertQuotaExceeded(() -> broken.find(1L));
-        assertQuotaExceeded(() -> broken.put(1L, search(true)));
+    }
+
+    @Test
+    void Redis에_저장하지_못해도_받은_결과를_버리지_않도록_예외를_던지지_않는다() {
+        // given
+        RedisNewsCache broken = cacheOn(template("localhost", CLOSED_PORT));
+
+        // when & then
+        assertThatCode(() -> broken.put(1L, search(true))).doesNotThrowAnyException();
     }
 
     private static void assertQuotaExceeded(Runnable action) {
@@ -128,10 +139,10 @@ class RedisNewsCacheTest {
     }
 
     private static CachedSearch search(boolean exhausted) {
-        NewsArticle article = NewsArticle.from(
-                "<b>삼성전자</b> 증설", "요약", "https://news.mt.co.kr/mtview.php?no=1", null, PUBLISHED_AT
+        NewsArticle article = NewsArticle.of(
+                "삼성전자 증설", "요약", URI.create("https://news.mt.co.kr/mtview.php?no=1"), LinkKind.ORIGINAL, PUBLISHED_AT
         ).orElseThrow();
-        return new CachedSearch(new SearchResult(List.of(article), exhausted), FETCHED_AT);
+        return new CachedSearch(new NewsSearchResult(List.of(article), exhausted), FETCHED_AT);
     }
 
     private static RedisNewsCache cacheOn(StringRedisTemplate template) {

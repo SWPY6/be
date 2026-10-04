@@ -32,7 +32,7 @@ import com.swyp.ploutos.common.exception.ErrorCode;
 import com.swyp.ploutos.news.NewsArticle;
 import com.swyp.ploutos.news.NewsArticle.LinkKind;
 import com.swyp.ploutos.news.service.NewsCallBudget;
-import com.swyp.ploutos.news.service.NewsProvider.SearchResult;
+import com.swyp.ploutos.news.service.NewsSearchResult;
 
 import tools.jackson.databind.json.JsonMapper;
 
@@ -96,7 +96,7 @@ class NaverNewsProviderTest {
                 .andRespond(withSuccess(ONE_ITEM, MediaType.APPLICATION_JSON));
 
         // when
-        SearchResult result = provider.search(QUERY);
+        NewsSearchResult result = provider.search(QUERY);
 
         // then
         NewsArticle article = result.articles().getFirst();
@@ -115,7 +115,7 @@ class NaverNewsProviderTest {
                 .andRespond(withSuccess(ONE_ITEM, MediaType.parseMediaType("text/plain;charset=UTF-8")));
 
         // when
-        SearchResult result = provider.search(QUERY);
+        NewsSearchResult result = provider.search(QUERY);
 
         // then
         assertThat(result.articles()).hasSize(1);
@@ -128,7 +128,7 @@ class NaverNewsProviderTest {
                 .andRespond(withSuccess(ONE_ITEM, MediaType.APPLICATION_JSON));
 
         // when
-        SearchResult result = provider.search(QUERY);
+        NewsSearchResult result = provider.search(QUERY);
 
         // then
         assertThat(result.exhausted()).isTrue();
@@ -141,7 +141,7 @@ class NaverNewsProviderTest {
                 .andRespond(withSuccess(ONE_ITEM.replace("\"total\": 1", "\"total\": 5000"), MediaType.APPLICATION_JSON));
 
         // when
-        SearchResult result = provider.search(QUERY);
+        NewsSearchResult result = provider.search(QUERY);
 
         // then
         assertThat(result.exhausted()).isFalse();
@@ -154,7 +154,7 @@ class NaverNewsProviderTest {
                 .andRespond(withSuccess("{\"total\": 0, \"items\": []}", MediaType.APPLICATION_JSON));
 
         // when
-        SearchResult result = provider.search(QUERY);
+        NewsSearchResult result = provider.search(QUERY);
 
         // then
         assertThat(result.articles()).isEmpty();
@@ -170,7 +170,7 @@ class NaverNewsProviderTest {
                 .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
 
         // when
-        SearchResult result = provider.search(QUERY);
+        NewsSearchResult result = provider.search(QUERY);
 
         // then
         assertThat(result.articles()).hasSize(1);
@@ -195,7 +195,7 @@ class NaverNewsProviderTest {
                 .andRespond(withSuccess(ONE_ITEM, MediaType.APPLICATION_JSON));
 
         // when
-        SearchResult result = provider.search(QUERY);
+        NewsSearchResult result = provider.search(QUERY);
 
         // then
         assertThat(result.articles()).hasSize(1);

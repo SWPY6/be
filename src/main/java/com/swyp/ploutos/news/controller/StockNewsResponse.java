@@ -6,14 +6,14 @@ import java.util.List;
 import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.news.NewsArticle;
 import com.swyp.ploutos.news.NewsArticle.LinkKind;
-import com.swyp.ploutos.news.service.StockNews;
+import com.swyp.ploutos.news.service.StockNewsResult;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "종목 관련 뉴스. 함께 확인된 맥락이며 가격 변동의 원인으로 단정하지 않는다")
 record StockNewsResponse(
         @Schema(description = "종목 ID", example = "1") Long stockId,
-        @Schema(description = "종목 시장 국가", example = "KR") Country market,
+        @Schema(description = "종목 시장의 국가(KR/US)", example = "KR") Country country,
         @Schema(description = "적용한 조회 기간. from 제외, to 포함") Window window,
         @Schema(description = "네이버에서 검색 결과를 받은 시각(시장 현지 시각). 최대 10분 캐시라 현재보다 과거일 수 있다",
                 example = "2026-09-30T13:55:12+09:00")
@@ -25,10 +25,10 @@ record StockNewsResponse(
         @Schema(description = "최신순 기사. 없으면 빈 배열") List<Item> items
 ) {
 
-    static StockNewsResponse from(StockNews news) {
+    static StockNewsResponse from(StockNewsResult news) {
         return new StockNewsResponse(
                 news.stockId(),
-                news.market(),
+                news.country(),
                 new Window(news.window().from(), news.window().to()),
                 news.fetchedAt(),
                 news.feed().windowCovered(),

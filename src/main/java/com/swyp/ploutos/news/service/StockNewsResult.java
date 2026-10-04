@@ -11,9 +11,9 @@ import com.swyp.ploutos.news.StockNewsFeed;
  *
  * @param fetchedAt 공급자에서 검색 결과를 받은 시각(종목 시장 현지 시각). 캐시 결과면 과거 시각이다.
  */
-public record StockNews(
+public record StockNewsResult(
         Long stockId,
-        Country market,
+        Country country,
         NewsWindow window,
         OffsetDateTime fetchedAt,
         StockNewsFeed feed

@@ -1,8 +1,5 @@
 package com.swyp.ploutos.news.naver;
 
-import java.time.OffsetDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +18,7 @@ import com.swyp.ploutos.common.exception.ErrorCode;
 import com.swyp.ploutos.news.NewsArticle;
 import com.swyp.ploutos.news.service.NewsCallBudget;
 import com.swyp.ploutos.news.service.NewsProvider;
+import com.swyp.ploutos.news.service.NewsSearchResult;
 
 import lombok.RequiredArgsConstructor;
 import tools.jackson.core.JacksonException;
@@ -47,18 +45,18 @@ class NaverNewsProvider implements NewsProvider {
     private final JsonMapper jsonMapper;
 
     @Override
-    public SearchResult search(String query) {
+    public NewsSearchResult search(String query) {
         NaverNewsResponse response = fetch(query);
         List<NaverNewsResponse.Item> items = response.items() == null ? List.of() : response.items();
         List<NewsArticle> articles = items.stream()
-                .map(NaverNewsProvider::toArticle)
+                .map(NaverNewsArticles::from)
                 .flatMap(Optional::stream)
                 .toList();
         if (!items.isEmpty() && articles.isEmpty()) {
             log.error("네이버 뉴스 응답 {}건이 모두 쓸 수 없는 레코드다.", items.size());
             throw new BusinessException(ErrorCode.NEWS_UNAVAILABLE);
         }
-        return new SearchResult(articles, isExhausted(response.total(), items.size()));
+        return new NewsSearchResult(articles, isExhausted(response.total(), items.size()));
     }
 
     private NaverNewsResponse fetch(String query) {
@@ -115,24 +113,6 @@ class NaverNewsProvider implements NewsProvider {
             return received < DISPLAY;
         }
         return total <= received;
-    }
-
-    private static Optional<NewsArticle> toArticle(NaverNewsResponse.Item item) {
-        return NewsArticle.from(
-                item.title(), item.description(), item.originallink(), item.link(), parsePubDate(item.pubDate())
-        );
-    }
-
-    /** 파싱하지 못한 시각은 null이며, 그 기사는 {@link NewsArticle#from}에서 빠진다. */
-    private static OffsetDateTime parsePubDate(String pubDate) {
-        if (pubDate == null) {
-            return null;
-        }
-        try {
-            return OffsetDateTime.parse(pubDate.strip(), DateTimeFormatter.RFC_1123_DATE_TIME);
-        } catch (DateTimeParseException e) {
-            return null;
-        }
     }
 
     // 외부 응답 본문에는 요청 정보가 섞여 있을 수 있어 로그에 남기지 않는다.
