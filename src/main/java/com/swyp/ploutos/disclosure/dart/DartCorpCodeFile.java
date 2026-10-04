@@ -3,11 +3,8 @@ package com.swyp.ploutos.disclosure.dart;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -22,7 +19,7 @@ import org.slf4j.LoggerFactory;
 
 import com.swyp.ploutos.common.enums.Exchange;
 import com.swyp.ploutos.common.exception.BusinessException;
-import com.swyp.ploutos.disclosure.service.IssuerCodes;
+import com.swyp.ploutos.disclosure.service.IssuerCodeCollector;
 
 /**
  * DART 고유번호 파일 본문을 {@code KRX:종목코드} → 법인 코드(corp_code)로 읽는다.
@@ -74,8 +71,7 @@ final class DartCorpCodeFile {
     /** {@code <list>}마다 corp_code·stock_code를 읽는다. 한 종목코드에 법인이 둘 이상이면 어느 쪽도 쓰지 않는다. */
     private static Map<String, String> parseXml(InputStream in) throws XMLStreamException {
         XMLStreamReader reader = newReader(in);
-        Map<String, String> codes = new HashMap<>();
-        Set<String> conflicted = new HashSet<>();
+        IssuerCodeCollector collector = new IssuerCodeCollector();
         String corpCode = null;
         String stockCode = null;
         try {
@@ -98,31 +94,23 @@ final class DartCorpCodeFile {
                     continue;
                 }
                 if (event == XMLStreamConstants.END_ELEMENT && "list".equals(reader.getLocalName())) {
-                    put(codes, conflicted, stockCode, corpCode);
+                    put(collector, stockCode, corpCode);
                 }
             }
         } finally {
             reader.close();
         }
-        if (!conflicted.isEmpty()) {
-            log.warn("DART 고유번호 파일에서 법인이 둘 이상인 종목코드 {}개를 매핑에서 뺐다.", conflicted.size());
+        if (collector.conflictedCount() > 0) {
+            log.warn("DART 고유번호 파일에서 법인이 둘 이상인 종목코드 {}개를 매핑에서 뺐다.", collector.conflictedCount());
         }
-        return codes;
+        return collector.codes();
     }
 
-    private static void put(Map<String, String> codes, Set<String> conflicted, String stockCode, String corpCode) {
+    private static void put(IssuerCodeCollector collector, String stockCode, String corpCode) {
         if (stockCode == null || stockCode.isEmpty() || corpCode == null || !CORP_CODE.matcher(corpCode).matches()) {
             return;
         }
-        String key = IssuerCodes.key(Exchange.KRX, stockCode);
-        if (conflicted.contains(key)) {
-            return;
-        }
-        String existing = codes.putIfAbsent(key, corpCode);
-        if (existing != null && !existing.equals(corpCode)) {
-            codes.remove(key);
-            conflicted.add(key);
-        }
+        collector.put(Exchange.KRX, stockCode, corpCode);
     }
 
     private static XMLStreamReader newReader(InputStream in) throws XMLStreamException {
