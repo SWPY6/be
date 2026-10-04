@@ -49,6 +49,8 @@ services:
       KIS_BASE_URL: ${KIS_BASE_URL:-https://openapivts.koreainvestment.com:29443}
       KIS_APP_KEY: ${KIS_APP_KEY}
       KIS_APP_SECRET: ${KIS_APP_SECRET}
+      NAVER_API_HUB_CLIENT_ID: ${NAVER_API_HUB_CLIENT_ID}
+      NAVER_API_HUB_CLIENT_SECRET: ${NAVER_API_HUB_CLIENT_SECRET}
       DART_API_KEY: ${DART_API_KEY}
     ports:
       - "8080:8080"

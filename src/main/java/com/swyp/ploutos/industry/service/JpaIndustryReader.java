@@ -47,4 +47,12 @@ class JpaIndustryReader implements IndustryReader {
     public List<Long> readStockIds(Long industryId, Country country) {
         return stockIndustryRepository.findStockIdsByIndustryIdAndCountry(industryId, country);
     }
+
+    @Override
+    public List<Industries> readByStockId(Long stockId) {
+        // readAll() 과 같은 이유로 정렬은 Java 에서 한다.
+        return industryRepository.findByStockId(stockId).stream()
+                .sorted(Comparator.comparing(Industries::displayName))
+                .toList();
+    }
 }

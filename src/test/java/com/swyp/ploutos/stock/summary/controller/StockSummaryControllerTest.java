@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -22,6 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.common.enums.Currency;
+import com.swyp.ploutos.common.enums.IndustryCode;
 import com.swyp.ploutos.common.exception.BusinessException;
 import com.swyp.ploutos.common.exception.ErrorCode;
 import com.swyp.ploutos.stock.summary.StockSummary;
@@ -46,7 +49,7 @@ class StockSummaryControllerTest {
     void 국내_종목의_기본정보를_반환한다() throws Exception {
         // given
         given(stockSummaryService.read(STOCK_ID)).willReturn(new StockSummary(
-                STOCK_ID, "삼성전자", "005930", "https://logo/005930.png", Country.KR, Currency.KRW));
+                STOCK_ID, "삼성전자", "005930", "https://logo/005930.png", Country.KR, Currency.KRW, List.of()));
 
         // when & then
         mockMvc.perform(get("/api/v1/stocks/{stockId}", STOCK_ID))
@@ -61,10 +64,41 @@ class StockSummaryControllerTest {
     }
 
     @Test
+    void 산업이_여러_개면_코드와_한글명을_받은_순서대로_반환하고_industryId는_없다() throws Exception {
+        // given
+        given(stockSummaryService.read(STOCK_ID)).willReturn(new StockSummary(
+                STOCK_ID, "현대차", "005380", null, Country.KR, Currency.KRW,
+                List.of(IndustryCode.AUTOMOBILE, IndustryCode.CHEMICAL)));
+
+        // when & then
+        mockMvc.perform(get("/api/v1/stocks/{stockId}", STOCK_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.profile.industries.length()").value(2))
+                .andExpect(jsonPath("$.data.profile.industries[0].code").value("AUTOMOBILE"))
+                .andExpect(jsonPath("$.data.profile.industries[0].name").value("자동차"))
+                .andExpect(jsonPath("$.data.profile.industries[1].code").value("CHEMICAL"))
+                .andExpect(jsonPath("$.data.profile.industries[1].name").value("화학"))
+                .andExpect(jsonPath("$.data.profile.industries[0].industryId").doesNotExist());
+    }
+
+    @Test
+    void 연결된_산업이_없으면_industries는_빈_배열이다() throws Exception {
+        // given
+        given(stockSummaryService.read(STOCK_ID)).willReturn(new StockSummary(
+                STOCK_ID, "삼성전자", "005930", null, Country.KR, Currency.KRW, List.of()));
+
+        // when & then
+        mockMvc.perform(get("/api/v1/stocks/{stockId}", STOCK_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.profile.industries").isArray())
+                .andExpect(jsonPath("$.data.profile.industries").isEmpty());
+    }
+
+    @Test
     void 미국_종목은_뉴욕_시간대로_반환한다() throws Exception {
         // given
         given(stockSummaryService.read(STOCK_ID)).willReturn(new StockSummary(
-                STOCK_ID, "애플", "AAPL", null, Country.US, Currency.USD));
+                STOCK_ID, "애플", "AAPL", null, Country.US, Currency.USD, List.of()));
 
         // when & then
         mockMvc.perform(get("/api/v1/stocks/{stockId}", STOCK_ID))
@@ -78,7 +112,7 @@ class StockSummaryControllerTest {
     void 로고가_없으면_키는_남고_값은_null이다() throws Exception {
         // given
         given(stockSummaryService.read(STOCK_ID)).willReturn(new StockSummary(
-                STOCK_ID, "SK하이닉스", "000660", null, Country.KR, Currency.KRW));
+                STOCK_ID, "SK하이닉스", "000660", null, Country.KR, Currency.KRW, List.of()));
 
         // when & then
         mockMvc.perform(get("/api/v1/stocks/{stockId}", STOCK_ID))
@@ -89,17 +123,16 @@ class StockSummaryControllerTest {
     }
 
     @Test
-    void 가격_산업_변동배경은_응답에_없다() throws Exception {
+    void 가격_변동배경은_응답에_없다() throws Exception {
         // given
         given(stockSummaryService.read(STOCK_ID)).willReturn(new StockSummary(
-                STOCK_ID, "삼성전자", "005930", null, Country.KR, Currency.KRW));
+                STOCK_ID, "삼성전자", "005930", null, Country.KR, Currency.KRW, List.of()));
 
         // when & then
         mockMvc.perform(get("/api/v1/stocks/{stockId}", STOCK_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.price").doesNotExist())
-                .andExpect(jsonPath("$.data.movementContext").doesNotExist())
-                .andExpect(jsonPath("$.data.profile.industries").doesNotExist());
+                .andExpect(jsonPath("$.data.movementContext").doesNotExist());
     }
 
     @Test
