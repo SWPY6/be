@@ -58,7 +58,7 @@ class StockSummaryControllerTest {
                 .andExpect(jsonPath("$.data.profile.name").value("삼성전자"))
                 .andExpect(jsonPath("$.data.profile.ticker").value("005930"))
                 .andExpect(jsonPath("$.data.profile.logoUrl").value("https://logo/005930.png"))
-                .andExpect(jsonPath("$.data.market").value("KR"))
+                .andExpect(jsonPath("$.data.country").value("KR"))
                 .andExpect(jsonPath("$.data.currency").value("KRW"))
                 .andExpect(jsonPath("$.data.timezone").value("Asia/Seoul"));
     }
@@ -103,7 +103,7 @@ class StockSummaryControllerTest {
         // when & then
         mockMvc.perform(get("/api/v1/stocks/{stockId}", STOCK_ID))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.market").value("US"))
+                .andExpect(jsonPath("$.data.country").value("US"))
                 .andExpect(jsonPath("$.data.currency").value("USD"))
                 .andExpect(jsonPath("$.data.timezone").value("America/New_York"));
     }

@@ -70,11 +70,11 @@
 SUM-T01에서 기존 코드와 대조해 확정했다. 대조 결과는 아래 "기존 코드 대조 결과"에 둔다.
 
 - 요청: `GET /api/v1/stocks/{stockId}`. 양의 정수 stockId, 쿼리 없음. market은 종목의 Markets에서 결정한다. 기본정보 자체에는 가격 기준 asOf나 과거 조회를 넣지 않는다.
-- 성공: `data.stockId`, `data.profile.name`, `data.profile.ticker`, `data.profile.industries`, `data.profile.logoUrl`, `data.market`, `data.currency`, `data.timezone`.
+- 성공: `data.stockId`, `data.profile.name`, `data.profile.ticker`, `data.profile.industries`, `data.profile.logoUrl`, `data.country`, `data.currency`, `data.timezone`.
 - 산업: `{code, name}` 배열. `code`는 `IndustryCode` 이름(예: `AUTOMOBILE`), `name`은 서버가 주는 한글 표시명(예: `자동차`)이다. [산업 마스터 명세](SPEC-industry.md)에 따라 `industryId`는 노출하지 않고, 한글 표시명 가나다순으로 정렬한다. 기존 매핑을 중복 제거하며 임의 대표 산업을 고르지 않는다. 미매핑은 빈 배열이다. 조회는 산업 모듈의 `IndustryReader.readByStockId`를 쓴다.
   - **단계 도입:** 1차(SUM-T03~T05)는 `profile.industries` 없이 나갔고, SUM-T02(`readByStockId`, PLO-40) 이후 SUM-T06에서 필드를 추가했다. 기존 필드는 바꾸지 않았다. 빈 배열은 "연결된 산업 없음"을 뜻한다.
 - logoUrl은 기존 `Stocks.imgUrl`을 사용하고 없으면 null이다. 새 로고 공급자는 도입하지 않는다.
-- market은 `Markets.country`(KR/US), timezone은 `Country.zoneId`의 IANA 이름(Asia/Seoul, America/New_York)이다. 거래소 코드와 국가 단위 market을 혼용하지 않는다.
+- country는 종목 시장의 국가 `Markets.country`(KR/US), timezone은 `Country.zoneId`의 IANA 이름(Asia/Seoul, America/New_York)이다. 거래소 코드와 국가를 혼용하지 않는다. 키 이름이 market이면 `Country` 값이 시장처럼 읽혀 country로 정했다.
 - currency는 `Markets.currency`를 그대로 전달한다. 1차 대상 시장은 KRW·USD이며 enum의 다른 값을 걸러내거나 대체하지 않는다.
 - price·changeRate·priceAt·priceTiming은 기존 quote에서 표시한다. quote 응답(`StockQuoteResponse`)에도 stockId가 있으므로 프론트는 요청 stockId와 응답 stockId로 결합하고 다른 종목의 늦은 응답을 폐기한다.
 - 입력 오류: 숫자가 아닌 stockId는 기존 타입 불일치 처리로 400/P001이다. 0·음수는 컨트롤러에서 `Precondition.require(stockId > 0, INVALID_INPUT_VALUE)`로 400/P001을 반환한다. 공통 예외 핸들러는 변경하지 않는다.
@@ -103,7 +103,7 @@ SUM-T01에서 기존 코드와 대조해 확정했다. 대조 결과는 아래 "
 | `profile.name`, `profile.ticker` | string, 필수 | 종목명, 선행 0을 보존한 코드·티커 |
 | `profile.industries` | array | 산업 코드와 한글 표시명(1차 계약과 같음). 복수 매핑을 보존하고 대표 산업 선정은 확인 필요 |
 | `profile.logoUrl` | string 또는 null | 기존 Stocks.imgUrl에 대응하는 제안 |
-| `market`, `currency`, `timezone` | 필수 | KR/KRW/Asia/Seoul 또는 US/USD/America/New_York. IANA 시간대 사용은 제안 |
+| `country`, `currency`, `timezone` | 필수 | KR/KRW/Asia/Seoul 또는 US/USD/America/New_York. IANA 시간대 사용은 제안 |
 | `asOf` | ISO-8601 시각 | 이 응답의 기준 시각. 가격 기준 시각은 quote.priceAt을 별도로 유지 |
 | `comparisonBase` | object | 직전 거래일 정규장 종가 비교임을 식별하고 기준 거래일 제공. 필드 구성 확인 필요 |
 | `dataStatus`, `source`, `delayMinutes` | 상태·출처·지연 정보 | 공통 기획 필드. enum과 출처 객체 형식은 공통 계약에서 확정, 미확인 지연 분은 null |
@@ -129,7 +129,7 @@ GET /api/v1/stocks/1
   "data": {
     "stockId": 1,
     "profile": { "name": "삼성전자", "ticker": "005930", "logoUrl": null },
-    "market": "KR",
+    "country": "KR",
     "currency": "KRW",
     "timezone": "Asia/Seoul"
   }

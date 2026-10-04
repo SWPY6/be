@@ -18,7 +18,7 @@ public record StockSummary(
         String name,
         String ticker,
         String logoUrl,
-        Country market,
+        Country country,
         Currency currency,
         List<IndustryCode> industries
 ) {
@@ -37,6 +37,6 @@ public record StockSummary(
 
     /** 시장의 현지 시간대. 고정 UTC 오프셋이 아니라 IANA 시간대다. */
     public ZoneId timezone() {
-        return market.zoneId();
+        return country.zoneId();
     }
 }

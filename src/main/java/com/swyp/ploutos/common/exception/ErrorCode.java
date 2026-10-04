@@ -59,6 +59,18 @@ public enum ErrorCode {
             HttpStatus.SERVICE_UNAVAILABLE,
             "P009", "NewsQuotaExceededException",
             "뉴스 조회가 일시적으로 제한되었습니다."
+    ),
+
+    DISCLOSURE_UNAVAILABLE(
+            HttpStatus.BAD_GATEWAY,
+            "P010", "DisclosureUnavailableException",
+            "공시를 불러올 수 없습니다."
+    ),
+
+    DISCLOSURE_QUOTA_EXCEEDED(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "P011", "DisclosureQuotaExceededException",
+            "공시 조회가 일시적으로 제한되었습니다."
     );
 
     private final HttpStatus status;
