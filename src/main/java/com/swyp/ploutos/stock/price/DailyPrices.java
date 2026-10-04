@@ -1,5 +1,6 @@
 package com.swyp.ploutos.stock.price;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
@@ -43,6 +44,18 @@ public final class DailyPrices {
             return Optional.empty();
         }
         return Optional.of(prices.getLast().tradeAt());
+    }
+
+    /**
+     * 마지막 확정 봉의 종가. 봉이 없으면 비어 있다.
+     *
+     * <p>시세가 이 종가에서 이어지는지 보고 진행 중인 봉을 붙일지 판단하는 데 쓴다.
+     */
+    public Optional<BigDecimal> lastClose() {
+        if (prices.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(prices.getLast().close());
     }
 
     /** 그 거래일의 봉을 이미 가지고 있는가. */

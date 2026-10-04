@@ -3,12 +3,14 @@ package com.swyp.ploutos.market.quote;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.Test;
 
 import com.swyp.ploutos.market.MarketIndicator;
+import com.swyp.ploutos.stock.price.DailyPrice;
 
 class IndicatorQuoteTest {
 
@@ -51,6 +53,31 @@ class IndicatorQuoteTest {
         // then
         assertThat(change).isEqualTo(new BigDecimal("-5.9000"));
         assertThat(quote.changeRate()).isEqualTo(new BigDecimal("-0.43"));
+    }
+
+    @Test
+    void 현재값을_당일자_일봉으로_바꾼다() {
+        // given 진행 중인 봉은 종가 자리에 현재값이 들어간다. 지표에는 거래량이 없다
+        IndicatorQuote quote = new IndicatorQuote(
+                MarketIndicator.KOSPI,
+                new BigDecimal("6902.33"),
+                new BigDecimal("6870.81"),
+                new BigDecimal("6875.20"),
+                new BigDecimal("6910.45"),
+                new BigDecimal("6861.02"),
+                VALUE_AT
+        );
+
+        // when
+        DailyPrice price = quote.asDailyPrice(LocalDate.of(2026, 9, 30));
+
+        // then
+        assertThat(price.tradeAt()).isEqualTo(LocalDate.of(2026, 9, 30));
+        assertThat(price.open()).isEqualByComparingTo("6875.20");
+        assertThat(price.high()).isEqualByComparingTo("6910.45");
+        assertThat(price.low()).isEqualByComparingTo("6861.02");
+        assertThat(price.close()).isEqualByComparingTo("6902.33");
+        assertThat(price.volume()).isZero();
     }
 
     private static IndicatorQuote quote(MarketIndicator indicator, BigDecimal value, BigDecimal previousClose) {
