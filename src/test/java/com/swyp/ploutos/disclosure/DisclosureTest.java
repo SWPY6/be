@@ -20,6 +20,9 @@ import com.swyp.ploutos.disclosure.DisclosureSource.WindowPrecision;
 class DisclosureTest {
 
     private static final String RECEIPT_NO = "20260930000123";
+    private static final String CIK = "0000320193";
+    // 제출 대행사 CIK(0001140361)가 앞자리에 붙은 accession number
+    private static final String ACCESSION = "0001140361-26-038028";
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final ZoneId NEW_YORK = ZoneId.of("America/New_York");
 
@@ -66,12 +69,94 @@ class DisclosureTest {
     }
 
     @Test
+    void SEC_접수_시각을_UTC로_읽고_원문_경로는_접수번호_앞자리가_아닌_법인_CIK로_만든다() {
+        // when
+        Disclosure disclosure = Disclosure.sec(
+                CIK, ACCESSION, "4", "FORM 4", "Apple Inc.", "2026-09-29", "2026-09-29T22:44:50.000Z",
+                "xslF345X06/form4.xml"
+        ).orElseThrow();
+
+        // then
+        assertThat(disclosure.acceptedAt()).isEqualTo(Instant.parse("2026-09-29T22:44:50Z"));
+        assertThat(disclosure.filedDate()).isEqualTo(LocalDate.of(2026, 9, 29));
+        assertThat(disclosure.url()).isEqualTo(
+                "https://www.sec.gov/Archives/edgar/data/320193/000114036126038028/xslF345X06/form4.xml"
+        );
+        assertThat(disclosure.linkKind()).isEqualTo(LinkKind.SEC_DOCUMENT);
+        assertThat(disclosure.formType()).isEqualTo("4");
+        assertThat(disclosure.formLabel()).isEqualTo("내부자 지분 변동");
+        assertThat(disclosure.filerName()).isNull();
+    }
+
+    @Test
+    void SEC_설명이_Form과_같거나_비었으면_법인명과_Form으로_제목을_만든다() {
+        // when
+        Disclosure formOnly = Disclosure.sec(CIK, ACCESSION, "4", "FORM 4", "Apple Inc.", "2026-09-29", null, "a.xml")
+                .orElseThrow();
+        Disclosure blank = Disclosure.sec(CIK, ACCESSION, "10-K", "", "Apple Inc.", "2026-09-29", null, "a.htm")
+                .orElseThrow();
+        Disclosure described = Disclosure.sec(CIK, ACCESSION, "8-K", "Current report", "Apple Inc.", "2026-09-29", null,
+                "a.htm").orElseThrow();
+
+        // then
+        assertThat(formOnly.title()).isEqualTo("Apple Inc. 4");
+        assertThat(blank.title()).isEqualTo("Apple Inc. 10-K");
+        assertThat(described.title()).isEqualTo("Current report");
+    }
+
+    @Test
+    void SEC_설명이_기본값_PRIMARY_DOCUMENT면_법인명과_Form으로_제목을_만든다() {
+        // when 2026-10-02 실제 버크셔 해서웨이 Form 4 응답에서 확인한 값
+        Disclosure upper = Disclosure.sec("0001067983", ACCESSION, "4", "PRIMARY DOCUMENT", "BERKSHIRE HATHAWAY INC",
+                "2026-09-29", null, "a.xml").orElseThrow();
+        Disclosure lower = Disclosure.sec("0001067983", ACCESSION, "4", " primary document ", "BERKSHIRE HATHAWAY INC",
+                "2026-09-29", null, "a.xml").orElseThrow();
+
+        // then
+        assertThat(upper.title()).isEqualTo("BERKSHIRE HATHAWAY INC 4");
+        assertThat(lower.title()).isEqualTo("BERKSHIRE HATHAWAY INC 4");
+    }
+
+    @Test
+    void SEC_본문_경로가_없으면_제출_문서_목록_링크를_준다() {
+        // when
+        Disclosure disclosure = Disclosure.sec(CIK, ACCESSION, "8-K", null, "Apple Inc.", "2026-09-29", null, " ")
+                .orElseThrow();
+
+        // then
+        assertThat(disclosure.url()).isEqualTo(
+                "https://www.sec.gov/Archives/edgar/data/320193/000114036126038028/0001140361-26-038028-index.htm"
+        );
+        assertThat(disclosure.linkKind()).isEqualTo(LinkKind.SEC_FILING_INDEX);
+    }
+
+    @Test
+    void SEC_접수_시각을_읽을_수_없으면_시각_없이_접수일만_둔다() {
+        // when
+        Disclosure disclosure = Disclosure.sec(CIK, ACCESSION, "10-K", "10-K", "Apple Inc.", "2026-09-29",
+                "not-a-time", "a.htm").orElseThrow();
+
+        // then
+        assertThat(disclosure.acceptedAt()).isNull();
+    }
+
+    @Test
+    void SEC_accession_형식이_틀리거나_Form이나_접수일이_없으면_뺀다() {
+        // when & then
+        assertThat(Disclosure.sec(CIK, "0001140361-26-38028", "4", null, "Apple", "2026-09-29", null, "a")).isEmpty();
+        assertThat(Disclosure.sec(CIK, ACCESSION, " ", null, "Apple", "2026-09-29", null, "a")).isEmpty();
+        assertThat(Disclosure.sec(CIK, ACCESSION, "4", null, "Apple", "20260929", null, "a")).isEmpty();
+    }
+
+    @Test
     void 시각이_있으면_기간_경계를_시각으로_판단한다() {
         // given 기간 2026-09-29 18:44:50 EDT 초과 ~ 이하
         OffsetDateTime boundary = OffsetDateTime.of(2026, 9, 29, 18, 44, 50, 0, ZoneOffset.ofHours(-4));
         DisclosureWindow window = new DisclosureWindow(boundary, boundary.plusDays(1));
-        Disclosure atBoundary = timed("2026-09-29T22:44:50Z");
-        Disclosure after = timed("2026-09-29T22:44:51Z");
+        Disclosure atBoundary = Disclosure.sec(CIK, ACCESSION, "4", null, "Apple", "2026-09-29",
+                "2026-09-29T22:44:50.000Z", "a").orElseThrow();
+        Disclosure after = Disclosure.sec(CIK, ACCESSION, "4", null, "Apple", "2026-09-29",
+                "2026-09-29T22:44:51.000Z", "a").orElseThrow();
 
         // when & then
         assertThat(atBoundary.filedIn(window, NEW_YORK)).isFalse();
@@ -96,7 +181,8 @@ class DisclosureTest {
     @Test
     void 조회_범위용_날짜는_시각이_있으면_시장_현지_날짜다() {
         // given 2026-10-01 02:00 UTC = 2026-09-30 22:00 EDT
-        Disclosure disclosure = timed("2026-10-01T02:00:00Z");
+        Disclosure disclosure = Disclosure.sec(CIK, ACCESSION, "4", null, "Apple", "2026-10-01",
+                "2026-10-01T02:00:00.000Z", "a").orElseThrow();
 
         // when & then
         assertThat(disclosure.localDateIn(NEW_YORK)).isEqualTo(LocalDate.of(2026, 9, 30));
@@ -105,7 +191,8 @@ class DisclosureTest {
     @Test
     void 접수_시각이_있으면_초_단위_접수_시각_기준이고_시장_현지_오프셋으로_준다() {
         // given
-        Disclosure disclosure = timed("2026-09-29T22:44:50Z");
+        Disclosure disclosure = Disclosure.sec(CIK, ACCESSION, "4", "FORM 4", "Apple Inc.", "2026-09-29",
+                "2026-09-29T22:44:50.000Z", "a.htm").orElseThrow();
 
         // when & then
         assertThat(disclosure.datePrecision()).isEqualTo(DatePrecision.SECOND);
@@ -126,20 +213,11 @@ class DisclosureTest {
     }
 
     @Test
-    void 국내_시장은_DART이고_공급자가_없는_시장은_비어_있다() {
+    void 공급자는_시장마다_하나이고_기간_정밀도를_안다() {
         // when & then
-        assertThat(DisclosureSource.of(Country.KR)).contains(DisclosureSource.DART);
-        assertThat(DisclosureSource.of(Country.US)).isEmpty();
+        assertThat(DisclosureSource.of(Country.KR)).isEqualTo(DisclosureSource.DART);
+        assertThat(DisclosureSource.of(Country.US)).isEqualTo(DisclosureSource.SEC);
         assertThat(DisclosureSource.DART.windowPrecision()).isEqualTo(WindowPrecision.DATE_EXPANDED);
-    }
-
-    /** 접수 시각이 있는 공시. 시각을 주는 공급자가 아직 없어 직접 만든다. */
-    private static Disclosure timed(String acceptedAt) {
-        Instant instant = Instant.parse(acceptedAt);
-        return new Disclosure(
-                DisclosureSource.DART, RECEIPT_NO, "보고서", null, null, null, null, null,
-                instant.atZone(NEW_YORK).toLocalDate(), instant,
-                "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=" + RECEIPT_NO, LinkKind.DART_VIEWER
-        );
+        assertThat(DisclosureSource.SEC.windowPrecision()).isEqualTo(WindowPrecision.EXACT);
     }
 }

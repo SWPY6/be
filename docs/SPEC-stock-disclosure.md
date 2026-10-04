@@ -85,21 +85,46 @@ StockReader로 종목 확인 → 기간 검증 → (US) 외부 호출 없이 UNS
 
 **패키지 배치**: 뉴스와 같이 공급자 어댑터는 기능 모듈 안(`disclosure/dart`, `disclosure/redis`)에 두고, `external/dart`에는 설정·`RestClient`만 둔다(`external`은 도메인에 의존하지 않는다). SEC도 후속으로 `disclosure/sec` + `external/sec`에 같은 방식으로 붙인다.
 
+## 미장 SEC
+
+결정: SEC를 같은 API·포트에 연결하고 **Form 한글 라벨 사전**을 함께 둔다. 제목·본문 번역과 요약은 하지 않는다. 이 절이 1차 절과 충돌하면 이 절이 우선한다.
+
+**실제 응답 확인 (Apple CIK 320193)**: `filings.recent`는 열 배열 구조이고 1001건(2015-08까지), 과거 파일 1개(`filings.files`). `acceptanceDateTime`(`2026-09-29T22:44:50.000Z`)은 EDGAR 색인 화면의 "Accepted 2026-09-29 18:44:50"(뉴욕)과 일치하므로 **실제 UTC**다. 원문 경로의 CIK(320193)와 접수번호 앞자리(0001140361, 제출 대행사)가 다르다. 티커 파일은 `{"fields":["cik","name","ticker","exchange"],"data":[...]}`, 거래소는 Nasdaq·NYSE·OTC·CBOE·null, 거래소+티커 충돌 0건, 클래스 주식은 `BRK-B` 표기.
+
+| 항목 | 결정 |
+| --- | --- |
+| 공급자 선택 | 종목 시장이 KR이면 DART, US면 SEC. 다른 시장 공급자로 대체하지 않는다. `UNSUPPORTED_MARKET`은 없앤다(두 시장 모두 지원). |
+| 법인 매핑 | `www.sec.gov/files/company_tickers_exchange.json`에서 Nasdaq→NASDAQ, NYSE→NYSE만 `거래소:티커`→CIK(10자리 문자열)로 Redis에 저장. 티커는 대문자, `.`은 `-`로 맞춘다. 같은 키에 CIK가 둘 이상이면 넣지 않는다. 갱신 방식(24시간·잠금·임시 키 교체·실패 시 유지)은 DART와 같다. DART 키도 `KRX:종목코드`로 통일한다. |
+| 목록 | `data.sec.gov/submissions/CIK{10자리}.json` 1회. `filings.recent`만 읽는다. 쓰는 배열(accessionNumber·filingDate·acceptanceDateTime·form·primaryDocument·primaryDocDescription)의 길이가 다르면 502. |
+| 결과 범위 | 기간에 든 건이 100건을 넘으면 최신 100건과 `PARTIAL`. recent의 가장 오래된 `filingDate`가 조회 시작일 이후이고 과거 파일이 있으면 `PARTIAL`(과거 파일은 읽지 않는다). |
+| 시각 | `acceptanceDateTime`을 UTC로 읽어 `publishedAt`(뉴욕 현지 오프셋), `datePrecision=SECOND`, `timeBasis=ACCEPTANCE_TIME`. 읽을 수 없으면 `publishedAt=null`, `DATE`, `RECEIPT_DATE`. `filedDate`=`filingDate`. `reportDate`는 쓰지 않는다. |
+| 기간 | 공급자 조회·캐시는 뉴욕 날짜 범위로 한다. 시각이 있는 건은 `from < publishedAt <= to`로 거르고, 시각이 없는 건은 접수일이 범위에 있으면 포함한다. `windowPrecision=EXACT`(DART는 `DATE_EXPANDED`). |
+| 정렬 | 접수일 내림차순 → 접수 시각 내림차순(없으면 뒤) → 원문 ID 내림차순. |
+| 표시 필드 | `providerDocumentId`=accessionNumber 원문, `formType`=form 원문(`/A` 포함), `formLabel`=한글 라벨(사전에 없으면 null), `title`=primaryDocDescription(비었거나 Form과 같거나 SEC 기본값 `PRIMARY DOCUMENT`면 `법인명 Form`), `issuerName`=응답 `name`, `filerName`·`remark`=null. DART는 `formType`·`formLabel`이 null. |
+| 원문 | primaryDocument가 있으면 `https://www.sec.gov/Archives/edgar/data/{선행0 제거 CIK}/{하이픈 제거 accession}/{primaryDocument}`(`SEC_DOCUMENT`), 없으면 `.../{accession}-index.htm`(`SEC_FILING_INDEX`). CIK는 조회한 법인 매핑에서 쓴다. |
+| 한글 라벨 | 서버 상수 사전. `/A`는 기본 Form 라벨 뒤에 `(정정)`. 사전에 없는 Form은 라벨 없이 원문 코드만 준다. 번역이 아니라 고정 매핑이다. |
+| 호출 제어 | 모든 SEC 요청(매핑 파일·재시도 포함)은 Redis 초당 카운터 `disclosure:sec:calls:{epochSecond}`로 **초당 5건**(SEC 상한 10건의 절반, 서버 합산)을 넘으면 부르지 않고 503. 일일 상한은 없다. |
+| 캐시 | 키에 공급자를 넣는다: `disclosure:v2:{dart|sec}:{법인ID}:{시작일}:{종료일}`, TTL 10분. |
+| 오류 | 403은 차단·User-Agent 문제로 로그를 남기고 502(재시도·우회 없음). 429는 503. 5xx·타임아웃은 1회 재시도 후 502. 그 밖은 DART와 같다. |
+| User-Agent | `SEC_USER_AGENT` 환경변수(예: `Ploutos 연락처이메일`). 비었거나 `@`가 없으면 기동 실패. 코드·문서에 실제 값을 쓰지 않는다. |
+
+**구현 결과**: 위 결정대로 구현했다. 어댑터는 `disclosure/sec`(티커 매핑·submissions·공통 요청), 설정은 `external/sec`. 매핑 저장은 공급자 공통 `RedisIssuerCodes`, 예산은 DART 일일(`dartCallBudget`)·SEC 초당(`secCallBudget`)으로 나눴다. 통합 테스트는 DART·SEC 스텁으로 국내·미국 경로를 모두 검증하고 SEC 요청의 User-Agent를 확인한다. **남은 확인**: 실제 SEC로 수동 조회(로컬 DB에 미국 종목 필요), 운영 `.env`에 `SEC_USER_AGENT` 추가(없으면 기동 실패).
+
 ## 리뷰 반영: 호출 한도 보호 (DISC-09 결정)
 
-결정: 날짜 조합을 바꿔 캐시를 피하는 요청이 DART 일일 한도를 소진하지 못하게 **공급자 조회 범위를 정규화**하고, 공시검색은 **전체 상한보다 낮은 상한**에서 멈춰 법인 매핑 갱신 몫을 남긴다. 이 절이 위 절과 충돌하면 이 절이 우선한다.
+결정: 날짜 조합을 바꿔 캐시를 피하는 요청이 DART 일일 한도를 소진하지 못하게 **공급자 조회 범위를 정규화**하고, 공시검색은 **전체 상한보다 낮은 상한**에서 멈춰 법인 매핑 갱신 몫을 남긴다. 이 절이 위 두 절과 충돌하면 이 절이 우선한다.
 
 | 항목 | 결정 |
 | --- | --- |
 | 공급자 조회 범위 | 기간의 끝 날짜(시장 현지)를 기준으로 `[끝 날짜-90일, 끝 날짜]`로 고정해 조회·캐시한다. 기간은 90일 이하라 이 범위 안에 든다. 시작 시각은 범위에 영향을 주지 않으므로, 끝 날짜가 같으면 오늘에서 끝나든 과거에서 끝나든 기간을 어떻게 고르든 캐시 하나를 쓴다 — 끝 날짜를 고정하고 시작만 바꿔 캐시를 피할 수 없다. 응답의 `filedDateRange`는 실제로 요청한 범위다(요청 기간보다 넓을 수 있다). |
-| 기간 필터 | 받은 결과는 매 요청 요청 기간으로 다시 거른다(DART는 날짜). |
+| 기간 필터 | 받은 결과는 매 요청 요청 기간으로 다시 거른다(DART는 날짜, SEC는 시각). |
 | 결과 범위 | 공급자 결과가 잘렸어도(`PARTIAL` 조건) 받은 공시 중 **기간 시작 날짜보다 이른** 것이 있으면 기간 안은 다 받은 것이므로 `COMPLETE`. 공급자는 최신순으로 자르므로 그보다 새로운 공시는 빠지지 않는다. 가장 오래된 공시가 시작 날짜와 같으면 그날이 더 남았을 수 있어 `PARTIAL`. DART는 여전히 요청당 1페이지다(DISC-08의 다중 페이지는 후속). |
 | 호출 예산 | 같은 카운터 `disclosure:dart:calls:{yyyyMMdd}`에 상한 둘: 공시검색 **15,000회**(`daily-search-call-limit`), 전체 **16,000회**(고유번호 파일). 상한에 걸린 호출은 카운터를 올리지 않는다 — 거절된 공시검색이 매핑 몫을 쓰지 않는다. 공시검색 상한 ≥ 전체 상한이면 기동 실패. |
-| 카운터 원자성 | 확인·증가·만료 설정을 Lua 스크립트 하나로 한다(`external/redis/RedisCounter`, 뉴스도 같이 쓴다). 만료 없이 남은 키도 다음 호출 때 만료를 건다. |
+| 카운터 원자성 | 확인·증가·만료 설정을 Lua 스크립트 하나로 한다(`external/redis/RedisCounter`, 뉴스·SEC도 같이 쓴다). 만료 없이 남은 키도 다음 호출 때 만료를 건다. |
 | 매핑 갱신 잠금 | 잠금 값은 요청별 무작위 토큰이다. 임시 키는 `…:staging:{토큰}`으로 갱신마다 따로 쓰고, 잠금은 Lua로 **내 토큰일 때만** 푼다. 받는 사이 잠금이 만료돼 다른 인스턴스가 잡아도 서로의 임시 키·잠금을 건드리지 않는다. |
 | 캐시 저장 실패 | 받은 결과를 버리지 않는다. 저장 실패(Redis·직렬화)는 로그만 남기고 결과를 반환한다. 조회 실패는 기존대로 503. |
 | 동시 미스 | 중복 호출을 허용한다(예산으로 상한). 현재 트래픽에서 요청 합치기·락은 두지 않는다. |
-| 공급자 선택 | 시장→공급자는 `Country` 전체를 다루는 switch로 정한다(KR=DART, US=없음 → `UNSUPPORTED_MARKET`). 나라가 늘면 컴파일이 깨져 공급자를 정하지 않은 시장이 조용히 다른 공급자로 가지 않는다. 공급자별 법인 매핑·공급자가 빠지면 기동에 실패한다. |
+| 공급자 선택 | 시장→공급자는 `Country` 전체를 다루는 switch로 정한다(KR=DART, US=SEC). 나라가 늘면 컴파일이 깨져 공급자를 정하지 않은 시장이 조용히 다른 공급자로 가지 않는다. 공급자별 법인 매핑·공급자가 빠지면 기동에 실패한다. |
 | 응답 상수 | `windowPrecision`·`datePrecision`·`timeBasis`는 enum으로 Swagger 스키마에 드러난다(JSON 값은 그대로). |
 | 캐시 키 | `disclosure:v2:{공급자}:{법인ID}:{시작일}:{종료일}`. 공급자를 키에 넣어 공급자가 늘어도 섞이지 않는다. |
 | 국가 필드 | 응답의 종목 국가 키는 `country`(KR/US)다. 이전 `market`은 `Country` 값을 시장처럼 읽히게 해 바꿨다(프론트 연동 전). |

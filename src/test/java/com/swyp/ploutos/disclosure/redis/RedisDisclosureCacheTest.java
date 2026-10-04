@@ -51,7 +51,8 @@ class RedisDisclosureCacheTest {
         redisTemplate = template(redis.getHost(), redis.getMappedPort(REDIS_PORT));
         redisTemplate.delete(List.of(
                 RedisDisclosureCache.key(DisclosureSource.DART, CORP_CODE, RANGE),
-                RedisDisclosureCache.key(DisclosureSource.DART, CORP_CODE, OTHER_RANGE)
+                RedisDisclosureCache.key(DisclosureSource.DART, CORP_CODE, OTHER_RANGE),
+                RedisDisclosureCache.key(DisclosureSource.SEC, CORP_CODE, RANGE)
         ));
         cache = cacheOn(redisTemplate);
     }
@@ -69,17 +70,35 @@ class RedisDisclosureCacheTest {
     }
 
     @Test
-    void 키는_공급자와_법인_ID와_접수일_범위로_만든다() {
+    void 키는_공급자와_법인_ID와_접수일_범위로_구분한다() {
         // given
         cache.put(DisclosureSource.DART, CORP_CODE, RANGE, search(true));
 
         // when
         Optional<CachedSearch> otherRange = cache.find(DisclosureSource.DART, CORP_CODE, OTHER_RANGE);
+        Optional<CachedSearch> otherSource = cache.find(DisclosureSource.SEC, CORP_CODE, RANGE);
 
         // then
         assertThat(otherRange).isEmpty();
+        assertThat(otherSource).isEmpty();
         assertThat(RedisDisclosureCache.key(DisclosureSource.DART, CORP_CODE, RANGE))
                 .isEqualTo("disclosure:v2:dart:00126380:20260902:20261002");
+    }
+
+    @Test
+    void SEC_공시의_접수_시각과_링크_종류도_그대로_읽는다() {
+        // given
+        Disclosure disclosure = Disclosure.sec(
+                "0000320193", "0001140361-26-038028", "4", "FORM 4", "Apple Inc.", "2026-09-29",
+                "2026-09-29T22:44:50.000Z", "xslF345X06/form4.xml"
+        ).orElseThrow();
+        CachedSearch search = new CachedSearch(new DisclosureSearchResult(List.of(disclosure), true), FETCHED_AT);
+
+        // when
+        cache.put(DisclosureSource.SEC, CORP_CODE, RANGE, search);
+
+        // then
+        assertThat(cache.find(DisclosureSource.SEC, CORP_CODE, RANGE)).contains(search);
     }
 
     @Test
@@ -141,7 +160,7 @@ class RedisDisclosureCacheTest {
 
     private static RedisDisclosureCache cacheOn(StringRedisTemplate template) {
         return new RedisDisclosureCache(
-                template, JsonMapper.builder().build(), new DisclosureRedisProperties(TTL_SECONDS, 16_000, 15_000, 24)
+                template, JsonMapper.builder().build(), new DisclosureRedisProperties(TTL_SECONDS, 16_000, 15_000, 5, 24)
         );
     }
 }

@@ -22,8 +22,7 @@ import com.swyp.ploutos.stock.service.StockReader;
 
 /**
  * 종목 공시를 조회한다. 종목과 기간을 먼저 검증해 잘못된 요청이면 공급자를 부르지 않는다.
- * 종목 시장으로 공급자 하나(KR=DART)를 고르며 다른 시장 공급자로 대체하지 않는다.
- * 공급자가 없는 시장(US)은 외부를 호출하지 않고 미지원으로 돌려준다.
+ * 종목 시장으로 공급자 하나(KR=DART, US=SEC)를 고르며 다른 시장 공급자로 대체하지 않는다.
  * 목록은 공급자·법인·접수일 범위별로 캐시하고, 공급자 실패는 캐시하지 않는다. 공급자 범위를
  * 기간 끝 날짜 기준 최근 90일로 고정하므로 끝 날짜가 같은 종목은 기간과 관계없이 캐시 하나를 쓴다.
  * 공급자마다 법인 매핑과 공급자가 하나씩 있어야 하며, 빠지면 기동에 실패한다.
@@ -57,16 +56,7 @@ public class StockDisclosureService {
         // 응답 시각에 나노초가 찍히지 않게 초 단위로 자른다. 기본 기간과 수집 시각이 모두 이 값을 쓴다.
         Instant now = clock.instant().truncatedTo(ChronoUnit.SECONDS);
         DisclosureWindow window = DisclosureWindow.of(from, to, stock.localTimeAt(now));
-        Optional<DisclosureSource> source = DisclosureSource.of(stock.country());
-        if (source.isEmpty()) {
-            return new StockDisclosures.Unsupported(stockId, stock.country(), window);
-        }
-        return read(stockId, stock, source.get(), window, now);
-    }
-
-    private StockDisclosures read(
-            Long stockId, StockWithMarket stock, DisclosureSource source, DisclosureWindow window, Instant now
-    ) {
+        DisclosureSource source = DisclosureSource.of(stock.country());
         Optional<String> issuerId = issuerCodes.get(source).issuerIdOf(stock.exchange(), stock.ticker());
         if (issuerId.isEmpty()) {
             return new StockDisclosures.Unmapped(stockId, stock.country(), source, window);

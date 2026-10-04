@@ -22,11 +22,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 record StockDisclosureResponse(
         @Schema(description = "종목 ID", example = "1") Long stockId,
         @Schema(description = "종목 시장의 국가(KR/US)", example = "KR") Country country,
-        @Schema(description = "공시 공급자. KR=DART. 공급자가 없는 시장(US)이면 null", example = "DART", nullable = true)
-        DisclosureSource source,
+        @Schema(description = "공시 공급자. KR=DART, US=SEC", example = "DART") DisclosureSource source,
         @Schema(description = "요청 기간. from 제외, to 포함") Window window,
         @Schema(description = "DATE_EXPANDED(DART): 접수 날짜만 있어 기간 양 끝 날짜 전체를 포함했다. "
-                + "공급자를 조회하지 않았으면 null",
+                + "EXACT(SEC): 접수 시각으로 기간을 걸렀다(시각이 없는 건만 날짜로 포함). 공급자를 조회하지 않았으면 null",
                 example = "DATE_EXPANDED", nullable = true)
         WindowPrecision windowPrecision,
         @Schema(description = "공급자에 요청한 접수일 범위(시장 현지 날짜, 양 끝 포함). 기간이 오늘에서 끝나면 오늘 기준 "
@@ -37,8 +36,7 @@ record StockDisclosureResponse(
         OffsetDateTime fetchedAt,
         @Schema(description = "COMPLETE: 요청 기간의 공시를 다 받음(0건이면 정말 없음), "
                 + "PARTIAL: 최신 100건만 받았거나 과거 이력을 다 보지 못해 요청 기간에 더 있을 수 있음, "
-                + "UNMAPPED: 종목을 공급자 법인에 연결하지 못함, UNSUPPORTED_MARKET: 공급자가 없는 시장(US). "
-                + "뒤의 둘은 items가 비어 있어도 공시 0건이 아니다", example = "COMPLETE")
+                + "UNMAPPED: 종목을 공급자 법인에 연결하지 못함(items가 비어 있어도 공시 0건이 아니다)", example = "COMPLETE")
         Coverage coverage,
         @Schema(description = "items 건수(기간 필터·중복 제거 후). 공급자 전체 건수가 아니다", example = "1") int total,
         @Schema(description = "접수일 → 접수 시각 → 원문 ID 내림차순. 시각이 없는 같은 날짜 안의 순서는 실제 접수 순서를 보장하지 않는다")
@@ -49,7 +47,6 @@ record StockDisclosureResponse(
         return switch (disclosures) {
             case StockDisclosures.Fetched fetched -> fetched(fetched);
             case StockDisclosures.Unmapped unmapped -> unmapped(unmapped);
-            case StockDisclosures.Unsupported unsupported -> unsupported(unsupported);
         };
     }
 
@@ -80,22 +77,6 @@ record StockDisclosureResponse(
                 null,
                 null,
                 Coverage.UNMAPPED,
-                0,
-                List.of()
-        );
-    }
-
-    /** 공급자가 없는 시장이라 공급자·조회 정보가 모두 null이고, 빈 목록이지만 공시 0건과 구분한다. */
-    private static StockDisclosureResponse unsupported(StockDisclosures.Unsupported disclosures) {
-        return new StockDisclosureResponse(
-                disclosures.stockId(),
-                disclosures.country(),
-                null,
-                Window.from(disclosures.window()),
-                null,
-                null,
-                null,
-                Coverage.UNSUPPORTED_MARKET,
                 0,
                 List.of()
         );
@@ -155,7 +136,8 @@ record StockDisclosureResponse(
             @Schema(description = "요약 제공 여부. 1차는 항상 UNAVAILABLE", example = "UNAVAILABLE") String summaryStatus,
             @Schema(description = "원문 링크", example = "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260930000123")
             String url,
-            @Schema(description = "DART_VIEWER: DART 공시 뷰어", example = "DART_VIEWER")
+            @Schema(description = "DART_VIEWER: DART 공시 뷰어, SEC_DOCUMENT: SEC 제출 문서 본문, "
+                    + "SEC_FILING_INDEX: 본문 경로가 없어 대신 준 SEC 제출 문서 목록", example = "DART_VIEWER")
             LinkKind linkKind
     ) {
 

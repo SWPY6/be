@@ -33,10 +33,11 @@ class StockDisclosureController {
 
     @Operation(
             summary = "종목 공시 조회",
-            description = "종목 법인의 공시를 최신순으로 최대 100건 준다. 국내 종목은 DART다. "
-                    + "미국 종목은 아직 공급자가 없어 외부를 호출하지 않고 coverage=UNSUPPORTED_MARKET을 준다. "
+            description = "종목 법인의 공시를 최신순으로 최대 100건 준다. 국내 종목은 DART, 미국 종목은 SEC EDGAR다. "
                     + "DART는 접수 날짜만 주므로 기간 양 끝 날짜 전체를 조회하고(windowPrecision=DATE_EXPANDED) "
                     + "publishedAt은 null이다. 화면에는 '접수일 기준'으로 표기한다. "
+                    + "SEC는 접수 시각(publishedAt)으로 기간을 거른다(windowPrecision=EXACT). "
+                    + "SEC 제목은 영문 원문이며, formLabel에 Form 한글 라벨(고정 사전)을 준다. "
                     + "요약은 제공하지 않는다(summaryStatus=UNAVAILABLE). 목록은 최대 10분 캐시한다. "
                     + "법인을 찾지 못한 종목은 coverage=UNMAPPED이며 공시 0건(coverage=COMPLETE, total=0)과 구분한다. "
                     + "가격 변동의 원인으로 단정하지 않는다는 안내를 함께 표시한다."
@@ -58,14 +59,14 @@ class StockDisclosureController {
                                     {"error": {"name": "StockNotFoundException", "code": "P002", "message": "주식을 찾을 수 없습니다."}}
                                     """))),
             @ApiResponse(responseCode = "502",
-                    description = "P010 공시 공급자 오류(DART 실패, 인증 오류, 쓸 수 없는 응답, 법인 매핑 파일 수신 실패)",
+                    description = "P010 공시 공급자 오류(DART·SEC 실패, 인증 오류·SEC 접근 거부, 쓸 수 없는 응답, 법인 매핑 파일 수신 실패)",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class),
                             examples = @ExampleObject(value = """
                                     {"error": {"name": "DisclosureUnavailableException", "code": "P010", "message": "공시를 불러올 수 없습니다."}}
                                     """))),
             @ApiResponse(responseCode = "503",
-                    description = "P011 공시 조회 제한(DART 일일 호출 한도, 공급자 호출 제한·점검, 캐시 저장소 접근 불가, "
+                    description = "P011 공시 조회 제한(DART 일일·SEC 초당 호출 한도, 공급자 호출 제한·점검, 캐시 저장소 접근 불가, "
                             + "법인 매핑 최초 수신 중). 즉시 재시도하지 않는다",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class),

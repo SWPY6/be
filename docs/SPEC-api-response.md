@@ -89,7 +89,7 @@
 | 415 | `P005` | `UnsupportedMediaTypeException` | 지원하지 않는 미디어 타입입니다. | 지원하지 않는 `Content-Type` 요청 |
 | 500 | `P006` | `InternalServerErrorException` | 서버 내부 오류가 발생했습니다. | 핸들러에 전달된 그 밖의 모든 `Exception` |
 | 502 | `P007` | `MarketDataUnavailableException` | 시세 정보를 불러올 수 없습니다. | `BusinessException(MARKET_DATA_UNAVAILABLE)` — 외부 시세 제공자(KIS) 호출 실패. `SPEC-kis-client.md` 참고 |
-| 502 | `P010` | `DisclosureUnavailableException` | 공시를 불러올 수 없습니다. | `BusinessException(DISCLOSURE_UNAVAILABLE)` — 공시 공급자(DART) 실패·무효 응답. `SPEC-stock-disclosure.md` 참고 |
+| 502 | `P010` | `DisclosureUnavailableException` | 공시를 불러올 수 없습니다. | `BusinessException(DISCLOSURE_UNAVAILABLE)` — 공시 공급자(DART·SEC) 실패·무효 응답. `SPEC-stock-disclosure.md` 참고 |
 | 503 | `P011` | `DisclosureQuotaExceededException` | 공시 조회가 일시적으로 제한되었습니다. | `BusinessException(DISCLOSURE_QUOTA_EXCEEDED)` — 공시 호출 한도·공급자 점검·Redis 장애 |
 
 ### 예외 → 응답 매핑
