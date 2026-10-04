@@ -131,20 +131,6 @@ class StockDisclosureFeedTest {
         assertThat(feed.coverage()).isEqualTo(Coverage.COMPLETE);
     }
 
-    @Test
-    void 최신_N건은_화면_정렬_기준으로_고른다() {
-        // given
-        Disclosure oldest = dart("20260901000001", "20260901");
-        Disclosure newest = dart("20260930000001", "20260930");
-        Disclosure middle = dart("20260915000001", "20260915");
-
-        // when
-        List<Disclosure> latest = StockDisclosureFeed.latest(List.of(oldest, newest, middle), 2);
-
-        // then
-        assertThat(latest).containsExactly(newest, middle);
-    }
-
     private static Disclosure dart(String receiptNo, String filedDate) {
         return Disclosure.dart(receiptNo, "분기보고서", "삼성전자", "삼성전자", null, filedDate).orElseThrow();
     }

@@ -62,9 +62,4 @@ public record StockDisclosureFeed(
     public int total() {
         return items.size();
     }
-
-    /** 공급자에서 받은 순서와 관계없이 화면 정렬 기준으로 최신 {@code limit}건을 고른다. */
-    public static List<Disclosure> latest(List<Disclosure> disclosures, int limit) {
-        return disclosures.stream().sorted(LATEST_FIRST).limit(limit).toList();
-    }
 }
