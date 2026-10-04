@@ -72,7 +72,7 @@ SUM-T01에서 기존 코드와 대조해 확정했다. 대조 결과는 아래 "
 - 요청: `GET /api/v1/stocks/{stockId}`. 양의 정수 stockId, 쿼리 없음. market은 종목의 Markets에서 결정한다. 기본정보 자체에는 가격 기준 asOf나 과거 조회를 넣지 않는다.
 - 성공: `data.stockId`, `data.profile.name`, `data.profile.ticker`, `data.profile.industries`, `data.profile.logoUrl`, `data.market`, `data.currency`, `data.timezone`.
 - 산업: `{code, name}` 배열. `code`는 `IndustryCode` 이름(예: `AUTOMOBILE`), `name`은 서버가 주는 한글 표시명(예: `자동차`)이다. [산업 마스터 명세](SPEC-industry.md)에 따라 `industryId`는 노출하지 않고, 한글 표시명 가나다순으로 정렬한다. 기존 매핑을 중복 제거하며 임의 대표 산업을 고르지 않는다. 미매핑은 빈 배열이다. 조회는 산업 모듈의 `IndustryReader.readByStockId`를 쓴다.
-  - **단계 도입:** `readByStockId`는 산업 담당자와 협의 중(SUM-T02 보류)이다. 그때까지 응답에 `profile.industries` 필드를 **넣지 않는다**. 빈 배열은 "연결된 산업 없음"을 뜻하므로 미구현을 빈 배열로 대신하지 않는다. SUM-T02 이후 필드를 추가하며 기존 필드는 바꾸지 않는다. 프론트에 이 순서를 인계한다.
+  - **단계 도입:** 1차(SUM-T03~T05)는 `profile.industries` 없이 나갔고, SUM-T02(`readByStockId`, PLO-40) 이후 SUM-T06에서 필드를 추가했다. 기존 필드는 바꾸지 않았다. 빈 배열은 "연결된 산업 없음"을 뜻한다.
 - logoUrl은 기존 `Stocks.imgUrl`을 사용하고 없으면 null이다. 새 로고 공급자는 도입하지 않는다.
 - market은 `Markets.country`(KR/US), timezone은 `Country.zoneId`의 IANA 이름(Asia/Seoul, America/New_York)이다. 거래소 코드와 국가 단위 market을 혼용하지 않는다.
 - currency는 `Markets.currency`를 그대로 전달한다. 1차 대상 시장은 KRW·USD이며 enum의 다른 값을 걸러내거나 대체하지 않는다.
@@ -142,7 +142,7 @@ GET /api/v1/stocks/1
 | 가격 기준 시각 | quote의 `priceAt`을 그대로 표시한다. 기본정보 조회 시각으로 바꾸지 않는다 |
 | 부분 실패 | 시세만 실패(502/P007)하면 기본정보는 유지하고 가격 영역만 오류·재시도를 표시한다 |
 | 로고 | `logoUrl`이 null이거나 이미지 로딩에 실패하면 대체 이미지를 쓰고 종목명은 유지한다 |
-| 산업 | 아직 응답에 `profile.industries`가 **없다**. 추가되면 `[{code, name}]`(가나다순, 빈 배열은 "연결된 산업 없음")이다. 필드가 없을 때 "산업 없음"으로 표시하지 않는다 |
+| 산업 | `profile.industries`는 `[{code, name}]`(한글 표시명 가나다순)이다. 빈 배열은 "연결된 산업 없음"이다 (SUM-T06에서 추가) |
 | 변동 배경 | 1차에서는 영역을 노출하지 않는다. "관련 자료 없음"으로 표시하지 않는다 |
 | 오류 | 숫자 아님·0·음수 400/P001, 없는 종목 404/P002, 그 밖 500/P006 |
 | 미충족 메타데이터 | source·dataStatus·delayMinutes·comparisonBase는 1차 미제공(유예) |
