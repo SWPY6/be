@@ -2,9 +2,12 @@ package com.swyp.ploutos.stock.summary.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -12,11 +15,14 @@ import org.junit.jupiter.api.Test;
 import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.common.enums.Currency;
 import com.swyp.ploutos.common.enums.Exchange;
+import com.swyp.ploutos.common.enums.IndustryCode;
 import com.swyp.ploutos.common.enums.MarketCode;
 import com.swyp.ploutos.common.enums.StockStatus;
 import com.swyp.ploutos.common.enums.TradingSession;
 import com.swyp.ploutos.common.exception.BusinessException;
 import com.swyp.ploutos.common.exception.ErrorCode;
+import com.swyp.ploutos.industry.Industries;
+import com.swyp.ploutos.industry.service.IndustryReader;
 import com.swyp.ploutos.market.Markets;
 import com.swyp.ploutos.stock.StockWithMarket;
 import com.swyp.ploutos.stock.Stocks;
@@ -37,13 +43,15 @@ class StockSummaryServiceTest {
             US_ID, new StockWithMarket(stock("AAPL", "애플", "https://logo/AAPL.png", Exchange.NASDAQ), NASDAQ),
             NO_LOGO_ID, new StockWithMarket(stock("000660", "SK하이닉스", null, Exchange.KRX), KOSPI));
 
+    private final IndustryReader industryReader = mock(IndustryReader.class);
+
     private final StockSummaryService service = new StockSummaryService(id -> {
         StockWithMarket stock = stocks.get(id);
         if (stock == null) {
             throw new BusinessException(ErrorCode.STOCK_NOT_FOUND);
         }
         return stock;
-    });
+    }, industryReader);
 
     @Test
     void 국내_종목은_KR_KRW_서울_시간대로_돌려준다() {
@@ -88,6 +96,32 @@ class StockSummaryServiceTest {
         // then
         assertThat(summary.logoUrl()).isNull();
         assertThat(summary.name()).isEqualTo("SK하이닉스");
+    }
+
+    @Test
+    void 산업이_여러_개면_산업_모듈이_정렬한_순서대로_코드를_담는다() {
+        // given
+        given(industryReader.readByStockId(DOMESTIC_ID)).willReturn(List.of(
+                new Industries(1L, IndustryCode.AUTOMOBILE),
+                new Industries(2L, IndustryCode.CHEMICAL)));
+
+        // when
+        StockSummary summary = service.read(DOMESTIC_ID);
+
+        // then
+        assertThat(summary.industries()).containsExactly(IndustryCode.AUTOMOBILE, IndustryCode.CHEMICAL);
+    }
+
+    @Test
+    void 연결된_산업이_없으면_industries는_빈_목록이다() {
+        // given
+        given(industryReader.readByStockId(DOMESTIC_ID)).willReturn(List.of());
+
+        // when
+        StockSummary summary = service.read(DOMESTIC_ID);
+
+        // then
+        assertThat(summary.industries()).isEmpty();
     }
 
     @Test
