@@ -1,10 +1,7 @@
 package com.swyp.ploutos.disclosure.sec;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,8 +9,8 @@ import org.springframework.stereotype.Component;
 
 import com.swyp.ploutos.common.enums.Exchange;
 import com.swyp.ploutos.disclosure.DisclosureSource;
+import com.swyp.ploutos.disclosure.service.IssuerCodeCollector;
 import com.swyp.ploutos.disclosure.service.IssuerCodeProvider;
-import com.swyp.ploutos.disclosure.service.IssuerCodes;
 import com.swyp.ploutos.external.sec.SecApiProperties;
 
 import lombok.RequiredArgsConstructor;
@@ -54,23 +51,21 @@ class SecCikProvider implements IssuerCodeProvider {
         if (cikAt < 0 || tickerAt < 0 || exchangeAt < 0) {
             throw SecFetcher.unavailable(API, "필요한 열이 없음 fields=" + file.fields(), null);
         }
-        Map<String, String> codes = new HashMap<>();
-        Set<String> conflicted = new HashSet<>();
+        IssuerCodeCollector collector = new IssuerCodeCollector();
         for (List<Object> row : file.data()) {
-            put(codes, conflicted, row, cikAt, tickerAt, exchangeAt);
+            put(collector, row, cikAt, tickerAt, exchangeAt);
         }
-        if (!conflicted.isEmpty()) {
-            log.warn("SEC 티커 파일에서 CIK가 둘 이상인 거래소·티커 {}개를 매핑에서 뺐다.", conflicted.size());
+        if (collector.conflictedCount() > 0) {
+            log.warn("SEC 티커 파일에서 CIK가 둘 이상인 거래소·티커 {}개를 매핑에서 뺐다.", collector.conflictedCount());
         }
+        Map<String, String> codes = collector.codes();
         if (codes.isEmpty()) {
             throw SecFetcher.unavailable(API, "쓸 수 있는 행이 없음", null);
         }
         return codes;
     }
 
-    private static void put(
-            Map<String, String> codes, Set<String> conflicted, List<Object> row, int cikAt, int tickerAt, int exchangeAt
-    ) {
+    private static void put(IssuerCodeCollector collector, List<Object> row, int cikAt, int tickerAt, int exchangeAt) {
         if (row == null || row.size() <= Math.max(cikAt, Math.max(tickerAt, exchangeAt))) {
             return;
         }
@@ -79,15 +74,7 @@ class SecCikProvider implements IssuerCodeProvider {
         if (exchange == null || cik == null || !(row.get(tickerAt) instanceof String ticker) || ticker.isBlank()) {
             return;
         }
-        String key = IssuerCodes.key(exchange, ticker);
-        if (conflicted.contains(key)) {
-            return;
-        }
-        String existing = codes.putIfAbsent(key, cik);
-        if (existing != null && !existing.equals(cik)) {
-            codes.remove(key);
-            conflicted.add(key);
-        }
+        collector.put(exchange, ticker, cik);
     }
 
     private static Exchange exchangeOf(Object value) {
