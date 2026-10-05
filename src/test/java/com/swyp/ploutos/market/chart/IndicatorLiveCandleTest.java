@@ -129,6 +129,20 @@ class IndicatorLiveCandleTest {
     }
 
     @Test
+    void 구간의_시작이_오늘보다_뒤면_붙이지_않는다() {
+        // given 미래 구간을 조회한다. 구간은 미래도 허용되므로 to만 보면 오늘 봉이 끼어든다
+        IndicatorQuote quote = kospiQuote("6902.33", "6870.81", "6875.20", "6910.45", "6861.02",
+                "2026-09-30T10:15:03+09:00");
+        ChartRange future = new ChartRange(TODAY.plusDays(1), TODAY.plusDays(7));
+
+        // when
+        Optional<LiveCandle> live = IndicatorLiveCandle.of(quote, KOSPI_CLOSED, future, TODAY);
+
+        // then
+        assertThat(live).isEmpty();
+    }
+
+    @Test
     void 자릿수가_달라도_같은_값이면_이어진_것으로_본다() {
         // given 환율은 소수 넷째 자리까지 저장한다. KIS가 주는 전일 종가는 자릿수가 다를 수 있다
         DailyPrices closed = DailyPrices.of(List.of(
