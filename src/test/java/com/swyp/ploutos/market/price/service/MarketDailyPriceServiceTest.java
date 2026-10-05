@@ -172,6 +172,21 @@ class MarketDailyPriceServiceTest {
     }
 
     @Test
+    void 동기화가_실패하면_같은_날_다시_시도한다() {
+        // given 첫 요청에서 외부 호출이 실패하고, 이후 외부가 회복된다
+        provider.willThrow(new BusinessException(ErrorCode.MARKET_DATA_UNAVAILABLE));
+        assertThatThrownBy(() -> reader.findBetween(INDICATOR, FROM, YESTERDAY)).isInstanceOf(BusinessException.class);
+        provider.willReturn(List.of(price(YESTERDAY)));
+
+        // when
+        DailyPrices prices = reader.findBetween(INDICATOR, FROM, YESTERDAY);
+
+        // then 실패한 시도가 남아 있으면 외부를 부르지 않고 빈 결과를 200으로 돌려준다
+        assertThat(provider.calls).hasSize(2);
+        assertThat(prices.values()).hasSize(1);
+    }
+
+    @Test
     void 같은_날_같은_구간을_다시_요청하면_외부를_부르지_않는다() {
         // given 외부가 빈 목록을 줘서 DB가 계속 비어 있다. 덮음 판정은 두 번째에도 거짓이다
         provider.willReturn(List.of());
@@ -217,6 +232,7 @@ class MarketDailyPriceServiceTest {
 
         void willReturn(List<DailyPrice> prices) {
             this.result = prices;
+            this.failure = null;
         }
 
         void willThrow(RuntimeException exception) {

@@ -153,6 +153,7 @@ public interface IndicatorDailyPriceReader {
 - 같은 지표는 하루 1회만 시도한다. 메모리에 `indicator → (마지막 시도일, 그날 시도한 가장 이른 from)`을 기록한다.
 - 단 그날 시도한 것보다 이른 `from`을 요구하면 한 번 더 허용한다.
 - 공휴일에는 (b)가 거짓이 되어 하루 한 번 헛호출하지만 새 행이 없어 무해하다.
+- **실패한 시도는 기록에서 지운다.** 지우지 않으면 같은 날 다음 요청이 외부를 부르지 않고 저장된 행만 `200`으로 돌려준다. 자기가 남긴 기록일 때만 지운다.
 - **시도 기록은 원자적으로 한다** (`ConcurrentHashMap.compute`).
   - 지표는 5개뿐이라 첫 요청들이 동시에 몰리기 쉽다.
   - 두 요청이 동시에 동기화하면 같은 행을 저장하다가 유니크 제약에 걸린다.
@@ -298,6 +299,7 @@ public boolean tryStartSync(MarketIndicator indicator, LocalDate from, LocalDate
 | 14 | `(indicator, tradeAt)`는 유니크다. | `MarketDailyPriceRepositoryTest.같은_지표_같은_거래일은_중복_저장할_수_없다` |
 | 15 | `indicator` 컬럼은 `varchar`다. | `지표_컬럼은_varchar다` |
 | 16 | 엔티티를 일봉으로 바꾸면 거래량은 0이다. | `MarketDailyPricesTest.일봉으로_바꾸면_거래량은_0이다` |
+| 17 | 동기화가 실패하면 같은 날 같은 구간을 다시 시도할 수 있다. | `MarketDailyPriceServiceTest.동기화가_실패하면_같은_날_다시_시도한다`, `IndicatorDailyPriceSyncPolicyTest.시도를_취소하면_같은_날_다시_시도할_수_있다` |
 
 ## 미해결 질문
 
