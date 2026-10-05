@@ -167,6 +167,94 @@ class StockChartServiceTest {
     }
 
     @Test
+    void 과거_구간을_조회하면_오늘_봉이_끼어들지_않는다() {
+        // given 요청 구간이 오늘보다 앞에서 끝난다
+        LocalDate to = TODAY.minusDays(3);
+        dailyPriceReader.prices = DailyPrices.of(List.of(price(to.minusDays(4)), price(to)));
+
+        // when
+        StockChartDetail detail = service.read(STOCK_ID, to.minusDays(4), to, null);
+
+        // then 요청한 to 뒤의 봉은 없고 모두 확정 봉이다
+        assertThat(detail.chart().to()).contains(to);
+        assertThat(detail.chart().candles()).allMatch(ChartCandle::closed);
+        assertThat(detail.chart().asOf()).isEmpty();
+    }
+
+    @Test
+    void 시세가_마지막_확정_봉에서_이어지지_않으면_당일_봉을_붙이지_않는다() {
+        // given 개장 전 시세는 이미 확정된 거래일의 값이다. 전일 종가가 마지막 확정 봉 종가와 어긋난다
+        dailyPriceReader.prices = DailyPrices.of(List.of(price(TODAY.minusDays(1))));
+        quoteReader.quote = quoteOf(BigDecimal.valueOf(48_000));
+
+        // when
+        StockChartDetail detail = service.read(STOCK_ID, null, null, null);
+
+        // then 확정 봉만 남고 기준 시각도 비어 있다
+        assertThat(detail.chart().candles()).hasSize(1);
+        assertThat(detail.chart().candles().getLast().closed()).isTrue();
+        assertThat(detail.chart().asOf()).isEmpty();
+    }
+
+    @Test
+    void 장중이면_당일_봉을_붙인다() {
+        // given 시세의 전일 종가가 마지막 확정 봉 종가와 같다. 그 앞 봉은 종가가 다르다
+        dailyPriceReader.prices = DailyPrices.of(List.of(
+                price(TODAY.minusDays(2), "48000"),
+                price(TODAY.minusDays(1), "49000")
+        ));
+
+        // when
+        StockChartDetail detail = service.read(STOCK_ID, null, null, null);
+
+        // then 오늘 날짜의 진행 중인 봉이 끝에 붙는다
+        ChartCandle last = detail.chart().candles().getLast();
+        assertThat(last.tradeAt()).isEqualTo(TODAY);
+        assertThat(last.closed()).isFalse();
+        assertThat(detail.chart().asOf()).isNotEmpty();
+    }
+
+    @Test
+    void 미래_구간을_조회하면_오늘_봉을_붙이지_않는다() {
+        // given 구간이 오늘보다 뒤에서 시작한다
+        LocalDate from = TODAY.plusDays(1);
+        dailyPriceReader.prices = DailyPrices.of(List.of(price(TODAY.minusDays(1))));
+
+        // when
+        StockChartDetail detail = service.read(STOCK_ID, from, from.plusDays(7), null);
+
+        // then 확정 봉만 남고 기준 시각도 비어 있다
+        assertThat(detail.chart().candles()).allMatch(ChartCandle::closed);
+        assertThat(detail.chart().asOf()).isEmpty();
+    }
+
+    @Test
+    void 확정_봉이_없으면_당일_봉을_붙이지_않는다() {
+        // given 비교할 종가가 없으면 시세가 어느 거래일의 것인지 가릴 수 없다
+        dailyPriceReader.prices = DailyPrices.of(List.of());
+
+        // when
+        StockChartDetail detail = service.read(STOCK_ID, null, null, null);
+
+        // then
+        assertThat(detail.chart().candles()).isEmpty();
+        assertThat(detail.chart().asOf()).isEmpty();
+    }
+
+    @Test
+    void 자릿수가_달라도_같은_종가면_당일_봉을_붙인다() {
+        // given 저장 정밀도는 소수 넷째 자리고 KIS 전일 종가는 정수로 온다
+        dailyPriceReader.prices = DailyPrices.of(List.of(price(TODAY.minusDays(1), "49000.0000")));
+        quoteReader.quote = quoteOf(new BigDecimal("49000"));
+
+        // when
+        StockChartDetail detail = service.read(STOCK_ID, null, null, null);
+
+        // then
+        assertThat(detail.chart().candles().getLast().closed()).isFalse();
+    }
+
+    @Test
     void 없는_종목이면_시세를_조회하지_않는다() {
         // given & when & then
         assertThatThrownBy(() -> service.read(MISSING_STOCK_ID, null, null, null))
@@ -233,6 +321,34 @@ class StockChartServiceTest {
                 BigDecimal.valueOf(50500),
                 BigDecimal.valueOf(47800),
                 volume,
+                BigDecimal.valueOf(60_000_000),
+                BigDecimal.valueOf(300_000_000_000L),
+                Currency.KRW,
+                OffsetDateTime.parse("2026-08-12T14:31:05+09:00"),
+                PriceTiming.REALTIME
+        );
+    }
+
+    private static DailyPrice price(LocalDate tradeAt, String close) {
+        return new DailyPrice(
+                tradeAt,
+                BigDecimal.valueOf(48000),
+                BigDecimal.valueOf(49500),
+                BigDecimal.valueOf(47500),
+                new BigDecimal(close),
+                100_000L
+        );
+    }
+
+    /** 전일 종가만 다른 시세. 그 값이 마지막 확정 봉 종가와 어긋나면 이미 확정된 거래일의 시세다. */
+    private static Quote quoteOf(BigDecimal previousClose) {
+        return new Quote(
+                BigDecimal.valueOf(50_000),
+                previousClose,
+                BigDecimal.valueOf(48000),
+                BigDecimal.valueOf(50500),
+                BigDecimal.valueOf(47800),
+                1_200L,
                 BigDecimal.valueOf(60_000_000),
                 BigDecimal.valueOf(300_000_000_000L),
                 Currency.KRW,

@@ -133,6 +133,59 @@ class DailyPricesTest {
         assertThat(empty.lastTradeAt()).isEmpty();
     }
 
+    @Test
+    void 마지막_확정_봉_종가와_같으면_참이다() {
+        // given 마지막 봉과 그 앞 봉의 종가가 다르다
+        DailyPrices prices = DailyPrices.of(List.of(closedAt(BASE, "48000"), closedAt(BASE.plusDays(1), "49000")));
+
+        // when
+        boolean continues = prices.lastCloseIs(new BigDecimal("49000"));
+
+        // then
+        assertThat(continues).isTrue();
+    }
+
+    @Test
+    void 마지막_확정_봉_종가와_다르면_거짓이다() {
+        // given 시세의 전일 종가가 그 앞 봉의 종가다 — 이미 확정된 거래일의 시세다
+        DailyPrices prices = DailyPrices.of(List.of(closedAt(BASE, "48000"), closedAt(BASE.plusDays(1), "49000")));
+
+        // when
+        boolean continues = prices.lastCloseIs(new BigDecimal("48000"));
+
+        // then
+        assertThat(continues).isFalse();
+    }
+
+    @Test
+    void 자릿수가_달라도_같은_값이면_참이다() {
+        // given 저장 정밀도는 소수 넷째 자리고 KIS 전일 종가는 정수로 온다
+        DailyPrices prices = DailyPrices.of(List.of(closedAt(BASE, "49000.0000")));
+
+        // when
+        boolean continues = prices.lastCloseIs(new BigDecimal("49000"));
+
+        // then
+        assertThat(continues).isTrue();
+    }
+
+    @Test
+    void 비어_있으면_거짓이다() {
+        // given 비교할 종가가 없다
+        DailyPrices empty = DailyPrices.of(List.of());
+
+        // when
+        boolean continues = empty.lastCloseIs(new BigDecimal("49000"));
+
+        // then
+        assertThat(continues).isFalse();
+    }
+
+    private static DailyPrice closedAt(LocalDate tradeAt, String close) {
+        BigDecimal closing = new BigDecimal(close);
+        return new DailyPrice(tradeAt, closing, closing, closing, closing, 100L);
+    }
+
     private static DailyPrice price(LocalDate tradeAt, long volume) {
         return new DailyPrice(tradeAt, BigDecimal.ONE, BigDecimal.TWO, BigDecimal.ONE, BigDecimal.TWO, volume);
     }

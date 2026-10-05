@@ -63,6 +63,21 @@ public final class DailyPrices {
         return prices.stream().anyMatch(price -> price.tradedOn(tradeAt));
     }
 
+    /**
+     * 마지막 확정 봉의 종가가 이 값과 같은가. 봉이 없으면 비교할 수 없으므로 거짓이다.
+     *
+     * <p>시세의 전일 종가를 넘겨 그 시세가 확정 봉에서 이어지는지 본다. 이어지지 않으면
+     * 이미 확정된 거래일의 시세다. 비교를 {@code compareTo}로 하는 이유는 저장 정밀도가
+     * 소수 넷째 자리라서다 — {@code equals}는 {@code 240217.0000}과 {@code 240217}을 다르게 본다.
+     * 그 사정이 이 컬렉션 안쪽 지식이므로 종가를 꺼내 주지 않고 여기서 비교한다.
+     */
+    public boolean lastCloseIs(BigDecimal close) {
+        if (prices.isEmpty()) {
+            return false;
+        }
+        return prices.getLast().close().compareTo(close) == 0;
+    }
+
     /** 해당 거래일의 봉을 뺀다. 당일 진행 중 봉을 저장·집계에서 제외할 때 쓴다. */
     public DailyPrices without(LocalDate tradeAt) {
         return new DailyPrices(prices.stream()
