@@ -10,6 +10,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.time.Duration;
 import java.util.Map;
 
 import org.hamcrest.Matchers;
@@ -35,6 +36,9 @@ class KisApiClientTest {
             """;
     private static final String TOKEN_EXPIRED_BODY = """
             {"rt_cd": "1", "msg_cd": "EGW00123", "msg1": "기간이 만료된 token 입니다."}
+            """;
+    private static final String RATE_LIMITED_BODY = """
+            {"rt_cd": "1", "msg_cd": "EGW00201", "msg1": "초당 거래건수를 초과하였습니다."}
             """;
 
     private MockRestServiceServer server;
@@ -138,6 +142,42 @@ class KisApiClientTest {
                 .extracting(e -> ((BusinessException) e).errorCode())
                 .isEqualTo(ErrorCode.MARKET_DATA_UNAVAILABLE);
         assertThat(tokenProvider.invalidatedCount).isEqualTo(1);
+        server.verify();
+    }
+
+    @Test
+    void 초당_한도_초과를_받으면_잠시_쉬고_한_번_재시도한다() {
+        // given
+        server.expect(once(), requestTo(Matchers.startsWith(BASE_URL + PATH)))
+                .andRespond(withServerError().body(RATE_LIMITED_BODY).contentType(MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(Matchers.startsWith(BASE_URL + PATH)))
+                .andRespond(withSuccess(SUCCESS_BODY, MediaType.APPLICATION_JSON));
+        long startedAt = System.nanoTime();
+
+        // when
+        PriceResponse response = client.get(PATH, TR_ID, Map.of(), PriceResponse.class);
+
+        // then
+        assertThat(response.output().price()).isEqualTo("72000");
+        assertThat(Duration.ofNanos(System.nanoTime() - startedAt))
+                .isGreaterThanOrEqualTo(RestClientKisApiClient.RATE_LIMIT_BACKOFF);
+        assertThat(tokenProvider.invalidatedCount).isZero();
+        server.verify();
+    }
+
+    @Test
+    void 한도_초과_재시도도_실패하면_예외를_던진다() {
+        // given 세 번째 호출을 기대하지 않는다. 더 부르면 MockRestServiceServer가 실패시킨다
+        server.expect(once(), requestTo(Matchers.startsWith(BASE_URL + PATH)))
+                .andRespond(withServerError().body(RATE_LIMITED_BODY).contentType(MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(Matchers.startsWith(BASE_URL + PATH)))
+                .andRespond(withServerError().body(RATE_LIMITED_BODY).contentType(MediaType.APPLICATION_JSON));
+
+        // when & then
+        assertThatThrownBy(() -> client.get(PATH, TR_ID, Map.of(), PriceResponse.class))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).errorCode())
+                .isEqualTo(ErrorCode.MARKET_DATA_UNAVAILABLE);
         server.verify();
     }
 
