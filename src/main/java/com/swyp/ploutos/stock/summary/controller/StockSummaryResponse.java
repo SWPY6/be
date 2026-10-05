@@ -16,7 +16,7 @@ sealed interface StockSummaryResponse
     record Summary(
             @Schema(description = "종목 ID", example = "1") Long stockId,
             @Schema(description = "종목 식별 정보") Profile profile,
-            @Schema(description = "시장 국가", example = "KR") Country market,
+            @Schema(description = "종목 시장의 국가(KR/US)", example = "KR") Country country,
             @Schema(description = "가격 통화", example = "KRW") Currency currency,
             @Schema(description = "시장 현지 시간대(IANA)", example = "Asia/Seoul") String timezone
     ) implements StockSummaryResponse {
@@ -26,7 +26,7 @@ sealed interface StockSummaryResponse
                     summary.stockId(),
                     new Profile(summary.name(), summary.ticker(), summary.logoUrl(),
                             summary.industries().stream().map(Industry::from).toList()),
-                    summary.market(),
+                    summary.country(),
                     summary.currency(),
                     summary.timezone().getId()
             );

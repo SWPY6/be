@@ -62,7 +62,7 @@ class StockSummaryServiceTest {
         assertThat(summary.name()).isEqualTo("삼성전자");
         assertThat(summary.ticker()).isEqualTo("005930");
         assertThat(summary.logoUrl()).isEqualTo("https://logo/005930.png");
-        assertThat(summary.market()).isEqualTo(Country.KR);
+        assertThat(summary.country()).isEqualTo(Country.KR);
         assertThat(summary.currency()).isEqualTo(Currency.KRW);
         assertThat(summary.timezone()).isEqualTo(ZoneId.of("Asia/Seoul"));
     }
@@ -74,7 +74,7 @@ class StockSummaryServiceTest {
 
         // then
         assertThat(summary.ticker()).isEqualTo("AAPL");
-        assertThat(summary.market()).isEqualTo(Country.US);
+        assertThat(summary.country()).isEqualTo(Country.US);
         assertThat(summary.currency()).isEqualTo(Currency.USD);
         assertThat(summary.timezone()).isEqualTo(ZoneId.of("America/New_York"));
     }
