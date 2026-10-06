@@ -7,6 +7,7 @@ package com.swyp.ploutos.external.kis;
 public interface KisResponse {
 
     String TOKEN_EXPIRED_CODE = "EGW00123";
+    String RATE_LIMITED_CODE = "EGW00201";
 
     String rtCd();
 
@@ -20,5 +21,10 @@ public interface KisResponse {
 
     default boolean isTokenExpired() {
         return TOKEN_EXPIRED_CODE.equals(msgCd());
+    }
+
+    /** 초당 호출 한도를 넘었다. 잠시 뒤 다시 부르면 통과하는 일시 오류다. */
+    default boolean isRateLimited() {
+        return RATE_LIMITED_CODE.equals(msgCd());
     }
 }

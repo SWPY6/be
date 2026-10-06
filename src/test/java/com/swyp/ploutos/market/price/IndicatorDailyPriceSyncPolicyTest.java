@@ -155,6 +155,33 @@ class IndicatorDailyPriceSyncPolicyTest {
     }
 
     @Test
+    void 시도를_취소하면_같은_날_다시_시도할_수_있다() {
+        // given
+        policy.tryStartSync(INDICATOR, FROM, WEDNESDAY);
+
+        // when
+        policy.cancelSync(INDICATOR, FROM, WEDNESDAY);
+        boolean retried = policy.tryStartSync(INDICATOR, FROM, WEDNESDAY);
+
+        // then
+        assertThat(retried).isTrue();
+    }
+
+    @Test
+    void 다른_요청이_기록을_바꿨으면_취소해도_그_기록은_남는다() {
+        // given 좁은 구간 시도가 실패하는 사이 다른 요청이 더 이른 시작일로 시도권을 얻었다
+        policy.tryStartSync(INDICATOR, FROM, WEDNESDAY);
+        policy.tryStartSync(INDICATOR, FROM.minusYears(1), WEDNESDAY);
+
+        // when
+        policy.cancelSync(INDICATOR, FROM, WEDNESDAY);
+        boolean retried = policy.tryStartSync(INDICATOR, FROM, WEDNESDAY);
+
+        // then
+        assertThat(retried).isFalse();
+    }
+
+    @Test
     void 좁은_구간을_시도해도_그날_받아_둔_넓은_구간의_기록은_남는다() {
         // given 넓게 받아 둔 뒤 좁은 요청이 들어왔다. 거절이 기록을 덮으면 안 된다
         policy.tryStartSync(INDICATOR, WEDNESDAY.minusYears(3), WEDNESDAY);

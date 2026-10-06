@@ -71,6 +71,14 @@ public class IndicatorDailyPriceSyncPolicy {
         return granted.get();
     }
 
+    /**
+     * 실패한 시도를 지워 같은 날 다시 시도할 수 있게 한다. 지우지 않으면 다음 요청이 외부를 부르지 않고
+     * 저장된 행만 돌려준다. 그사이 다른 요청이 기록을 바꿨으면 그 기록은 남긴다.
+     */
+    public void cancelSync(MarketIndicator indicator, LocalDate from, LocalDate today) {
+        lastAttempts.remove(indicator, new Attempt(today, from));
+    }
+
     /** 그날 이 지표에 대해 시도한 가장 이른 시작일. */
     private record Attempt(LocalDate today, LocalDate from) {
 
