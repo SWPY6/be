@@ -1,5 +1,6 @@
 package com.swyp.ploutos.external.kis;
 
+import java.time.Duration;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -22,10 +23,14 @@ class RestClientKisApiClient implements KisApiClient {
 
     private static final Logger log = LoggerFactory.getLogger(RestClientKisApiClient.class);
 
+    // KIS 한도는 초 단위로 판정하므로 다음 초로 넘어가도록 쉰다.
+    static final Duration RATE_LIMIT_BACKOFF = Duration.ofSeconds(1);
+
     private final RestClient kisRestClient;
     private final KisAccessTokenProvider tokenProvider;
     private final KisProperties properties;
 
+    /** 토큰 만료와 초당 한도 초과는 요청당 한 번만 재시도한다. 재시도 응답이 다시 실패하면 반복하지 않는다. */
     @Override
     public <T extends KisResponse> T get(String path, String trId, Map<String, String> queryParams, Class<T> responseType) {
         T response = exchange(path, trId, queryParams, responseType);
@@ -34,13 +39,36 @@ class RestClientKisApiClient implements KisApiClient {
         }
         if (response.isTokenExpired()) {
             tokenProvider.invalidate();
-            response = exchange(path, trId, queryParams, responseType);
-            if (response.isSuccess()) {
-                return response;
-            }
+            return retry(path, trId, queryParams, responseType);
         }
+        if (response.isRateLimited()) {
+            log.warn("KIS 초당 호출 한도를 넘어 잠시 뒤 다시 부른다 tr_id={}", trId);
+            pause();
+            return retry(path, trId, queryParams, responseType);
+        }
+        throw failure(trId, response);
+    }
+
+    private <T extends KisResponse> T retry(String path, String trId, Map<String, String> queryParams, Class<T> responseType) {
+        T response = exchange(path, trId, queryParams, responseType);
+        if (response.isSuccess()) {
+            return response;
+        }
+        throw failure(trId, response);
+    }
+
+    private static BusinessException failure(String trId, KisResponse response) {
         log.error("KIS 응답 실패 tr_id={} msg_cd={} msg1={}", trId, response.msgCd(), response.msg1());
-        throw new BusinessException(ErrorCode.MARKET_DATA_UNAVAILABLE);
+        return new BusinessException(ErrorCode.MARKET_DATA_UNAVAILABLE);
+    }
+
+    private static void pause() {
+        try {
+            Thread.sleep(RATE_LIMIT_BACKOFF);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException(ErrorCode.MARKET_DATA_UNAVAILABLE);
+        }
     }
 
     private <T extends KisResponse> T exchange(String path, String trId, Map<String, String> queryParams, Class<T> responseType) {

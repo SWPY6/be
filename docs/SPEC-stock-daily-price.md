@@ -74,6 +74,8 @@ public interface DailyPriceReader {
   **단 그날 시도한 것보다 더 이른 `from`을 요구하면 그 구간을 위해 한 번 더 허용한다.** 조회 구간은 요청마다 다르므로,
   시도일만 보고 막으면 짧은 구간을 먼저 조회한 날에는 더 넓은 구간을 다음 날까지 채우지 못한다.
 - KIS 호출이 실패하면 `MARKET_DATA_UNAVAILABLE`이 그대로 위로 올라간다. 부분 저장된 행은 남긴다(다음 요청에서 이어서 채운다).
+- **실패한 시도는 기록에서 지운다.** 지우지 않으면 같은 날 같은 구간의 다음 요청이 KIS를 부르지 않고 저장된 행(비었거나 일부)만 `200`으로 돌려준다.
+  지울 때는 자기가 남긴 기록일 때만 지운다. 그사이 다른 요청이 더 이른 시작일로 기록을 바꿨으면 그대로 둔다.
 
 ### KIS 파라미터 매핑
 
@@ -171,6 +173,7 @@ public Optional<Long> averageVolumeOfLast(int days) {
 | 11 | 국내·해외 응답 필드가 저장 필드로 매핑된다. | `국내_응답을_일봉으로_매핑한다`, `해외_응답을_일봉으로_매핑한다` |
 | 12 | `(stockId, tradeAt)`는 유니크다. | `StockDailyPriceRepositoryTest.같은_종목_같은_거래일은_중복_저장할_수_없다` |
 | 13 | KIS 실패는 `MARKET_DATA_UNAVAILABLE`로 전파되고 부분 저장은 남는다. | `DailyPriceReaderTest.외부_호출이_실패하면_예외를_전파한다` |
+| 14 | 동기화가 실패하면 같은 날 같은 구간을 다시 시도할 수 있다. | `DailyPriceReaderTest.동기화가_실패하면_같은_날_다시_시도한다`, `StockDailyPriceSyncPolicyTest.시도를_취소하면_같은_날_다시_시도할_수_있다` |
 
 ## 미해결 질문
 

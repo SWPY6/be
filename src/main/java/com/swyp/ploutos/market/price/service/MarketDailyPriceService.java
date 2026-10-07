@@ -48,7 +48,13 @@ class MarketDailyPriceService implements IndicatorDailyPriceReader {
         if (!policy.tryStartSync(indicator, from, today)) {
             return;
         }
-        List<DailyPrice> fetched = provider.fetch(indicator, fetchFrom(stored, from), today.minusDays(1));
+        List<DailyPrice> fetched;
+        try {
+            fetched = provider.fetch(indicator, fetchFrom(stored, from), today.minusDays(1));
+        } catch (RuntimeException e) {
+            policy.cancelSync(indicator, from, today);
+            throw e;
+        }
         saveNew(indicator, DailyPrices.of(fetched).without(today));
     }
 
