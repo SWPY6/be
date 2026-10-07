@@ -182,16 +182,17 @@ class StockChartServiceTest {
     }
 
     @Test
-    void 시세가_마지막_확정_봉에서_이어지지_않으면_당일_봉을_붙이지_않는다() {
-        // given 개장 전 시세는 이미 확정된 거래일의 값이다. 전일 종가가 마지막 확정 봉 종가와 어긋난다
+    void 장_시작_전_전날_시세면_진행_중_봉을_붙이지_않는다() {
+        // given 2026-10-07 04:35 실측과 같은 상황. KIS 현재가는 시가가 0이 아닌 어제 거래일의 시세를 그대로 준다.
+        // 그 값으로 오늘 봉을 만들면 마지막 확정 봉(어제)과 시가·고가·저가·종가·거래량이 똑같다
         dailyPriceReader.prices = DailyPrices.of(List.of(price(TODAY.minusDays(1))));
-        quoteReader.quote = quoteOf(BigDecimal.valueOf(48_000));
+        quoteReader.quote = yesterdaysQuote();
 
         // when
         StockChartDetail detail = service.read(STOCK_ID, null, null, null);
 
-        // then 확정 봉만 남고 기준 시각도 비어 있다
-        assertThat(detail.chart().candles()).hasSize(1);
+        // then 어제와 같은 값의 오늘 봉이 생기지 않는다
+        assertThat(detail.chart().candles()).extracting(ChartCandle::tradeAt).containsExactly(TODAY.minusDays(1));
         assertThat(detail.chart().candles().getLast().closed()).isTrue();
         assertThat(detail.chart().asOf()).isEmpty();
     }
@@ -216,42 +217,46 @@ class StockChartServiceTest {
 
     @Test
     void 미래_구간을_조회하면_오늘_봉을_붙이지_않는다() {
-        // given 구간이 오늘보다 뒤에서 시작한다
+        // given 구간이 오늘보다 뒤에서 시작한다. 시세는 오늘 장의 것이다
         LocalDate from = TODAY.plusDays(1);
         dailyPriceReader.prices = DailyPrices.of(List.of(price(TODAY.minusDays(1))));
 
         // when
         StockChartDetail detail = service.read(STOCK_ID, from, from.plusDays(7), null);
 
-        // then 확정 봉만 남고 기준 시각도 비어 있다
+        // then 오늘이 구간 밖이라(조건 3) 확정 봉만 남고 기준 시각도 비어 있다
         assertThat(detail.chart().candles()).allMatch(ChartCandle::closed);
         assertThat(detail.chart().asOf()).isEmpty();
     }
 
     @Test
-    void 확정_봉이_없으면_당일_봉을_붙이지_않는다() {
-        // given 비교할 종가가 없으면 시세가 어느 거래일의 것인지 가릴 수 없다
+    void 오늘_하루만_조회해도_장중이면_진행_중_봉을_붙인다() {
+        // given 구간 안에 확정 봉이 없다. 오늘이 구간 안이고 시세는 오늘 장의 것이다
         dailyPriceReader.prices = DailyPrices.of(List.of());
 
         // when
-        StockChartDetail detail = service.read(STOCK_ID, null, null, null);
+        StockChartDetail detail = service.read(STOCK_ID, TODAY, TODAY, null);
 
-        // then
-        assertThat(detail.chart().candles()).isEmpty();
-        assertThat(detail.chart().asOf()).isEmpty();
+        // then 진행 중인 봉 하나다
+        assertThat(detail.chart().candles()).extracting(ChartCandle::tradeAt).containsExactly(TODAY);
+        assertThat(detail.chart().candles().getFirst().closed()).isFalse();
     }
 
     @Test
-    void 자릿수가_달라도_같은_종가면_당일_봉을_붙인다() {
-        // given 저장 정밀도는 소수 넷째 자리고 KIS 전일 종가는 정수로 온다
-        dailyPriceReader.prices = DailyPrices.of(List.of(price(TODAY.minusDays(1), "49000.0000")));
-        quoteReader.quote = quoteOf(new BigDecimal("49000"));
+    void 기준가가_저장된_종가와_달라도_오늘_시세면_진행_중_봉을_붙인다() {
+        // given 2026-10-07 실측. 모의 도메인은 현재가 기준가가 저장된 전일 종가와 자주 어긋난다(49000 대 48700).
+        // 값은 오늘 장의 것이라 마지막 확정 봉과 다르다
+        dailyPriceReader.prices = DailyPrices.of(List.of(price(TODAY.minusDays(1))));
+        quoteReader.quote = quoteOf(BigDecimal.valueOf(48_700));
 
         // when
         StockChartDetail detail = service.read(STOCK_ID, null, null, null);
 
-        // then
-        assertThat(detail.chart().candles().getLast().closed()).isFalse();
+        // then 오늘 봉이 진행 중으로 붙는다
+        ChartCandle last = detail.chart().candles().getLast();
+        assertThat(last.tradeAt()).isEqualTo(TODAY);
+        assertThat(last.closed()).isFalse();
+        assertThat(detail.chart().asOf()).isPresent();
     }
 
     @Test
@@ -340,7 +345,7 @@ class StockChartServiceTest {
         );
     }
 
-    /** 전일 종가만 다른 시세. 그 값이 마지막 확정 봉 종가와 어긋나면 이미 확정된 거래일의 시세다. */
+    /** 장중 시세. 값은 오늘 장의 것이고 전일 종가(기준가)만 바꾼다. */
     private static Quote quoteOf(BigDecimal previousClose) {
         return new Quote(
                 BigDecimal.valueOf(50_000),
@@ -353,6 +358,26 @@ class StockChartServiceTest {
                 BigDecimal.valueOf(300_000_000_000L),
                 Currency.KRW,
                 OffsetDateTime.parse("2026-08-12T14:31:05+09:00"),
+                PriceTiming.REALTIME
+        );
+    }
+
+    /**
+     * 장 시작 전 KIS가 주는 시세. 시가·고가·저가·현재가·거래량이 어제 거래일의 값 그대로다
+     * ({@link #price(LocalDate)}와 같다). 전일 종가는 그저께 종가다.
+     */
+    private static Quote yesterdaysQuote() {
+        return new Quote(
+                BigDecimal.valueOf(49000),
+                BigDecimal.valueOf(48500),
+                BigDecimal.valueOf(48000),
+                BigDecimal.valueOf(49500),
+                BigDecimal.valueOf(47500),
+                100_000L,
+                BigDecimal.valueOf(4_900_000_000L),
+                BigDecimal.valueOf(300_000_000_000L),
+                Currency.KRW,
+                OffsetDateTime.parse("2026-08-12T04:35:00+09:00"),
                 PriceTiming.REALTIME
         );
     }
