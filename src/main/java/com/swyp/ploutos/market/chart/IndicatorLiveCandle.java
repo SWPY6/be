@@ -30,25 +30,15 @@ public final class IndicatorLiveCandle {
         return Optional.of(new LiveCandle(quote.asDailyPrice(today), quote.valueAt()));
     }
 
+    /**
+     * 조건 3: 과거 구간이면 오늘 봉이 끼어들지 않게 한다.
+     * 조건 2: 현재값의 전일 종가가 마지막 확정 봉의 종가와 다르면 이미 확정된 거래일의 시세다.
+     * 날짜가 아니라 값의 연속성으로 보기 때문에 국내·해외·환율에 같은 규칙이 통한다.
+     */
     private static boolean cannotAttach(IndicatorQuote quote, DailyPrices closed, ChartRange range,
             LocalDate today) {
         return quote.notOpenedToday()
                 || range.to().isBefore(today)
-                || !continuesLastClose(quote, closed);
-    }
-
-    /**
-     * 현재값의 전일 종가가 마지막 확정 봉의 종가와 같은가. 다르면 이미 확정된 거래일의 시세다.
-     *
-     * <p>날짜가 아니라 값의 연속성으로 보기 때문에 국내·해외·환율에 같은 규칙이 통한다.
-     * 확정 봉이 하나도 없으면 견줄 대상이 없어 이어진 것으로 보지 않는다.
-     *
-     * <p>{@code compareTo}로 견주는 이유는 저장 정밀도와 KIS 값의 자릿수가 달라도
-     * 같은 값으로 봐야 하기 때문이다.
-     */
-    private static boolean continuesLastClose(IndicatorQuote quote, DailyPrices closed) {
-        return closed.lastClose()
-                .filter(close -> close.compareTo(quote.previousClose()) == 0)
-                .isPresent();
+                || !closed.closesAt(quote.previousClose());
     }
 }

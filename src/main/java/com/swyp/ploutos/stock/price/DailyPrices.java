@@ -47,15 +47,31 @@ public final class DailyPrices {
     }
 
     /**
-     * 마지막 확정 봉의 종가. 봉이 없으면 비어 있다.
+     * 마지막 확정 봉의 종가가 주어진 전일 종가와 같은가. 봉이 없으면 견줄 대상이 없어 false다.
      *
-     * <p>시세가 이 종가에서 이어지는지 보고 진행 중인 봉을 붙일지 판단하는 데 쓴다.
+     * <p>현재 시세가 이 목록에서 이어지는지, 즉 진행 중인 봉을 붙여도 되는지 판단하는 데 쓴다.
+     * 장 시작 전 KIS는 이미 확정된 거래일의 시세를 주는데, 그 시세의 전일 종가는 마지막 확정 봉 종가와 다르다.
+     *
+     * <p>{@code compareTo}로 견준다. 저장 정밀도와 KIS 값의 자릿수가 달라도 같은 값으로 봐야 한다.
      */
-    public Optional<BigDecimal> lastClose() {
+    public boolean closesAt(BigDecimal previousClose) {
         if (prices.isEmpty()) {
-            return Optional.empty();
+            return false;
         }
-        return Optional.of(prices.getLast().close());
+        return prices.getLast().close().compareTo(previousClose) == 0;
+    }
+
+    /**
+     * 주어진 봉이 마지막 확정 봉과 거래일만 다르고 값이 모두 같은가. 봉이 없으면 false다.
+     *
+     * <p>주식 차트가 진행 중인 봉을 붙여도 되는지 판단하는 데 쓴다. 장 시작 전·휴장일에 KIS 현재가는
+     * 직전 거래일의 시세를 그대로 주므로, 그것을 오늘 봉으로 만들면 마지막 확정 봉과 값이 똑같다.
+     */
+    public boolean repeatsLast(DailyPrice candidate) {
+        if (prices.isEmpty()) {
+            return false;
+        }
+        return prices.getLast().sameValuesAs(candidate);
     }
 
     /** 그 거래일의 봉을 이미 가지고 있는가. */

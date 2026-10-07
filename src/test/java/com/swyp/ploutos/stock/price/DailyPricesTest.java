@@ -133,6 +133,23 @@ class DailyPricesTest {
         assertThat(empty.lastTradeAt()).isEmpty();
     }
 
+    @Test
+    void 마지막_봉과_값이_같으면_자릿수가_달라도_반복으로_본다() {
+        // given 저장된 봉은 소수 넷째 자리까지, KIS 현재가는 정수로 온다. 2026-10-07 04:07 현대건설 실측값
+        DailyPrices stored = DailyPrices.of(List.of(new DailyPrice(LocalDate.of(2026, 10, 6),
+                new BigDecimal("115100.0000"), new BigDecimal("116600.0000"), new BigDecimal("112500.0000"),
+                new BigDecimal("113100.0000"), 578_555L)));
+        DailyPrice sameAsYesterday = new DailyPrice(LocalDate.of(2026, 10, 7), new BigDecimal("115100"),
+                new BigDecimal("116600"), new BigDecimal("112500"), new BigDecimal("113100"), 578_555L);
+        DailyPrice traded = new DailyPrice(LocalDate.of(2026, 10, 7), new BigDecimal("115100"),
+                new BigDecimal("116600"), new BigDecimal("112500"), new BigDecimal("113100"), 578_556L);
+
+        // when & then 거래일은 견주지 않는다. 거래량 하나만 달라도 반복이 아니다
+        assertThat(stored.repeatsLast(sameAsYesterday)).isTrue();
+        assertThat(stored.repeatsLast(traded)).isFalse();
+        assertThat(DailyPrices.of(List.of()).repeatsLast(sameAsYesterday)).isFalse();
+    }
+
     private static DailyPrice price(LocalDate tradeAt, long volume) {
         return new DailyPrice(tradeAt, BigDecimal.ONE, BigDecimal.TWO, BigDecimal.ONE, BigDecimal.TWO, volume);
     }

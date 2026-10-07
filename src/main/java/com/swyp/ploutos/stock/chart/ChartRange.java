@@ -36,4 +36,9 @@ public record ChartRange(LocalDate from, LocalDate to) {
         }
         return new ChartRange(start, end);
     }
+
+    /** 그 날짜가 구간 안에 있는가. 양 끝을 포함한다. */
+    public boolean contains(LocalDate date) {
+        return !date.isBefore(from) && !date.isAfter(to);
+    }
 }

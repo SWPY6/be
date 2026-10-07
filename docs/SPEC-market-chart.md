@@ -34,7 +34,7 @@
 | `interval` | `1D` \| `1W` \| `1M` \| `3M` \| `1Y` | `1D` | 봉 단위: 일·주·월·분기·연 |
 
 - 확정 봉은 `IndicatorDailyPriceReader.findBetween(indicator, from, to)`로 읽는다.
-- 기본 구간 2개월이면 거래일이 약 42개다. 국내 지수의 KIS 페이지(50건) 한 번으로 끝난다.
+- 기본 구간 2개월이면 거래일이 약 42개다. 국내 지수는 KIS 페이지(최대 50건) 한 번으로 끝난다. 해외 지수·환율은 KIS가 시작 쪽 행을 빼먹고 주는 일이 있어 한 번 더 부를 수 있다 (`SPEC-market-daily-price.md` "시작 쪽 행 누락").
 - 5년 구간을 처음 채우면 국내 지수는 KIS를 약 25번 부른다 (`SPEC-market-daily-price.md`). 주식 차트와 같은 5년 상한을 쓴다.
 
 ### 진행 중인 봉
@@ -64,7 +64,7 @@
 - 구간 안에 확정 봉이 하나도 없으면 비교할 수 없으므로 붙이지 않는다.
 
 **`stock-chart`와 다른 점**
-- 조건 2와 3은 이 모듈에만 있다. 주식 차트에도 같은 문제가 있을 수 있지만(아래 "알려진 한계") 이 명세의 범위가 아니다.
+- 조건 2와 3은 처음에 이 모듈에만 있었다. 2026-10-07 주식 차트에서 같은 문제가 실제로 재현되어 `SPEC-stock-chart.md`에도 조건을 넣었다(주식 차트 성공 기준 24~26). 다만 주식 차트의 조건 2는 "직전 확정 봉과 값이 모두 같다"로 다르다. 모의 도메인의 주식 현재가 기준가가 저장된 종가와 자주 어긋나, 이 모듈의 전일 종가 비교를 그대로 쓰면 정상적인 오늘 봉까지 지웠기 때문이다. 지표 현재값은 실측에서 어긋나지 않았다(코스피·환율 장중 부착 확인).
 - 진행 중인 봉을 만드는 규칙은 `market/chart` 루트의 `IndicatorLiveCandle`에 둔다. 스프링 없이 검증할 수 있는 순수 계산이다.
 
 ### 봉 집계 재사용: `Chart`가 `Quote`에 묶이지 않게 바꾼다
@@ -106,7 +106,7 @@
   - "붙이지 않는다" 조건 1~3을 판정한다. 조건 4는 `Chart`가 한다.
 - `IndicatorQuote.notOpenedToday()` (`market/quote`): 시가가 0이면 true. `SPEC-market-quote.md`에 "차트가 필요해질 때 추가한다"고 적어 둔 메서드다.
 - `IndicatorQuote.asDailyPrice(LocalDate)` (`market/quote`): 진행 중인 봉으로 쓸 당일자 일봉. 종가 자리에 현재값이 들어가고 거래량은 0이다. 필드를 하나씩 꺼내 바깥에서 조립하지 않도록 `Quote.asDailyPrice`와 같은 자리에 둔다.
-- `DailyPrices.lastClose()` (`stock/price`): 마지막 확정 봉의 종가 `Optional<BigDecimal>`. 조건 2에 쓴다.
+- `DailyPrices.closesAt(BigDecimal previousClose)` (`stock/price`): 구간 안 마지막 확정 봉의 종가가 주어진 전일 종가와 같은가. 봉이 없으면 false. `compareTo`로 견준다. 조건 2에 쓴다. (처음에는 `lastClose()`를 꺼내 `IndicatorLiveCandle`에서 견줬다. 판정을 객체로 옮기면서 지웠다.)
 - `MarketChartService` (`market/chart/service`, `@Service`, `public`)
   - `MarketChartDetail read(MarketIndicator indicator, LocalDate from, LocalDate to, String intervalCode)`.
   - 흐름: `interval` 검증 → 오늘(지표 타임존) → `ChartRange` → `IndicatorDailyPriceReader` → `IndicatorQuoteReader` → `IndicatorLiveCandle` → `Chart`.
@@ -122,9 +122,9 @@
   - 한국 시간 9/30 05시, 환율 확정 봉은 9/28까지였다. 현재값의 전일 종가는 9/28 종가(1359.9)였다.
   - 조건 2를 통과해 진행 중인 봉이 **9/30 날짜로** 붙는다. 실제로는 9/29 거래일의 값이다.
   - 날짜 하나가 어긋나지만 값의 흐름은 끊기지 않는다. 한국 낮에 환율 행이 언제 들어오는지 실측한 뒤 보정 여부를 정한다 (미해결 질문).
-- **주식 차트의 같은 문제 가능성**
-  - `stock-chart`는 시가 0으로만 개장 전을 판정한다. 과거 구간을 조회할 때도 오늘 봉을 붙인다.
-  - KIS 주식 현재가도 개장 전에 전날 값을 주면 조건 2·3과 같은 문제가 생긴다. 이 명세는 주식 차트 동작을 바꾸지 않는다. 필요하면 `SPEC-stock-chart.md`에서 따로 다룬다.
+- **주식 차트의 같은 문제 (해결)**
+  - 2026-10-07 실측에서 국내 34종목 전부 장 시작 전에 전날과 같은 값의 오늘 봉이 붙었고, 과거 구간에도 오늘 봉이 끼어들었다.
+  - `SPEC-stock-chart.md`에 조건 2(직전 봉 반복)·3(오늘이 구간 밖)을 넣어 해결했다.
 
 ## API 계약
 
@@ -311,7 +311,7 @@ Run: ./gradlew bootRun
 src/main/java/com/swyp/ploutos/stock/chart/LiveCandle.java               → 신규
 src/main/java/com/swyp/ploutos/stock/chart/Chart.java                    → of(...) 시그니처 변경, Quote 의존 제거
 src/main/java/com/swyp/ploutos/stock/chart/service/StockChartService.java → Quote → LiveCandle 변환
-src/main/java/com/swyp/ploutos/stock/price/DailyPrices.java              → lastClose() 추가
+src/main/java/com/swyp/ploutos/stock/price/DailyPrices.java              → closesAt() 추가 (처음에는 lastClose())
 src/main/java/com/swyp/ploutos/market/quote/IndicatorQuote.java          → notOpenedToday(), asDailyPrice() 추가
 src/main/java/com/swyp/ploutos/market/chart/IndicatorLiveCandle.java     → 신규
 src/main/java/com/swyp/ploutos/market/chart/service/                     → MarketChartService, MarketChartDetail (신규)
@@ -339,13 +339,7 @@ public static Optional<LiveCandle> of(IndicatorQuote quote, DailyPrices closed, 
 private static boolean cannotAttach(IndicatorQuote quote, DailyPrices closed, ChartRange range, LocalDate today) {
     return quote.notOpenedToday()
             || range.to().isBefore(today)
-            || !continuesLastClose(quote, closed);
-}
-
-private static boolean continuesLastClose(IndicatorQuote quote, DailyPrices closed) {
-    return closed.lastClose()
-            .filter(close -> close.compareTo(quote.previousClose()) == 0)
-            .isPresent();
+            || !closed.closesAt(quote.previousClose());
 }
 ```
 
@@ -371,9 +365,9 @@ private static boolean continuesLastClose(IndicatorQuote quote, DailyPrices clos
 - **먼저 묻기:**
   - 응답 필드의 추가나 이름 변경(프론트 계약). 거래량을 되살리는 것도 포함한다.
   - 봉 단위 추가(분봉 등).
-  - 주식 차트에 조건 2·3을 적용하기(주식 차트 동작 변경).
+  - 진행 중인 봉 조건을 바꾸기. 주식 차트도 같은 문제(장 시작 전 전날 시세, 과거 구간)를 다루므로 `SPEC-stock-chart.md`를 함께 본다.
   - 봉 집계 코드를 공용 패키지로 옮기기.
-- **절대 안 함:** 차트 API에서 KIS를 직접 호출, KIS 주봉·월봉 API 사용, 진행 중인 봉 저장, 주식 차트 응답이나 동작 변경.
+- **절대 안 함:** 차트 API에서 KIS를 직접 호출, KIS 주봉·월봉 API 사용, 진행 중인 봉 저장. 이 명세의 작업으로 주식 차트 응답을 바꾸지 않는다(주식 차트 변경은 `SPEC-stock-chart.md`에서 한다).
 
 ## 성공 기준
 
@@ -439,4 +433,4 @@ private static boolean continuesLastClose(IndicatorQuote quote, DailyPrices clos
 ## 추후 구현
 
 1. 유가: `MarketIndicator.WTI`가 추가되면 코드 변경 없이 `/api/v1/markets/indicators/WTI/chart`가 동작한다. 선물 월물이 바뀌는 날 종가가 이어지지 않으면 조건 2가 진행 중인 봉을 빼므로, 월물 규칙을 정할 때 함께 본다.
-2. 주식 차트에 조건 2·3 적용 여부 검토 (`SPEC-stock-chart.md`).
+2. ~~주식 차트에 조건 2·3 적용 여부 검토~~ → 2026-10-07 적용 (`SPEC-stock-chart.md` 성공 기준 24~26).
