@@ -167,20 +167,36 @@ public interface IndicatorDailyPriceReader {
 
 ### KIS 파라미터와 페이지
 
-| `IndicatorKind` | API | 파라미터 | 한 번에 오는 최대 건수 (실측) |
+| `IndicatorKind` | API | 파라미터 | 한 번에 오는 최대 건수 (실측, 참고용) |
 | --- | --- | --- | --- |
 | `DOMESTIC_INDEX` | `GET /uapi/domestic-stock/v1/quotations/inquire-daily-indexchartprice`, `FHKUP03500100` | `FID_COND_MRKT_DIV_CODE=U`, `FID_INPUT_ISCD={symbol}`, `FID_INPUT_DATE_1={from}`, `FID_INPUT_DATE_2={end}`, `FID_PERIOD_DIV_CODE=D` | **50** |
 | `OVERSEAS_INDEX` | `GET /uapi/overseas-price/v1/quotations/inquire-daily-chartprice`, `FHKST03030100` | `FID_COND_MRKT_DIV_CODE=N`, 나머지는 위와 같은 이름 | **100** |
 | `EXCHANGE_RATE` | 위와 같음 | `FID_COND_MRKT_DIV_CODE=X` | **100** |
 
-- 두 API 모두 `output2`가 최신순으로 온다. 페이지 반복은 `KisDailyPriceProvider`의 국내 방식과 같다.
+- 두 API 모두 `output2`가 최신순으로 온다. 구간을 거슬러 올라가며 반복한다.
   1. `end`를 `to`로 시작한다.
-  2. 받은 페이지의 가장 오래된 거래일 − 1일로 `end`를 옮긴다.
-  3. 응답이 비었거나 페이지가 최대 건수보다 작으면 멈춘다.
+  2. 받은 페이지에서 `[from, end]` 안의 행만 남긴다. 남은 행이 없으면 멈춘다.
+  3. 남은 행의 가장 오래된 거래일이 `from` 이하이면 멈춘다. 아니면 그 거래일 − 1일로 `end`를 옮긴다.
+- **받은 건수로 멈추지 않는다.** 아래 실측처럼 해외 지수·환율 API는 최대 건수보다 적게 주면서 시작 쪽 행을 빼먹는다. 건수로 멈추면 빠진 앞부분을 다시 받지 않아 차트의 시작이 며칠 늦다.
+- `end`는 매번 줄어든다. 2에서 구간 밖 행을 먼저 빼므로, 요청보다 늦은 행만 오는 응답에도 같은 요청을 되풀이하지 않는다.
+- 비용: 시작일이 휴장일이면 빈 응답을 확인하는 호출이 1회 늘어난다. 끝만 채우는 동기화는 저장된 마지막 거래일부터 요청하므로 늘지 않는다.
 - 결과는 `[from, to]` 밖의 행을 버린다.
-- 최대 건수는 종류마다 다르다 (50, 100). 어댑터가 종류별 상수로 갖는다.
-- 5년 구간을 처음 채우면 국내 지수는 약 25회, 해외 지수·환율은 약 13회 호출한다. 이후에는 끝만 채우므로 하루 1회다.
+- 5년 구간을 처음 채우면 국내 지수는 약 25회, 해외 지수·환율은 약 13회 이상 호출한다. 이후에는 끝만 채우므로 하루 1회다.
 - 날짜(`stck_bsop_date`)가 빈 행은 버린다. KIS는 데이터가 없을 때 필드가 빈 객체를 주기도 한다.
+
+**시작 쪽 행 누락 (2026-10-07 실측, 모의 도메인, 나스닥 `COMP`, 시작일 8/7 고정)**
+
+| 요청 구간 | 받은 행 | 가장 오래된 행 | 빠진 거래일 |
+| --- | --- | --- | --- |
+| 8/7~8/31 | 16 | 8/10 | 8/7 |
+| 8/7~9/15 | 27 | 8/7 | 없음 |
+| 8/7~9/30 | 36 | 8/11 | 8/7, 8/10 |
+| 8/7~10/6 | 39 | 8/12 | 8/7, 8/10, 8/11 |
+| 환율 `FX@KRW` 8/7~10/6 | 39 | 8/13 | 8/7, 8/10~8/12 |
+
+- 빠진 날의 데이터는 있다. 8/1~8/14로 부르면 8/3부터 다 온다.
+- 빠지는 양이 구간 길이와 비례하지 않는다. 그래서 구간을 짧게 쪼개는 방식으로는 막을 수 없고, 종료 조건을 바꿨다.
+- 국내 지수와 주식 일봉(`KisDailyPriceProvider`)에서는 관찰되지 않았다. 같은 날 기본 구간으로 받은 국내 33종목·미국 31종목의 첫 거래일이 모두 같았다.
 
 | 저장 필드 | `DOMESTIC_INDEX` (`output2[]`) | `OVERSEAS_INDEX`, `EXCHANGE_RATE` (`output2[]`) |
 | --- | --- | --- |
@@ -197,7 +213,7 @@ public interface IndicatorDailyPriceReader {
 ### 설계
 
 - `IndicatorDailyPriceProvider`(포트): `List<DailyPrice> fetch(MarketIndicator indicator, LocalDate from, LocalDate to)`.
-  - 구현 `KisIndicatorDailyPriceProvider`가 종류별 API, 페이지 크기, 필드 매핑을 담당한다.
+  - 구현 `KisIndicatorDailyPriceProvider`가 종류별 API, 페이지 반복, 필드 매핑을 담당한다.
 - `MarketDailyPriceRepository`(JPA): 구간 조회, 가장 이른·늦은 거래일, 구간 안의 거래일 목록. `StockDailyPriceRepository`와 같은 쿼리를 `indicator`로 둔다.
 - `IndicatorDailyPriceSyncPolicy`: "덮는다" 판정, 마지막 거래일 추정, 하루 1회 제한. `Clock`을 주입받는다.
   - `StockDailyPriceSyncPolicy`와 로직이 비슷하지만 공통화하지 않는다.
@@ -263,7 +279,7 @@ public boolean tryStartSync(MarketIndicator indicator, LocalDate from, LocalDate
 - **통합 (30%)**
   - `MarketDailyPriceRepositoryTest`(`@DataJpaTest` + Testcontainers): 유니크 제약, 구간 조회, `indicator` 컬럼이 `varchar`인지 (`information_schema.columns`로 확인).
   - `MarketDailyPriceServiceTest`: 가짜 `IndicatorDailyPriceProvider`로 read-through 흐름을 검증한다. 덮으면 호출하지 않음, 빈 쪽만 받음, 당일 행 제외, 중복 건너뜀, 실패 전파.
-  - `KisIndicatorDailyPriceProviderTest`(`MockRestServiceServer`): 종류별 파라미터, 국내 50건과 해외 100건 페이지 반복, 필드 매핑, 날짜가 빈 행 제거. 응답 본문은 실측 응답을 쓴다.
+  - `KisIndicatorDailyPriceProviderTest`(가짜 `KisApiClient`): 종류별 파라미터, 시작일까지 이어 받는 페이지 반복, 구간 밖 행만 올 때 멈춤, 필드 매핑, 날짜가 빈 행 제거. 응답 본문은 실측 응답을 쓴다.
 - E2E 없음. HTTP API가 없다.
 - `ArchitectureTest`가 통과해야 한다. 새 규칙은 추가하지 않는다.
 - 테스트에서 실제 KIS를 호출하지 않는다.
@@ -293,7 +309,7 @@ public boolean tryStartSync(MarketIndicator indicator, LocalDate from, LocalDate
 | 8 | 오늘은 지표 타임존으로 계산한다. | `오늘은_지표_타임존으로_계산한다` |
 | 9 | 같은 지표의 동기화는 하루 1회, 더 이른 시작일이면 한 번 더 허용한다. | `같은_지표의_동기화는_하루_한_번만_시도한다`, `같은_날_더_이른_시작일을_요청하면_다시_동기화한다` |
 | 10 | 동시에 시도해도 시도권은 하나만 얻는다. | `동시에_시도해도_한_요청만_시도권을_얻는다` |
-| 11 | 국내 지수는 50건, 해외 지수·환율은 100건 단위로 페이지를 반복해 모두 받는다. | `KisIndicatorDailyPriceProviderTest.국내_지수는_50건_단위로_페이지를_반복한다`, `해외_지수는_100건_단위로_페이지를_반복한다` |
+| 11 | 페이지가 요청 시작일까지 닿지 않으면 남은 구간을 이어서 받는다. 받은 건수로 멈추지 않는다. 요청 구간보다 늦은 행만 오면 멈춘다. | `KisIndicatorDailyPriceProviderTest.첫_페이지가_시작일까지_닿지_않으면_남은_구간을_이어서_받는다`, `요청_구간보다_늦은_행만_오면_더_부르지_않는다` |
 | 12 | 종류별 응답 필드가 일봉으로 매핑된다 (종가는 `prpr`). | `국내_지수_응답을_일봉으로_매핑한다`, `해외_지수_응답을_일봉으로_매핑한다`, `환율_응답을_일봉으로_매핑한다` |
 | 13 | 날짜가 빈 행은 버린다. | `날짜가_빈_행은_버린다` |
 | 14 | `(indicator, tradeAt)`는 유니크다. | `MarketDailyPriceRepositoryTest.같은_지표_같은_거래일은_중복_저장할_수_없다` |
