@@ -138,7 +138,7 @@ public record IndicatorQuote(
 }
 ```
 
-- `valueAt`의 `@JsonFormat`은 `Quote.priceAt`과 같은 이유로 붙인다. 붙이지 않으면 Jackson이 캐시에서 읽을 때 오프셋을 UTC로 바꾼다. 그러면 캐시 히트 응답만 지표 타임존과 다른 값이 나간다.
+- `valueAt`의 `@JsonFormat`은 `Quote.priceAt`과 같은 이유로 붙인다. 붙이지 않으면 Jackson이 캐시에서 읽을 때 오프셋을 UTC로 바꾼다. 그러면 캐시 히트 응답만 지표 타임존과 다른 값이 나간다. 2026-10-04 실측으로 확인했다 — 기본 매퍼로 `+09:00`을 쓰고 다시 읽으면 애너테이션이 없을 때 `Z`가 되고, 있을 때 `+09:00`이 유지된다. **여기서는 반드시 필요하다.** 반대로 응답 DTO(쓰기 전용)에서는 효과가 없다 — `SPEC-market-chart.md`의 "오프셋 보존" 참고.
 - 당일 봉에 필요한 판단(예: 개장 전인지)은 `SPEC-market-chart.md`에서 필요해질 때 메서드로 추가한다.
 
 ### 설계
@@ -253,6 +253,10 @@ public IndicatorQuote fetch(MarketIndicator indicator) {
 ## 미해결 질문
 
 - **해외 지수와 환율은 실시간인가, 지연인가?** KIS의 해외지수(`N`)와 환율(`X`) 시세가 지연 시세인지 확인해야 한다. 지연이라면 카드에 지연 여부를 표시할지 `market-summary`에서 정한다.
+  - 미국 장중(한국 시간 평일 22:30~05:00)에 `GET /uapi/overseas-price/v1/quotations/inquire-daily-chartprice`,
+    TR `FHKST03030100`, `FID_COND_MRKT_DIV_CODE=N`, `FID_INPUT_ISCD=COMP`로 몇 분 간격으로 두 번 호출한다.
+  - 볼 것: `output1.ovrs_nmix_prpr`가 그 사이에 움직이는가. 공개 시세와 비교해 몇 분 뒤처지는가.
+  - 환율은 `FID_COND_MRKT_DIV_CODE=X`, `FID_INPUT_ISCD=FX@KRW`로 한국 장중에 같은 방식으로 본다.
 - **모의 도메인 호출 한도:** 캐시가 빈 상태에서 탭 하나를 열면 KIS를 3번 순차 호출한다. 실측에서 모의 도메인은 1초 간격 호출도 `EGW00201`에 걸렸다. 운영이 실전 도메인(초당 20건)인지는 기능 맵의 미해결 질문과 같다.
 - **해외 TR의 기간 파라미터:** 평일에는 기간을 오늘 하루로 줘도 `output1`이 채워진다(실측). 휴장일에 비어 오는지는 아직 확인하지 못했다. 비어 오면 지금 계약대로 `P007`이 되므로 그 탭 전체가 502다. 실측으로 확인한 뒤 기간을 최근 며칠로 넓힐지 정한다.
 - **KIS 호출 한도 공유:** `stock-quote`의 `QuoteRefresher`와 한도를 나눠 쓴다. 이 모듈은 초당 0.5회가 상한이라 지금은 여유가 있다.
