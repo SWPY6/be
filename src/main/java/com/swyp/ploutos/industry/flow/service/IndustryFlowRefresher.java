@@ -24,6 +24,7 @@ import com.swyp.ploutos.stock.price.DailyPrices;
 import com.swyp.ploutos.stock.price.service.DailyPriceReader;
 import com.swyp.ploutos.stock.quote.service.QuoteReader;
 import com.swyp.ploutos.stock.service.StockReader;
+import com.swyp.ploutos.stock.snapshot.service.StockSnapshotWriter;
 
 import lombok.RequiredArgsConstructor;
 
@@ -46,6 +47,7 @@ class IndustryFlowRefresher {
     private final DailyPriceReader dailyPriceReader;
     private final IndustryFlowCalculator calculator;
     private final IndustryFlowWriter industryFlowWriter;
+    private final StockSnapshotWriter stockSnapshotWriter;
     private final IndustryFlowProperties properties;
     private final Clock clock;
 
@@ -88,6 +90,20 @@ class IndustryFlowRefresher {
             refreshCountry(industry, country, ofCountry(quotedStocks, country),
                     hasStockOf(targets, country));
         }
+        saveSnapshots(quotedStocks);
+    }
+
+    /**
+     * 종목별 시세를 남긴다. 주요 변동 종목 화면이 외부 호출 없이 정렬·필터하려면 소속 종목
+     * 전체의 값이 있어야 하는데, 산업 평균을 내느라 이미 받아 둔 것이 그것이다 —
+     * <b>여기서 외부 호출이 늘지 않는다.</b>
+     *
+     * <p>산업 흐름을 저장한 <b>뒤에</b> 부른다. 이쪽이 실패해도 한 바퀴치 평균은 이미 남는다.
+     */
+    private void saveSnapshots(List<QuotedStock> quotedStocks) {
+        stockSnapshotWriter.save(quotedStocks.stream()
+                .map(quoted -> quoted.toSnapshot(nowIn(quoted.country())))
+                .toList());
     }
 
     private void refreshCountry(Industries industry, Country country, List<QuotedStock> quotedStocks,

@@ -51,6 +51,8 @@ import com.swyp.ploutos.stock.price.DailyPrices;
 import com.swyp.ploutos.stock.price.service.DailyPriceReader;
 import com.swyp.ploutos.stock.quote.service.QuoteReader;
 import com.swyp.ploutos.stock.service.StockReader;
+import com.swyp.ploutos.stock.snapshot.StockSnapshot;
+import com.swyp.ploutos.stock.snapshot.service.StockSnapshotWriter;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -75,6 +77,12 @@ class IndustryFlowRefresherTest {
     @Mock
     private IndustryFlowWriter industryFlowWriter;
 
+    @Mock
+    private StockSnapshotWriter stockSnapshotWriter;
+
+    @Captor
+    private ArgumentCaptor<List<StockSnapshot>> savedSnapshots;
+
     @Captor
     private ArgumentCaptor<Country> savedCountry;
 
@@ -90,7 +98,8 @@ class IndustryFlowRefresherTest {
     void setUp() {
         // 초당 1000건 = 호출 사이 1ms. 테스트가 기다리지 않게 한다.
         refresher = new IndustryFlowRefresher(industryReader, stockReader, quoteReader, dailyPriceReader,
-                new IndustryFlowCalculator(), industryFlowWriter, new IndustryFlowProperties(1000),
+                new IndustryFlowCalculator(), industryFlowWriter, stockSnapshotWriter,
+                new IndustryFlowProperties(1000),
                 Clock.fixed(Instant.parse("2026-09-28T01:00:07Z"), ZoneOffset.UTC));
         // 기본은 저장된 일봉 없음. 거래대금을 보는 테스트만 따로 stub 한다.
         given(dailyPriceReader.readStoredLatest(any(), anyInt())).willReturn(DailyPrices.of(List.of()));
@@ -332,6 +341,78 @@ class IndustryFlowRefresherTest {
         then(quoteReader).should().readWithoutTracking(20L);
         then(dailyPriceReader).should().readStoredLatest(10L, 20);
         then(dailyPriceReader).should().readStoredLatest(20L, 20);
+    }
+
+    @Test
+    void 시세를_구한_모든_종목의_스냅샷을_남긴다() {
+        // given 자동차에 종목 셋이 있고 모두 시세를 구한다
+        given(industryReader.readAll()).willReturn(List.of(AUTOMOBILE));
+        given(industryReader.readStockIds(1L)).willReturn(List.of(10L, 20L, 30L));
+        stub(10L, "005380", "현대차", Country.KR, "3.00", 866);
+        stub(20L, "000270", "기아", Country.KR, "-1.00", 400);
+        stub(30L, "012330", "현대모비스", Country.KR, "2.00", 200);
+
+        // when
+        refresher.refreshNext();
+
+        // then 대표 종목만이 아니라 소속 종목 전부가 저장된다
+        then(stockSnapshotWriter).should().save(savedSnapshots.capture());
+        assertThat(savedSnapshots.getValue()).extracting(StockSnapshot::stockId)
+                .containsExactly(10L, 20L, 30L);
+    }
+
+    @Test
+    void 스냅샷을_남겨도_시세_조회_횟수는_늘지_않는다() {
+        // given 종목 셋
+        given(industryReader.readAll()).willReturn(List.of(AUTOMOBILE));
+        given(industryReader.readStockIds(1L)).willReturn(List.of(10L, 20L, 30L));
+        stub(10L, "005380", "현대차", Country.KR, "3.00", 866);
+        stub(20L, "000270", "기아", Country.KR, "-1.00", 400);
+        stub(30L, "012330", "현대모비스", Country.KR, "2.00", 200);
+
+        // when
+        refresher.refreshNext();
+
+        // then 종목당 한 번씩만 외부 시세를 읽는다 — 스냅샷은 이미 받은 값을 쓴다
+        then(quoteReader).should(org.mockito.Mockito.times(3)).readWithoutTracking(any());
+    }
+
+    @Test
+    void 스냅샷의_계산_시각은_그_종목_시장의_현지_시각이다() {
+        // given 국내 종목과 해외 종목이 한 산업에 섞여 있다
+        given(industryReader.readAll()).willReturn(List.of(AUTOMOBILE));
+        given(industryReader.readStockIds(1L)).willReturn(List.of(10L, 40L));
+        stub(10L, "005380", "현대차", Country.KR, "3.00", 866);
+        stub(40L, "TSLA", "테슬라", Country.US, "1.00", 500);
+
+        // when
+        refresher.refreshNext();
+
+        // then 같은 순간이지만 시장 타임존만큼 다르게 찍힌다 (UTC 01:00 → 서울 10:00 · 뉴욕 21:00 전날)
+        then(stockSnapshotWriter).should().save(savedSnapshots.capture());
+        assertThat(savedSnapshots.getValue()).extracting(StockSnapshot::calculatedAt)
+                .containsExactly(
+                        LocalDateTime.of(2026, 9, 28, 10, 0, 7),
+                        LocalDateTime.of(2026, 9, 27, 21, 0, 7));
+    }
+
+    @Test
+    void 시세를_구하지_못한_종목은_스냅샷에_넣지_않는다() {
+        // given 두 종목 중 하나가 실패한다
+        given(industryReader.readAll()).willReturn(List.of(AUTOMOBILE));
+        given(industryReader.readStockIds(1L)).willReturn(List.of(10L, 20L));
+        stub(10L, "005380", "현대차", Country.KR, "3.00", 866);
+        stub(20L, "000270", "기아", Country.KR, "-1.00", 400);
+        given(quoteReader.readWithoutTracking(eq(20L)))
+                .willThrow(new BusinessException(ErrorCode.MARKET_DATA_UNAVAILABLE));
+
+        // when
+        refresher.refreshNext();
+
+        // then 실패한 종목은 빠진다 — 낡은 값이 남는 쪽이 0으로 덮는 것보다 낫다
+        then(stockSnapshotWriter).should().save(savedSnapshots.capture());
+        assertThat(savedSnapshots.getValue()).extracting(StockSnapshot::stockId)
+                .containsExactly(10L);
     }
 
     private void stub(Long stockId, String ticker, String name, Country country, String changeRate,
