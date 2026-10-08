@@ -9,6 +9,8 @@ import java.time.LocalDateTime;
  * <p>이력을 쌓지 않는다 — 화면이 보여주는 것은 "지금"이고 과거 값은 일봉이 담당한다.
  * 그래서 종목당 한 건이며 갱신될 때마다 덮어쓴다.
  *
+ * @param averageVolume20d 직전 20거래일 평균 거래량. 거래량 배수의 분모다. 저장된 일봉이
+ *                         20거래일에 못 미치면 {@code null}이고, 그 종목은 급증을 판정할 수 없다
  * @param calculatedAt 그 종목이 속한 시장의 현지 시각. 국가가 섞인 목록에서 어느 시점의
  *                     값인지 알려면 국가별 시각이어야 한다
  */
@@ -19,6 +21,7 @@ public record StockSnapshot(
         long volume,
         BigDecimal tradingValue,
         BigDecimal marketCap,
+        Long averageVolume20d,
         LocalDateTime calculatedAt
 ) {
 

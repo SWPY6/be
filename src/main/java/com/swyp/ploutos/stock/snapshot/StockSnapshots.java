@@ -56,6 +56,10 @@ public class StockSnapshots {
     @Column(precision = 20, scale = 4)
     private BigDecimal marketCap;
 
+    /** 직전 20거래일 평균 거래량. 저장된 일봉이 모자라면 {@code null}이다. */
+    @Column
+    private Long averageVolume20d;
+
     @Column(nullable = false)
     private LocalDateTime calculatedAt;
 
@@ -75,11 +79,12 @@ public class StockSnapshots {
         this.volume = snapshot.volume();
         this.tradingValue = snapshot.tradingValue();
         this.marketCap = snapshot.marketCap();
+        this.averageVolume20d = snapshot.averageVolume20d();
         this.calculatedAt = snapshot.calculatedAt();
     }
 
     public StockSnapshot toSnapshot() {
         return new StockSnapshot(stockId, price, changeRate, volume, tradingValue, marketCap,
-                calculatedAt);
+                averageVolume20d, calculatedAt);
     }
 }

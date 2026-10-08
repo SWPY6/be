@@ -17,12 +17,15 @@ import com.swyp.ploutos.stock.snapshot.StockSnapshot;
  *                그러면 DB를 거치지 않은 객체로는 이 코드를 검증할 수 없다
  * @param averageTradingValue20d 저장된 일봉으로 근사한 20거래일 평균 거래대금.
  *                               일봉이 20개에 못 미치면 {@code null}이다
+ * @param averageVolume20d 같은 일봉에서 얻은 20거래일 평균 거래량. 거래량 배수의 분모로
+ *                         스냅샷에 남긴다. 산업 평균 계산에는 쓰지 않는다
  */
 public record QuotedStock(
         Long stockId,
         StockWithMarket stock,
         Quote quote,
-        BigDecimal averageTradingValue20d
+        BigDecimal averageTradingValue20d,
+        Long averageVolume20d
 ) {
 
     public String ticker() {
@@ -72,6 +75,6 @@ public record QuotedStock(
      */
     public StockSnapshot toSnapshot(LocalDateTime calculatedAt) {
         return new StockSnapshot(stockId, quote.price(), changeRate(), quote.volume(),
-                quote.tradingValue(), marketCap(), calculatedAt);
+                quote.tradingValue(), marketCap(), averageVolume20d, calculatedAt);
     }
 }

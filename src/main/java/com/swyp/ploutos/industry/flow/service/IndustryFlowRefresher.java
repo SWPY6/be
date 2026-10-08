@@ -159,29 +159,33 @@ class IndustryFlowRefresher {
      */
     private Optional<QuotedStock> quote(QuoteTarget target) {
         try {
+            DailyPrices stored = storedPrices(target.stockId());
             return Optional.of(new QuotedStock(target.stockId(), target.stock(),
                     quoteReader.readWithoutTracking(target.stockId()),
-                    averageTradingValue(target.stockId())));
+                    averageTradingValue(stored), stored.averageVolume20d().orElse(null)));
         } catch (RuntimeException ignored) {
             return Optional.empty();
         }
     }
 
     /**
-     * 20거래일 평균 거래대금. 저장된 일봉만 읽는다 — 종목 수만큼 반복되므로 부족분을 외부에서
-     * 채우는 경로({@code findBetween}, {@code averageVolume20d})를 쓰면 KIS 호출이 종목 수만큼 는다.
+     * 저장된 일봉 20거래일치. 종목 수만큼 반복되므로 부족분을 외부에서 채우는 경로
+     * ({@code findBetween})를 쓰지 않는다 — 그러면 KIS 호출이 종목 수만큼 는다.
      *
-     * <p>실패해도 시세는 살린다. 거래대금과 평균 등락률은 독립된 값이라, 여기서 예외를 올리면
-     * 구할 수 있었던 등락률까지 잃는다.
+     * <p>실패해도 시세는 살린다. 일봉에서 얻는 값과 평균 등락률은 독립이라, 여기서 예외를
+     * 올리면 구할 수 있었던 등락률까지 잃는다.
      */
-    private BigDecimal averageTradingValue(Long stockId) {
+    private DailyPrices storedPrices(Long stockId) {
         try {
-            return IndustryTradingValue.approximateAverage(
-                    dailyPriceReader.readStoredLatest(stockId, DailyPrices.AVERAGE_DAYS),
-                    DailyPrices.AVERAGE_DAYS);
+            return dailyPriceReader.readStoredLatest(stockId, DailyPrices.AVERAGE_DAYS);
         } catch (RuntimeException ignored) {
-            return null;
+            return DailyPrices.of(List.of());
         }
+    }
+
+    /** 20거래일 평균 거래대금. 일봉이 모자라면 비어 있다. */
+    private static BigDecimal averageTradingValue(DailyPrices stored) {
+        return IndustryTradingValue.approximateAverage(stored, DailyPrices.AVERAGE_DAYS);
     }
 
     private static List<QuotedStock> ofCountry(List<QuotedStock> quotedStocks, Country country) {

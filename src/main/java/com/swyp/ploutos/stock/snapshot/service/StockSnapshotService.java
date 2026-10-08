@@ -22,9 +22,26 @@ import lombok.RequiredArgsConstructor;
 @Service
 @Transactional
 @RequiredArgsConstructor
-class StockSnapshotService implements StockSnapshotWriter {
+class StockSnapshotService implements StockSnapshotWriter, StockSnapshotReader {
 
     private final StockSnapshotRepository repository;
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<StockSnapshot> readAll() {
+        return repository.findAll().stream().map(StockSnapshots::toSnapshot).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<StockSnapshot> read(List<Long> stockIds) {
+        if (stockIds.isEmpty()) {
+            return List.of();
+        }
+        return repository.findByStockIdIn(stockIds).stream()
+                .map(StockSnapshots::toSnapshot)
+                .toList();
+    }
 
     /**
      * 기존 행을 한 번에 읽어 와 종목별로 맞춰 덮어쓴다. 종목마다 따로 조회하면 한 바퀴에

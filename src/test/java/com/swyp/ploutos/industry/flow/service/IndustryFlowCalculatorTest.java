@@ -316,7 +316,7 @@ class IndustryFlowCalculatorTest {
             long tradingValue, long average20d) {
         QuotedStock base = build(ticker, name, changeRate, marketCap, tradingValue);
         return new QuotedStock(base.stockId(), base.stock(), base.quote(),
-                average20d == 0 ? null : BigDecimal.valueOf(average20d));
+                average20d == 0 ? null : BigDecimal.valueOf(average20d), null);
     }
 
     private static QuotedStock build(String ticker, String name, String changeRate, long marketCap,
@@ -337,7 +337,7 @@ class IndustryFlowCalculatorTest {
                 OffsetDateTime.of(2026, 9, 28, 10, 0, 0, 0, ZoneOffset.ofHours(9)),
                 PriceTiming.REALTIME);
         return new QuotedStock(stockIdOf(ticker), new StockWithMarket(stock, market), quote,
-                BigDecimal.ONE);
+                BigDecimal.ONE, null);
     }
 
     /**
