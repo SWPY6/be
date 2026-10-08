@@ -3,7 +3,7 @@ package com.swyp.ploutos.industry.flow.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -36,8 +36,10 @@ import com.swyp.ploutos.industry.flow.IndustryTradingValue;
 import com.swyp.ploutos.industry.flow.IndustryFlowStock;
 import com.swyp.ploutos.industry.flow.RankedIndustryFlow;
 import com.swyp.ploutos.industry.service.IndustryReader;
-import com.swyp.ploutos.news.RelatedNews;
-import com.swyp.ploutos.news.service.NewsReader;
+import com.swyp.ploutos.news.NewsArticle;
+import com.swyp.ploutos.news.StockNewsFeed;
+import com.swyp.ploutos.news.service.StockNewsResult;
+import com.swyp.ploutos.news.service.StockNewsService;
 import com.swyp.ploutos.stock.price.DailyPrice;
 import com.swyp.ploutos.stock.price.DailyPrices;
 import com.swyp.ploutos.stock.price.service.DailyPriceReader;
@@ -63,16 +65,16 @@ class IndustryNewsServiceTest {
     private DailyPriceReader dailyPriceReader;
 
     @Mock
-    private NewsReader newsReader;
+    private StockNewsService stockNewsService;
 
     @Captor
-    private ArgumentCaptor<LocalDateTime> from;
+    private ArgumentCaptor<OffsetDateTime> from;
 
     @Captor
-    private ArgumentCaptor<LocalDateTime> to;
+    private ArgumentCaptor<OffsetDateTime> to;
 
     @Captor
-    private ArgumentCaptor<List<Long>> stockIds;
+    private ArgumentCaptor<Long> stockId;
 
     private IndustryNewsService industryNewsService;
 
@@ -80,7 +82,7 @@ class IndustryNewsServiceTest {
     @BeforeEach
     void setUp() {
         industryNewsService = new IndustryNewsService(industryFlowService, new IndustryCardSelector(),
-                industryReader, dailyPriceReader, newsReader);
+                industryReader, dailyPriceReader, stockNewsService);
     }
 
     private void stubIndustry(IndustryCode code, Long industryId, List<Long> stockIds) {
@@ -106,7 +108,7 @@ class IndustryNewsServiceTest {
         stubIndustry(IndustryCode.CHEMICAL, 9L, List.of(90L));
         stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
         stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
-        given(newsReader.readByStockIds(anyList(), any(), any())).willReturn(List.of());
+        given(stockNewsService.read(anyLong(), any(), any())).willReturn(found());
 
         // when
         List<IndustryNewsDetail> details = industryNewsService.read(Country.KR);
@@ -127,16 +129,17 @@ class IndustryNewsServiceTest {
         stubIndustry(IndustryCode.CHEMICAL, 9L, List.of(90L));
         stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
         stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
-        given(newsReader.readByStockIds(anyList(), any(), any())).willReturn(List.of());
+        given(stockNewsService.read(anyLong(), any(), any())).willReturn(found());
 
         // when
         industryNewsService.read(Country.KR);
 
         // then
-        then(newsReader).should(atLeastOnce())
-                .readByStockIds(anyList(), from.capture(), to.capture());
-        assertThat(from.getValue()).isEqualTo(LocalDateTime.of(2026, 9, 3, 15, 30));
-        assertThat(to.getValue()).isEqualTo(LocalDateTime.of(2026, 9, 4, 15, 30));
+        then(stockNewsService).should(atLeastOnce())
+                .read(anyLong(), from.capture(), to.capture());
+        assertThat(from.getValue()).isEqualTo(
+                OffsetDateTime.of(2026, 9, 3, 15, 30, 0, 0, ZoneOffset.ofHours(9)));
+        assertThat(to.getValue()).isEqualTo(CALCULATED_AT);
     }
 
     @Test
@@ -147,15 +150,16 @@ class IndustryNewsServiceTest {
         stubIndustry(IndustryCode.CHEMICAL, 9L, Country.US, List.of(90L));
         stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
         stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
-        given(newsReader.readByStockIds(anyList(), any(), any())).willReturn(List.of());
+        given(stockNewsService.read(anyLong(), any(), any())).willReturn(found());
 
         // when
         industryNewsService.read(Country.US);
 
         // then
-        then(newsReader).should(atLeastOnce())
-                .readByStockIds(anyList(), from.capture(), to.capture());
-        assertThat(from.getValue()).isEqualTo(LocalDateTime.of(2026, 9, 3, 16, 0));
+        then(stockNewsService).should(atLeastOnce())
+                .read(anyLong(), from.capture(), to.capture());
+        assertThat(from.getValue()).isEqualTo(
+                OffsetDateTime.of(2026, 9, 3, 16, 0, 0, 0, ZoneOffset.ofHours(-4)));
     }
 
     @Test
@@ -166,8 +170,9 @@ class IndustryNewsServiceTest {
         stubIndustry(IndustryCode.CHEMICAL, 9L, List.of(90L));
         stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
         stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
-        given(newsReader.readByStockIds(anyList(), any(), any())).willReturn(List.of(
-                news(1L, "가장 최근"), news(2L, "그다음"), news(3L, "더 예전")));
+        given(stockNewsService.read(anyLong(), any(), any())).willReturn(found(
+                article("c", "더 예전", 9, 0), article("a", "가장 최근", 11, 0),
+                article("b", "그다음", 10, 0)));
 
         // when
         List<IndustryNewsDetail> details = industryNewsService.read(Country.KR);
@@ -185,7 +190,7 @@ class IndustryNewsServiceTest {
         stubIndustry(IndustryCode.CHEMICAL, 9L, List.of(90L));
         stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
         stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
-        given(newsReader.readByStockIds(anyList(), any(), any())).willReturn(List.of());
+        given(stockNewsService.read(anyLong(), any(), any())).willReturn(found());
 
         // when
         List<IndustryNewsDetail> details = industryNewsService.read(Country.KR);
@@ -203,8 +208,8 @@ class IndustryNewsServiceTest {
         stubIndustry(IndustryCode.CHEMICAL, 9L, List.of(90L));
         stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
         stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
-        given(newsReader.readByStockIds(anyList(), any(), any()))
-                .willThrow(new IllegalStateException("DB 장애"));
+        given(stockNewsService.read(anyLong(), any(), any()))
+                .willThrow(new IllegalStateException("네이버 장애"));
 
         // when
         List<IndustryNewsDetail> details = industryNewsService.read(Country.KR);
@@ -227,7 +232,7 @@ class IndustryNewsServiceTest {
         List<IndustryNewsDetail> details = industryNewsService.read(Country.KR);
 
         // then 창을 모르면 조회하지 않는다. 카드는 그대로 나온다
-        then(newsReader).should(never()).readByStockIds(anyList(), any(), any());
+        then(stockNewsService).should(never()).read(anyLong(), any(), any());
         assertThat(details).hasSize(2);
         assertThat(details).allSatisfy(detail -> assertThat(detail.news()).isEmpty());
     }
@@ -241,85 +246,84 @@ class IndustryNewsServiceTest {
         given(dailyPriceReader.readStoredLatest(eq(10L), anyInt())).willReturn(DailyPrices.of(List.of()));
         stubPreviousTradeDay(11L, PREVIOUS_TRADE_DAY);
         stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
-        given(newsReader.readByStockIds(anyList(), any(), any())).willReturn(List.of());
+        given(stockNewsService.read(anyLong(), any(), any())).willReturn(found());
 
         // when
         industryNewsService.read(Country.KR);
 
         // then
-        then(newsReader).should(atLeastOnce())
-                .readByStockIds(anyList(), from.capture(), any());
-        assertThat(from.getValue()).isEqualTo(LocalDateTime.of(2026, 9, 3, 15, 30));
+        then(stockNewsService).should(atLeastOnce()).read(anyLong(), from.capture(), any());
+        assertThat(from.getValue()).isEqualTo(
+                OffsetDateTime.of(2026, 9, 3, 15, 30, 0, 0, ZoneOffset.ofHours(9)));
     }
 
     @Test
-    void 선정된_산업의_소속_종목으로만_뉴스를_찾는다() {
+    void 선정된_산업의_대표_종목으로만_뉴스를_찾는다() {
         // given
         given(industryFlowService.read(Country.KR)).willReturn(flows());
         stubIndustry(IndustryCode.AUTOMOBILE, 1L, List.of(10L, 11L));
         stubIndustry(IndustryCode.CHEMICAL, 9L, List.of(90L));
         stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
         stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
-        given(newsReader.readByStockIds(anyList(), any(), any())).willReturn(List.of());
+        given(stockNewsService.read(anyLong(), any(), any())).willReturn(found());
 
         // when
         industryNewsService.read(Country.KR);
 
-        // then 뽑히지 않은 산업(건설)의 종목은 조회하지 않는다
-        then(newsReader).should().readByStockIds(eq(List.of(10L, 11L)), any(), any());
-        then(newsReader).should().readByStockIds(eq(List.of(90L)), any(), any());
+        // then 뽑히지 않은 산업(건설)은 건드리지 않는다
+        then(stockNewsService).should(atLeastOnce()).read(stockId.capture(), any(), any());
+        assertThat(stockId.getAllValues()).containsOnly(10L);
         then(industryReader).should(never()).read(IndustryCode.CONSTRUCTION);
     }
 
     @Test
-    void 대표_종목의_뉴스를_먼저_찾는다() {
-        // given 대표 종목(10L)에 뉴스가 있다
+    void 대표_종목이_아닌_소속_종목으로는_찾지_않는다() {
+        // given 산업에 종목이 셋인데 대표 종목은 10L 하나다
         given(industryFlowService.read(Country.KR)).willReturn(flows());
         stubIndustry(IndustryCode.AUTOMOBILE, 1L, List.of(10L, 11L, 12L));
         stubIndustry(IndustryCode.CHEMICAL, 9L, List.of(90L));
         stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
         stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
-        given(newsReader.readByStockIds(eq(List.of(10L)), any(), any()))
-                .willReturn(List.of(news(1L, "현대차 수출 증가")));
+        given(stockNewsService.read(eq(10L), any(), any()))
+                .willReturn(found(article("a", "현대차 수출 증가", 9, 0)));
 
-        // when
+        // then 외부 검색은 종목당 한 번이라 산업 전체로 넓히지 않는다
         List<IndustryNewsDetail> details = industryNewsService.read(Country.KR);
 
-        // then 산업 전체로 넓히지 않는다
-        assertThat(details.getFirst().news()).extracting(RelatedNews::title)
+        assertThat(details.getFirst().news()).extracting(NewsArticle::title)
                 .containsExactly("현대차 수출 증가");
-        then(newsReader).should(never()).readByStockIds(eq(List.of(10L, 11L, 12L)), any(), any());
+        then(stockNewsService).should(never()).read(eq(11L), any(), any());
+        then(stockNewsService).should(never()).read(eq(12L), any(), any());
     }
 
     @Test
-    void 대표_종목에_뉴스가_없으면_산업_전체로_넓힌다() {
-        // given 대표 종목에는 없고 소속 종목 전체에는 있다
-        given(industryFlowService.read(Country.KR)).willReturn(flows());
-        stubIndustry(IndustryCode.AUTOMOBILE, 1L, List.of(10L, 11L, 12L));
-        stubIndustry(IndustryCode.CHEMICAL, 9L, List.of(90L));
-        stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
-        stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
-        given(newsReader.readByStockIds(eq(List.of(10L)), any(), any())).willReturn(List.of());
-        given(newsReader.readByStockIds(eq(List.of(10L, 11L, 12L)), any(), any()))
-                .willReturn(List.of(news(2L, "한온시스템 수주")));
-
-        // when
-        List<IndustryNewsDetail> details = industryNewsService.read(Country.KR);
-
-        // then 대표 종목에 없다는 이유로 영역을 비우지 않는다
-        assertThat(details.getFirst().news()).extracting(RelatedNews::title)
-                .containsExactly("한온시스템 수주");
-    }
-
-    @Test
-    void 어느_종목에도_뉴스가_없으면_빈_목록이다() {
-        // given 두 단계 모두 비어 있다
-        given(industryFlowService.read(Country.KR)).willReturn(flows());
+    void 두_대표_종목의_기사를_합쳐_한_건을_싣는다() {
+        // given 두 대표 종목이 같은 기사를 문다.
+        // 중복 제거 자체는 NEWS_LIMIT 이 1인 동안 이 테스트로 증명되지 않는다 — 명세의 「알려진 한계」 참고
+        given(industryFlowService.read(Country.KR)).willReturn(twoMajorStockFlows());
         stubIndustry(IndustryCode.AUTOMOBILE, 1L, List.of(10L, 11L));
         stubIndustry(IndustryCode.CHEMICAL, 9L, List.of(90L));
         stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
         stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
-        given(newsReader.readByStockIds(anyList(), any(), any())).willReturn(List.of());
+        given(stockNewsService.read(anyLong(), any(), any()))
+                .willReturn(found(article("same", "자동차 업황 개선", 9, 0)));
+
+        // when
+        List<IndustryNewsDetail> details = industryNewsService.read(Country.KR);
+
+        // then documentId 가 같으면 한 건이다
+        assertThat(details.getFirst().news()).hasSize(1);
+    }
+
+    @Test
+    void 대표_종목에_뉴스가_없으면_빈_목록이다() {
+        // given 넓히는 단계가 없으므로 대표 종목에 없으면 그대로 비어 있다
+        given(industryFlowService.read(Country.KR)).willReturn(flows());
+        stubIndustry(IndustryCode.AUTOMOBILE, 1L, List.of(10L, 11L, 12L));
+        stubIndustry(IndustryCode.CHEMICAL, 9L, List.of(90L));
+        stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
+        stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
+        given(stockNewsService.read(anyLong(), any(), any())).willReturn(found());
 
         // when
         List<IndustryNewsDetail> details = industryNewsService.read(Country.KR);
@@ -330,7 +334,30 @@ class IndustryNewsServiceTest {
     }
 
     @Test
-    void 대표_종목이_없는_산업은_곧바로_전체에서_찾는다() {
+    void 계산된_적_없는_산업은_뉴스를_찾지_않는다() {
+        // given calculatedAt 이 null 이면 시간 창의 끝을 정할 수 없다
+        given(industryFlowService.read(Country.KR)).willReturn(List.of(
+                new RankedIndustryFlow(IndustryCode.AUTOMOBILE, 1, new BigDecimal("1.61"), 4, 3, 1,
+                        tradedAsUsual(), List.of(new IndustryFlowStock(20L, "005380", "현대차",
+                                PRICE, new BigDecimal("3.24"))), null),
+                flow(IndustryCode.CHEMICAL, 9, "-0.35"),
+                flow(IndustryCode.CONSTRUCTION, 5, "0.10")));
+        stubIndustry(IndustryCode.AUTOMOBILE, 1L, List.of(10L));
+        stubIndustry(IndustryCode.CHEMICAL, 9L, List.of(90L));
+        stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
+        stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
+        given(stockNewsService.read(anyLong(), any(), any())).willReturn(found());
+
+        // when
+        List<IndustryNewsDetail> details = industryNewsService.read(Country.KR);
+
+        // then 그 산업만 비어 있고 외부도 부르지 않는다. 카드는 그대로 나온다
+        assertThat(details.getFirst().news()).isEmpty();
+        then(stockNewsService).should(never()).read(eq(20L), any(), any());
+    }
+
+    @Test
+    void 대표_종목이_없는_산업은_뉴스를_찾지_않는다() {
         // given 시세를 한 종목도 구하지 못해 대표 종목이 비어 있다
         given(industryFlowService.read(Country.KR)).willReturn(List.of(
                 flowWithoutIndustryFlowStocks(IndustryCode.AUTOMOBILE, 1, "1.61"),
@@ -339,34 +366,13 @@ class IndustryNewsServiceTest {
         stubIndustry(IndustryCode.CHEMICAL, 9L, List.of(90L));
         stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
         stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
-        given(newsReader.readByStockIds(eq(List.of(10L, 11L)), any(), any()))
-                .willReturn(List.of(news(3L, "자동차 수출 증가 발표")));
+        given(stockNewsService.read(anyLong(), any(), any())).willReturn(found());
 
         // when
         List<IndustryNewsDetail> details = industryNewsService.read(Country.KR);
 
-        // then 빈 목록으로 조회하면 SQL 이 깨진다. 1단계를 건너뛴다
-        assertThat(details.getFirst().news()).extracting(RelatedNews::title)
-                .containsExactly("자동차 수출 증가 발표");
-    }
-
-    @Test
-    void 국내_카드는_해외_종목의_뉴스를_찾지_않는다() {
-        // given 한 산업에 국내 2개와 해외 2개가 함께 매핑돼 있다 (시드가 산업마다 국내 4 + 해외 4)
-        given(industryFlowService.read(Country.KR)).willReturn(flows());
-        stubIndustry(IndustryCode.AUTOMOBILE, 1L, Country.KR, List.of(10L, 11L));
-        stubIndustry(IndustryCode.AUTOMOBILE, 1L, Country.US, List.of(50L, 51L));
-        stubIndustry(IndustryCode.CHEMICAL, 9L, Country.KR, List.of(90L));
-        stubPreviousTradeDay(10L, PREVIOUS_TRADE_DAY);
-        stubPreviousTradeDay(90L, PREVIOUS_TRADE_DAY);
-
-        // when 대표 종목(10L)에 뉴스가 없어 산업 전체로 넓힌다
-        industryNewsService.read(Country.KR);
-
-        // then 넓힌 조회에도 해외 종목(50L·51L)이 섞이지 않는다
-        then(newsReader).should(atLeastOnce()).readByStockIds(stockIds.capture(), any(), any());
-        assertThat(stockIds.getAllValues()).allSatisfy(
-                ids -> assertThat(ids).doesNotContain(50L, 51L));
+        // then 찾을 종목이 없으므로 빈 목록이다. 산업 전체로 대체하지 않는다
+        assertThat(details.getFirst().news()).isEmpty();
     }
 
     @Test
@@ -384,9 +390,9 @@ class IndustryNewsServiceTest {
         industryNewsService.read(Country.US);
 
         // then 해외 종목의 거래일(09-02)에 미국 마감을 붙인다. 국내 거래일(09-03)을 쓰면 안 된다
-        then(newsReader).should(atLeastOnce()).readByStockIds(anyList(), from.capture(), any());
-        assertThat(from.getAllValues())
-                .containsOnly(LocalDateTime.of(2026, 9, 2, 16, 0));
+        then(stockNewsService).should(atLeastOnce()).read(anyLong(), from.capture(), any());
+        assertThat(from.getAllValues()).containsOnly(
+                OffsetDateTime.of(2026, 9, 2, 16, 0, 0, 0, ZoneOffset.ofHours(-4)));
     }
 
     /** 해외 카드. 대표 종목은 refresher 가 이미 국가로 걸러 저장하므로 해외 종목이다. */
@@ -432,9 +438,29 @@ class IndustryNewsServiceTest {
         return new IndustryTradingValue(new BigDecimal("100"), new BigDecimal("100"));
     }
 
-    private static RelatedNews news(Long newsId, String title) {
-        return new RelatedNews(newsId, title, "연합뉴스",
-                LocalDateTime.of(2026, 9, 4, 9, 0), "https://example.com/news/" + newsId);
+    private static StockNewsResult found(NewsArticle... articles) {
+        return new StockNewsResult(10L, Country.KR, null, CALCULATED_AT,
+                new StockNewsFeed(List.of(articles), true));
+    }
+
+    private static NewsArticle article(String id, String title, int hour, int minute) {
+        return new NewsArticle(id, title, "요약", "https://example.com/news/" + id,
+                NewsArticle.LinkKind.ORIGINAL, "example.com", "연합뉴스",
+                OffsetDateTime.of(2026, 9, 4, hour, minute, 0, 0, ZoneOffset.ofHours(9)));
+    }
+
+    /** 대표 종목이 둘인 카드. 두 종목이 같은 기사를 무는 경우를 만든다. */
+    private static List<RankedIndustryFlow> twoMajorStockFlows() {
+        return List.of(
+                new RankedIndustryFlow(IndustryCode.AUTOMOBILE, 1, new BigDecimal("1.61"), 4, 3, 1,
+                        tradedAsUsual(), List.of(
+                                new IndustryFlowStock(10L, "005380", "현대차", PRICE,
+                                        new BigDecimal("3.24")),
+                                new IndustryFlowStock(11L, "000270", "기아", PRICE,
+                                        new BigDecimal("1.85"))),
+                        CALCULATED_AT),
+                flow(IndustryCode.CHEMICAL, 9, "-0.35"),
+                flow(IndustryCode.CONSTRUCTION, 5, "0.10"));
     }
 
     private static DailyPrice price(LocalDate tradeAt) {
