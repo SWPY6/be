@@ -14,6 +14,9 @@ public interface StockIndustryRepository extends JpaRepository<StockIndustries, 
     @Query("select si.stockId from StockIndustries si where si.industryId = :industryId")
     List<Long> findStockIdsByIndustryId(@Param("industryId") Long industryId);
 
+    /** 종목 → 산업 역방향. 목록 화면이 종목마다 산업을 보여줘야 해서 묶어 읽는다. */
+    List<StockIndustries> findByStockIdIn(List<Long> stockIds);
+
     /**
      * 국가로 거른 소속 종목. 매핑에는 국가가 없고 {@code Stocks → Markets}에만 있으므로 조인한다.
      *
