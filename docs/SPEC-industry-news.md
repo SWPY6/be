@@ -296,11 +296,23 @@ fallingCount = changeRate < 0 인 종목 수
 장 마감 후 발표된 자료(예: 전날 18시 실적 공시)가 다음 날 주가를 움직이는 경우가 흔하므로
 "오늘 00시부터"가 아니라 이 창이 맞다.
 
-**대상** — 그 산업에 매핑된 **종목 전체**. 대표 종목 2개로 좁히지 않는다.
-RQ-0403이 "해당 산업 또는 소속 종목과 연결된"이라고 쓴다.
+창은 `StockNewsService.read(stockId, from, to)`에 그대로 넘긴다. 거르는 일은 그쪽이 한다 —
+내가 받은 결과를 다시 거르지 않는다.
 
-**중복 제거** — `stock_news`는 N:M 조인 테이블이라 한 뉴스가 한 산업의 여러 종목에 걸린다.
-`newsId`로 한 번만 싣는다.
+**출처** — `news` 모듈의 `StockNewsService`다. **DB(`news`·`stock_news`)는 읽지 않는다.**
+그 서비스가 네이버 검색을 종목별로 Redis에 10분 캐시하고 일일 호출 예산을 센다.
+
+**대상** — 그 산업의 **대표 종목 2개**. 산업 전체로 넓히지 않는다.
+DB 조인이던 때는 종목이 몇 개든 질의 한 번이라 넓히는 단계가 공짜였다. 외부 검색은 종목당
+한 번이므로 산업 하나에 수십 회가 된다. 대표 종목은 시가총액 상위라 최근 하루 치 기사가
+없을 확률이 낮아, 넓히는 단계가 벌어 주는 것이 그 비용을 넘지 못한다.
+
+**호출량** — 카드 2개 × 대표 종목 2개 = **최대 4종목**, 종목당 10분에 1회.
+하루 576회로 네이버 예산(20,000)의 3% 미만이다.
+
+**중복 제거** — 한 산업의 두 대표 종목이 같은 기사를 물 수 있다. `NewsArticle.documentId`
+(원문 URL에서 만든 값)로 한 번만 싣는다. `newsId`를 쓰지 않는 이유는 DB를 거치지 않아
+그 값이 없기 때문이다. 응답에 식별자를 싣지 않으므로 바깥에서는 차이가 없다.
 
 **정렬·상한** — 발표 시각 내림차순, **1건**. 목업이 1건을 보여준다.
 상수(`NEWS_LIMIT`)로 두어 늘릴 때 한 줄만 고치면 되게 한다.
@@ -383,7 +395,8 @@ Hibernate가 그 컬럼을 쓰지 않아 **값이 조용히 `null`로 남는다*
 - `IndustryCardSelector`(신규 도메인 정책, `@Component`): 선정·대체 규칙을 소유한다.
   DB도 시각도 모르고 산업 목록만 받아 2건을 고른다 — 그래서 순수 단위 테스트가 된다.
 - `IndustryNewsService`(신규, `industry/flow/service`): `IndustryFlowService.read(country)` →
-  `IndustryCardSelector`로 2건 선정 → 선정된 산업의 종목으로 `NewsReader` 호출 → 응답 조립.
+  `IndustryCardSelector`로 2건 선정 → 선정된 산업의 **대표 종목마다** `StockNewsService.read`
+  호출 → `documentId`로 중복 제거 → 최신 1건 → 응답 조립.
 - `IndustryNewsController`(신규): `GET /api/v1/industries/news` → `ApiResult<List<IndustryNewsResponse>>`.
 - `IndustryFlowRefresher`(기존)에 일봉 조회 의존을 더한다.
 
@@ -453,60 +466,70 @@ public DailyPrices readStoredLatest(Long stockId, int days) {
 `averageVolume20d`에서 `stockReader.read`·`syncIfNeeded`·평균 계산만 뺀 형태다.
 `DailyPriceReader`에 메서드 한 줄, `StockDailyPriceService`에 이 메서드 하나, 테스트 하나가 전부다.
 
-### ② `news` — 뉴스·공시 조회 계약
+### ② `news` — 종목 뉴스 조회 계약
 
 ```java
-// news/service/NewsReader.java
-public interface NewsReader {
-    /** 종목들에 연결된 뉴스를 발표 시각 구간으로 읽는다. 발표 시각 내림차순. */
-    List<RelatedNews> readByStockIds(List<Long> stockIds,
-            LocalDateTime from, LocalDateTime to);
-}
+// news/service/StockNewsService.java — 다른 담당자가 만든 것을 그대로 쓴다
+public StockNewsResult read(Long stockId, OffsetDateTime from, OffsetDateTime to)
+```
 
-public record RelatedNews(
-        Long newsId,             // 중복 제거 키
+**이 서비스가 캐시·예산·필터를 모두 갖고 있다.** 종목당 Redis 10분 캐시(`news:v1:{stockId}`),
+일일 호출 상한 20,000회, 기간 필터(`NewsWindow`), 관련성 필터(`NewsArticle.mentions(name)`),
+중복 제거와 최신순 정렬이 그 안에 있다. 내가 다시 만들 것이 없다.
+
+**더 아래 계층인 `NewsProvider`(네이버 어댑터)를 직접 부르지 않는다.** 캐시와 예산이 서비스에
+있어서, 어댑터를 바로 쓰면 내 호출만 예산 밖으로 샌다.
+
+받는 값은 `NewsArticle`이다(`news` 모듈 루트, `public`).
+
+```java
+public record NewsArticle(
+        String documentId,       // 원문 URL 에서 만든 값. 중복 제거 키
         String title,
-        String publisher,
-        LocalDateTime publishedAt,
-        String url
+        String summary,
+        String url,
+        LinkKind linkKind,       // ORIGINAL | NAVER
+        String source,
+        String publisherName,
+        OffsetDateTime publishedAt
 ) {}
 ```
 
-**평평한 `List`로 충분하다.** 뉴스가 선정에 관여하지 않으므로 산업이 이미 정해진 뒤에 부른다.
-카드마다 한 번씩, 요청당 **2회** 호출한다.
+카드가 쓰는 것은 `title`·`publisherName`·`publishedAt`·`url` 넷이다. `summary`·`linkKind`·
+`source`는 싣지 않는다. 응답 필드는 그대로이고 `publishedAt`의 타입만
+`LocalDateTime` → `OffsetDateTime`으로 바뀐다 — 직렬화 결과는 같은 모양이다.
 
-**`newsId`가 필요한 이유** — `stock_news`가 N:M이라 한 뉴스가 한 산업의 여러 종목에 걸린다.
-`newsId`로 중복을 제거한다.
+#### 처음에 만든 DB 경로는 제거한다
 
-`news` 모듈에는 지금 엔티티(`News`, `StockNews`)만 있고 `repository`·`service` 패키지가 없다.
-셋을 새로 만든다 — `RelatedNews`(루트), `NewsReader`+`JpaNewsReader`(`service`),
-`NewsRepository`(`repository`).
+이 명세의 앞선 판은 `news`·`stock_news`를 직접 읽는 계약을 만들었다(`NewsReader`·
+`JpaNewsReader`·`NewsRepository`·`RelatedNews`). **그 테이블을 채우는 코드가 저장소에 없다는
+것을 2026-10-08에 서버에서 확인했다 — 두 테이블 모두 0행이다.** 수집기를 새로 만드는 것보다
+이미 있는 `StockNewsService`를 쓰는 편이 작업량도 외부 호출도 적다.
 
-**`RelatedNews`는 `news` 모듈 루트에 둔다.** 내 모듈에 두면 계약을 제공하는 쪽이 소비하는 쪽을
-import하게 되어 의존이 뒤집힌다. CLAUDE.md의 패키지 표가 `service` → "다른 모듈의 `service`·루트"를
-허용하므로 이 방향이 맞다. `StockWithMarket`이 `stock` 루트에 있고 내 `QuotedStock`이 그것을
-쓰는 것과 같은 모양이다 — **데이터를 가진 모듈이 값 객체를 소유한다.**
+네 파일은 이 변경 뒤 쓰이지 않으므로 **함께 제거한다.** 내가 만든 코드이고, 쓰이지 않는 코드를
+남기지 않는 것이 이 저장소의 규칙이다. 다만 `news` 모듈 담당자가 수집기를 계획 중이라면
+DB 경로가 다시 쓸모 있어지므로, **제거 전에 묻는다**(「팀 전달」 참고).
 
-**`News` 엔티티를 수정하지 않는다.** `News`에는 접근자가 하나도 없다(`@Getter`도, getter 메서드도
-없다). `@Getter`를 붙이는 대신 **JPQL 생성자 프로젝션**으로 값만 꺼낸다.
+**영향 범위를 컴파일러로 확인했다**(2026-10-08). 네 파일을 실제로 지우고 `compileJava`를
+돌려 깨지는 곳을 받아냈다. 자바 밖(설정·스크립트)에서의 참조는 이 명세 문서 외에 없었다.
 
-```java
-@Query("""
-        select distinct new com.swyp.ploutos.news.RelatedNews(
-                n.newsId, n.title, n.publisher, n.publishedAt, n.url)
-        from News n, StockNews sn
-        where sn.newsId = n.newsId
-          and sn.stockId in :stockIds
-          and n.publishedAt between :from and :to
-        order by n.publishedAt desc
-        """)
-List<RelatedNews> findRelated(@Param("stockIds") List<Long> stockIds,
-        @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+```
+industry/flow/service/IndustryNewsService.java      ← StockNewsService 를 쓰도록 고친다
+industry/flow/service/IndustryNewsDetail.java       ← List<RelatedNews> → List<NewsArticle>
+industry/flow/controller/IndustryNewsResponse.java  ← from(NewsArticle, Country)
+industry/flow/service/IndustryNewsServiceTest.java      ← 픽스처 교체
+industry/flow/controller/IndustryNewsControllerTest.java ← 픽스처 교체
 ```
 
-`StockNews`에 `@ManyToOne`이 없어 연관 경로를 쓸 수 없으므로 `where`로 조인한다.
-`distinct`가 N:M 중복(한 뉴스가 같은 산업의 여러 종목에 걸리는 경우)을 DB에서 해결한다 —
-자바에서 `newsId`로 다시 걸러낼 필요가 없다.
+**다섯 곳 모두 내 모듈이다. 다른 담당자의 코드는 깨지지 않는다.**
+
+`RelatedNews`도 제거하는 이유는 그것을 둘 자리가 사라지기 때문이다. 이 명세가 `RelatedNews`를
+`news` 루트에 둔 근거는 "데이터를 가진 모듈이 값 객체를 소유한다"였는데, 이제 데이터를 주는
+값 객체는 `NewsArticle`이다. 같은 원칙이 `NewsArticle`을 그대로 쓰라고 말한다.
+
+바꿔 담지 않으면 변환도 줄어든다 — `RelatedNews.publishedAt`은 `LocalDateTime`이라 응답에서
+시장 타임존을 붙여야 했는데, `NewsArticle.publishedAt`은 이미 `OffsetDateTime`이다.
+접근자 이름만 `publisher` → `publisherName`으로 바뀌고 **응답 JSON은 동일하다.**
 
 #### 공시는 이번 범위에서 뺀다
 
@@ -640,35 +663,37 @@ src/main/java/com/swyp/ploutos/industry/flow/
   service/
     IndustryFlowCalculator.java    # 수정 — 세 값 계산
     IndustryFlowRefresher.java     # 수정 — 일봉 조회 의존 추가
-    IndustryNewsService.java       # 신규
+    IndustryNewsService.java       # 신규 → 2026-10-08 수정 (StockNewsService 사용)
+    IndustryNewsDetail.java        # 신규 → 2026-10-08 수정 (NewsArticle 로 교체)
   controller/
     IndustryNewsController.java    # 신규
-    IndustryNewsResponse.java      # 신규
+    IndustryNewsResponse.java      # 신규 → 2026-10-08 수정 (NewsArticle 로 교체)
 
 src/test/java/com/swyp/ploutos/industry/flow/
   IndustryCardSelectorTest.java    # 신규 — 단위. 선정 규칙의 정본
   IndustryTradingValueTest.java    # 신규 — 단위
   IndustryFlowCalculatorTest.java  # 수정
   IndustryFlowRefresherTest.java   # 수정
-  service/IndustryNewsServiceTest.java       # 신규 — 단위
-  controller/IndustryNewsControllerTest.java # 신규 — 슬라이스
+  service/IndustryNewsServiceTest.java       # 신규 — 단위. 2026-10-08 픽스처 교체
+  controller/IndustryNewsControllerTest.java # 신규 — 슬라이스. 2026-10-08 픽스처 교체
 ```
 
 남의 모듈에 더하는 파일. **기존 파일 수정은 인터페이스 한 줄뿐이다.**
 
 ```
 src/main/java/com/swyp/ploutos/news/
-  RelatedNews.java                     # 신규 — 값 객체 (모듈 루트)
-  repository/NewsRepository.java # 신규 — JPQL 생성자 프로젝션
-  service/NewsReader.java              # 신규 — 계약
-  service/JpaNewsReader.java           # 신규 — 구현
+  RelatedNews.java                     # 제거 — DB 경로를 쓰지 않는다
+  repository/NewsRepository.java       # 제거 — 같음
+  service/NewsReader.java              # 제거 — 같음
+  service/JpaNewsReader.java           # 제거 — 같음
+  service/StockNewsService.java        # 그대로 쓴다 (다른 담당자 소유, 수정하지 않는다)
   News.java, StockNews.java            # 수정하지 않는다
 
 src/main/java/com/swyp/ploutos/stock/price/service/
   DailyPriceReader.java                # 수정 — 메서드 선언 한 줄
   StockDailyPriceService.java           # 수정 — readStoredLatest 구현 (기존 메서드 건드리지 않음)
 
-src/test/java/com/swyp/ploutos/news/service/JpaNewsReaderTest.java   # 신규 — 통합(Testcontainers)
+src/test/java/com/swyp/ploutos/news/service/JpaNewsReaderTest.java   # 제거 — 대상이 사라진다
 src/test/java/com/swyp/ploutos/stock/price/service/DailyPriceReaderTest.java  # 수정 — 동기화 안 함 검증
 ```
 
@@ -738,8 +763,8 @@ JUnit 6, BDD(`// given` `// when` `// then`), 메서드명은 한글 `조건_결
 **나머지**
 
 - 보합 종목이 `risingCount`·`fallingCount` 어느 쪽에도 세지지 않는다
-- 시간 창 밖의 뉴스가 포함되지 않는다
-- 같은 뉴스가 한 산업의 두 종목에 걸려도 한 번만 실린다
+- 시간 창을 `StockNewsService`에 그대로 넘긴다(거르는 일은 그쪽이 한다)
+- 같은 기사가 두 대표 종목에 걸려도 `documentId`로 한 번만 실린다
 - 뉴스가 2건 이상 걸려도 가장 최근 1건만 실린다
 - 뉴스가 0건이면 `news`가 빈 배열이다
 - 뉴스 조회가 실패해도 카드는 응답한다
@@ -786,9 +811,9 @@ JUnit 6, BDD(`// given` `// when` `// then`), 메서드명은 한글 `조건_결
 10. 이 API 호출 중 KIS 호출이 **0회**다 (`QuoteReader` mock이 호출되지 않는다).
 11. 상승군 전체가 시장보다 한산한 데이터에서도 2건이 나온다(선정 단계에서
     `selectedBy`가 `CHANGE_RATE_ONLY`).
-12. 뉴스 테이블이 비어 있어도 2건이 나오고 `news`가 `[]`다 — 뉴스 연동 전에 배포할 수 있다.
-13. `NewsReader` 호출이 요청당 **2회**다(카드 수만큼. 후보 9개를 훑지 않는다).
-    각 응답의 `news` 길이가 0 또는 1이다.
+12. 뉴스 조회가 실패하거나 결과가 0건이어도 2건이 나오고 `news`가 `[]`다.
+13. `StockNewsService` 호출이 요청당 **최대 4회**다(카드 2 × 대표 종목 2.
+    후보 9개 산업을 훑지 않는다). 각 응답의 `news` 길이가 0 또는 1이다.
 14. 산업 갱신 중 KIS 호출 횟수가 거래대금 도입 **전과 같다**(일봉은 저장된 것만 읽는다).
 15. `./gradlew test`가 전부 통과한다.
 
@@ -822,8 +847,11 @@ JUnit 6, BDD(`// given` `// when` `// then`), 메서드명은 한글 `조건_결
   경과 시간 보정은 선형 가정이 U자 분포와 맞지 않아 쓰지 않는다.
 - ~~거래대금을 비율로 저장할지 금액으로 저장할지~~ → **금액 2개.** 비율만 저장하면 기준을
   바꿀 때 과거를 버려야 하고, 여러 산업을 합치는 방식은 아예 불가능하다.
-- ~~뉴스를 어느 종목으로 찾는가~~ → **대표 종목(시총 상위 2개) 먼저, 없으면 산업 전체로 확장.**
-  카드가 보여주는 종목과 기사가 같은 종목을 가리키게 하고, 확장 단계가 있어 손실이 없다.
+- ~~뉴스를 어느 종목으로 찾는가~~ → **대표 종목(시총 상위 2개)만.**
+  처음 결정은 "대표 종목 먼저, 없으면 산업 전체로 확장"이었고 **2026-10-08에 번복했다.**
+  출처가 DB에서 외부 검색으로 바뀌면서 확장 단계의 비용이 질의 1회에서 종목 수만큼의
+  외부 호출로 바뀌었기 때문이다. 카드가 보여주는 종목과 기사가 같은 종목을 가리킨다는
+  원래 이유는 그대로다.
 
 ## 팀 전달
 
@@ -839,11 +867,22 @@ JUnit 6, BDD(`// given` `// when` `// then`), 메서드명은 한글 `조건_결
 
 **`news` 담당께**
 
-> 핵심 뉴스에서 종목별 뉴스가 필요해 `news` 모듈에 `repository`·`service`를 만들었습니다.
-> `News` 엔티티에 접근자가 없어서 `@Getter`를 붙이는 대신 JPQL 생성자 프로젝션으로 읽습니다 —
-> **엔티티는 수정하지 않았습니다.** 추가한 파일은 `RelatedNews`(루트),
-> `NewsReader`·`JpaNewsReader`(service), `NewsRepository`(repository)입니다.
-> 뉴스 모듈을 본격적으로 만드실 때 이 계약은 필요에 맞게 바꾸셔도 됩니다.
+> 서버에서 `news`·`stock_news`가 둘 다 0행인 것을 확인했습니다. 저장소에 그 테이블을 채우는
+> 코드가 없어 보여서(`save` 호출이 없습니다), 핵심 뉴스 카드가 지금까지 늘 빈 상태였습니다.
+>
+> **수집기를 계획 중이신가요?** 계획이 없으시면 저는 DB 대신 `StockNewsService`를 쓰겠습니다.
+> 산업당 대표 종목 2개씩 최대 4종목이라 네이버 호출은 하루 600회 미만이고, 그쪽 캐시와
+> 예산을 그대로 탑니다.
+>
+> 그렇게 바꾸면 제가 전에 만든 `RelatedNews`(루트)·`NewsReader`·`JpaNewsReader`(service)·
+> `NewsRepository`(repository) 네 파일이 쓰이지 않게 됩니다. **제가 만든 것이니 제가
+> 지우겠습니다** — 다만 수집기를 만드실 계획이면 DB 경로가 다시 쓸모 있어지니 남기겠습니다.
+> 어느 쪽이 좋을지 알려 주세요.
+>
+> 한 가지 더 알려 드립니다. 그 네 파일을 지우면 **`News`·`StockNews` 엔티티를 참조하는 코드가
+> 하나도 남지 않습니다** — 종목 뉴스는 Redis만 쓰니까요. 컴파일과 기동에는 영향이 없고
+> 테이블도 그대로 생성되지만, 두 테이블이 **읽지도 쓰지도 않는 상태**가 됩니다.
+> 엔티티는 그쪽 소유라 제가 손대지 않겠습니다.
 >
 > 별건으로 `Announcements`에 `url`과 출처 컬럼이 없어 **공시는 이번 범위에서 뺐습니다.**
 > RQ-0403이 "뉴스·공시"를 요구하므로 컬럼이 갖춰지면 같은 자리에 더하면 됩니다.
@@ -1000,10 +1039,37 @@ API 응답도 기대대로였다 — 상승 카드가 `ENERGY`(rank 1, `MATCHED`
 DB 조회뿐이고 KIS 호출이 없어 수용한다. 종목 수가 크게 늘어 갱신 한 바퀴가 느려지면
 그때 캐시나 일별 저장을 검토한다.
 
-### 뉴스 데이터가 아직 없다
+### 뉴스 출처를 DB에서 외부 검색으로 바꿨다 (2026-10-08)
 
-`news`·`stock_news` 테이블이 비어 있다. `news`가 항상 `[]`인 상태로도 API는 완성되며,
-데이터가 들어오면 코드 변경 없이 채워진다.
+처음 설계는 `news`·`stock_news`를 읽는 것이었고, "데이터가 들어오면 코드 변경 없이 채워진다"고
+적어 두었다. **그 데이터가 들어오지 않았다.** 서버에서 두 테이블 모두 0행이고, 저장소에 그것을
+채우는 코드가 없다. 그래서 이 카드는 출시 이후 한 번도 뉴스를 실은 적이 없다.
+
+원인을 늦게 안 이유는 **"0건"이 두 가지를 뜻했기 때문**이다.
+
+```
+해당 기간에 정말 뉴스가 없다     ← 정상
+읽을 데이터 자체가 없다          ← 고장
+```
+
+둘 다 빈 배열로 나가고 예외도 로그도 없다. 공시 쪽이 `UNMAPPED`·`UNSUPPORTED_MARKET`을
+`COMPLETE`와 구분한 것이 바로 이 구분이다. 이 명세에는 그 구분이 없다.
+
+### "0건"과 "못 읽음"을 구분하지 않는다
+
+위의 연장이다. `news: []`만으로는 "그 산업에 최근 기사가 없다"와 "외부 조회가 실패했다"를
+가릴 수 없다. 실패는 WARN 로그로만 남는다. 프론트가 둘을 다르게 보여줄 필요가 생기면
+공시처럼 상태 값을 응답에 넣어야 한다 — 지금은 요구가 없어 넣지 않는다.
+
+### 시간 창이 7일을 넘으면 뉴스가 빠진다
+
+`NewsWindow`의 최대 길이가 7일이다. 내 창은 `[직전 거래일 마감, calculatedAt]`이라 보통
+하루 안쪽이지만, 긴 연휴 뒤 첫 거래일에는 5~6일까지 늘어난다. 7일을 넘기면
+`NewsWindow.of`가 `INVALID_INPUT_VALUE`를 던지고, 내 `catch (RuntimeException)`이 그것을
+빈 배열로 바꾼다 — **카드는 멀쩡해 보이고 뉴스만 조용히 빠진다.**
+
+한국 최장 휴장이 5~6일이라 지금은 넘지 않을 것으로 보지만 여유가 하루뿐이다. 넘는 사례가
+관측되면 창의 시작을 `max(직전 거래일 마감, 7일 전)`으로 자른다.
 
 ## 추후 구현
 
