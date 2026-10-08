@@ -18,8 +18,8 @@ import com.swyp.ploutos.stock.price.DailyPrice;
 import lombok.RequiredArgsConstructor;
 
 /**
- * KIS 기간별 시세 API로 지표 일봉을 받는다. 한 번에 오는 건수가 종류마다 달라
- * (국내 지수 50, 해외 지수·환율 100) 구간을 거슬러 올라가며 반복한다.
+ * KIS 기간별 시세 API로 지표 일봉을 받는다. 한 번에 오는 건수에 상한이 있어(국내 지수 50, 해외 지수·환율 100)
+ * 구간을 거슬러 올라가며 반복한다.
  */
 @Component
 @RequiredArgsConstructor
@@ -32,8 +32,6 @@ class KisIndicatorDailyPriceProvider implements IndicatorDailyPriceProvider {
     static final String DOMESTIC_MARKET_CODE = "U";
     static final String OVERSEAS_INDEX_MARKET_CODE = "N";
     static final String EXCHANGE_RATE_MARKET_CODE = "X";
-    static final int DOMESTIC_PAGE_SIZE = 50;
-    static final int OVERSEAS_PAGE_SIZE = 100;
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.BASIC_ISO_DATE;
 
@@ -42,35 +40,41 @@ class KisIndicatorDailyPriceProvider implements IndicatorDailyPriceProvider {
     @Override
     public List<DailyPrice> fetch(MarketIndicator indicator, LocalDate from, LocalDate to) {
         return switch (indicator.kind()) {
-            case DOMESTIC_INDEX -> paginate(from, to, DOMESTIC_PAGE_SIZE,
+            case DOMESTIC_INDEX -> paginate(from, to,
                     (pageFrom, pageTo) -> domesticPage(indicator, pageFrom, pageTo));
-            case OVERSEAS_INDEX -> paginate(from, to, OVERSEAS_PAGE_SIZE,
+            case OVERSEAS_INDEX -> paginate(from, to,
                     (pageFrom, pageTo) -> overseasPage(indicator, OVERSEAS_INDEX_MARKET_CODE, pageFrom, pageTo));
-            case EXCHANGE_RATE -> paginate(from, to, OVERSEAS_PAGE_SIZE,
+            case EXCHANGE_RATE -> paginate(from, to,
                     (pageFrom, pageTo) -> overseasPage(indicator, EXCHANGE_RATE_MARKET_CODE, pageFrom, pageTo));
         };
     }
 
     /**
-     * 종료일을 가장 오래된 거래일의 전날로 옮기며 구간을 거슬러 올라간다.
-     * 응답이 비거나 한 페이지가 최대 건수보다 작으면 멈춘다.
+     * 종료일을 가장 오래된 거래일의 전날로 옮기며 시작일까지 거슬러 올라간다.
+     *
+     * <p>받은 건수가 상한보다 적어도 멈추지 않는다. 해외 지수·환율 API는 상한보다 적게 주면서
+     * 시작 쪽 행을 빼먹는다(2026-10-07 실측). 건수로 멈추면 빠진 앞부분을 다시 받지 않는다.
+     *
+     * <p>진행 판단은 요청한 {@code [from, end]} 안의 행으로만 한다. 늦은 행이 섞여 와도 {@code end}가
+     * 반드시 줄어들어 같은 요청을 되풀이하지 않는다.
      */
-    private List<DailyPrice> paginate(LocalDate from, LocalDate to, int pageSize,
+    private List<DailyPrice> paginate(LocalDate from, LocalDate to,
             BiFunction<LocalDate, LocalDate, List<DailyPrice>> fetchPage) {
         List<DailyPrice> result = new ArrayList<>();
         LocalDate end = to;
         while (!end.isBefore(from)) {
-            List<DailyPrice> page = fetchPage.apply(from, end);
+            List<DailyPrice> page = within(fetchPage.apply(from, end), from, end);
             if (page.isEmpty()) {
                 break;
             }
             result.addAll(page);
-            if (page.size() < pageSize) {
+            LocalDate oldest = oldestTradeAt(page);
+            if (!oldest.isAfter(from)) {
                 break;
             }
-            end = oldestTradeAt(page).minusDays(1);
+            end = oldest.minusDays(1);
         }
-        return within(result, from, to);
+        return result;
     }
 
     private List<DailyPrice> domesticPage(MarketIndicator indicator, LocalDate from, LocalDate to) {

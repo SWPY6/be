@@ -36,4 +36,15 @@ public record ChartRange(LocalDate from, LocalDate to) {
         }
         return new ChartRange(start, end);
     }
+
+    /**
+     * 그 날짜가 구간 안에 있는가. 양끝을 포함한다.
+     *
+     * <p>진행 중인 봉을 붙일지 판단하는 데 쓴다. 구간이 오늘을 덮지 않으면 — 과거 구간이든
+     * 미래 구간이든 — 요청하지 않은 오늘 봉이 끼어들지 않는다. {@code to}만 보지 않는 이유는
+     * {@link #of}가 미래 구간도 허용하기 때문이다.
+     */
+    public boolean contains(LocalDate date) {
+        return !date.isBefore(from) && !date.isAfter(to);
+    }
 }

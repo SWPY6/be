@@ -133,7 +133,9 @@ class StockDetailE2ETest extends IntegrationTestContainers {
                 .andExpect(jsonPath("$.data.interval").value("1D"))
                 .andExpect(jsonPath("$.data.currency").value("KRW"))
                 .andExpect(jsonPath("$.data.candles[0].closed").value(true))
-                .andExpect(jsonPath("$.data.averageVolume").isNumber());
+                .andExpect(jsonPath("$.data.averageVolume").isNumber())
+                .andExpect(jsonPath("$.data.to").value(today().toString()))
+                .andExpect(jsonPath("$.data.asOf").isNotEmpty());
 
         // then 일봉이 DB에 남고 외부는 한 번만 불렸다
         assertThat(stockDailyPriceRepository.findLatestTradeAt(stockId)).isPresent();
@@ -143,7 +145,9 @@ class StockDetailE2ETest extends IntegrationTestContainers {
         // when 같은 구간을 다시 조회
         mockMvc.perform(get("/api/v1/stocks/{stockId}/chart", stockId).param("from", from).param("to", to))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.candles").isNotEmpty());
+                .andExpect(jsonPath("$.data.candles").isNotEmpty())
+                .andExpect(jsonPath("$.data.to").value(today().toString()))
+                .andExpect(jsonPath("$.data.asOf").isNotEmpty());
 
         // then 저장된 일봉으로 답해 외부를 다시 부르지 않는다
         assertThat(dailyPriceCalls.get()).isEqualTo(callsAfterFirst);
@@ -188,12 +192,18 @@ class StockDetailE2ETest extends IntegrationTestContainers {
                 """;
     }
 
-    /** 어제부터 거슬러 올라간 거래일(주말 제외) 일봉. KIS와 같이 최신순이다. */
+    /**
+     * 어제부터 거슬러 올라간 거래일(주말 제외) 일봉. KIS와 같이 최신순이다.
+     *
+     * <p>종가는 현재가 스텁({@link #priceJson()})의 {@code stck_sdpr}과 같아야 한다. 다르면
+     * 시세가 이미 확정된 거래일의 것으로 판정되어 진행 중인 봉이 붙지 않고, 이 테스트가
+     * 확정 봉 경로만 태우게 된다.
+     */
     private static String dailyPriceJson() {
         String rows = tradingDaysBeforeToday().stream()
                 .map(date -> """
-                        {"stck_bsop_date":"%s","stck_oprc":"48000","stck_hgpr":"49500",\
-                        "stck_lwpr":"47500","stck_clpr":"49000","acml_vol":"100000"}\
+                        {"stck_bsop_date":"%s","stck_oprc":"238500","stck_hgpr":"242900",\
+                        "stck_lwpr":"237100","stck_clpr":"240217","acml_vol":"100000"}\
                         """.formatted(date.toString().replace("-", "")))
                 .collect(Collectors.joining(","));
         return """

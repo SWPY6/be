@@ -61,6 +61,35 @@ class ChartRangeTest {
     }
 
     @Test
+    void 구간의_양끝과_안쪽_날짜를_포함한다() {
+        // given
+        ChartRange range = ChartRange.of(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), TODAY);
+
+        // when & then
+        assertThat(range.contains(LocalDate.of(2026, 9, 1))).isTrue();
+        assertThat(range.contains(LocalDate.of(2026, 9, 15))).isTrue();
+        assertThat(range.contains(LocalDate.of(2026, 9, 30))).isTrue();
+    }
+
+    @Test
+    void 구간보다_이른_날짜는_포함하지_않는다() {
+        // given
+        ChartRange range = ChartRange.of(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), TODAY);
+
+        // when & then
+        assertThat(range.contains(LocalDate.of(2026, 8, 31))).isFalse();
+    }
+
+    @Test
+    void 구간보다_늦은_날짜는_포함하지_않는다() {
+        // given
+        ChartRange range = ChartRange.of(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), TODAY);
+
+        // when & then
+        assertThat(range.contains(LocalDate.of(2026, 10, 1))).isFalse();
+    }
+
+    @Test
     void 시작일이_종료일보다_뒤면_예외다() {
         // given
         LocalDate from = LocalDate.of(2026, 9, 29);
