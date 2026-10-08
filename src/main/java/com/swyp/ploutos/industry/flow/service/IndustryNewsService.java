@@ -1,10 +1,7 @@
 package com.swyp.ploutos.industry.flow.service;
 
 import java.time.OffsetDateTime;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -19,6 +16,7 @@ import com.swyp.ploutos.industry.flow.IndustryFlowStock;
 import com.swyp.ploutos.industry.flow.RankedIndustryFlow;
 import com.swyp.ploutos.industry.service.IndustryReader;
 import com.swyp.ploutos.news.NewsArticle;
+import com.swyp.ploutos.news.StockNewsFeed;
 import com.swyp.ploutos.news.service.StockNewsService;
 import com.swyp.ploutos.stock.price.DailyPrices;
 import com.swyp.ploutos.stock.price.service.DailyPriceReader;
@@ -88,17 +86,12 @@ public class IndustryNewsService {
      * 보는 숫자와 읽는 기사가 같은 종목을 가리킨다.
      */
     private List<NewsArticle> search(RankedIndustryFlow flow, OffsetDateTime from, OffsetDateTime to) {
-        Map<String, NewsArticle> unique = new LinkedHashMap<>();
-        flow.majorStocks().stream()
+        List<StockNewsFeed> feeds = flow.majorStocks().stream()
                 .map(IndustryFlowStock::stockId)
                 .filter(Objects::nonNull)
-                .flatMap(stockId -> stockNewsService.read(stockId, from, to).feed().items().stream())
-                .forEach(article -> unique.putIfAbsent(article.documentId(), article));
-        return unique.values().stream()
-                .sorted(Comparator.comparing(NewsArticle::publishedAt,
-                        OffsetDateTime.timeLineOrder()).reversed())
-                .limit(NEWS_LIMIT)
+                .map(stockId -> stockNewsService.read(stockId, from, to).feed())
                 .toList();
+        return StockNewsFeed.latestAcross(feeds, NEWS_LIMIT);
     }
 
     /**
@@ -123,7 +116,6 @@ public class IndustryNewsService {
                 .map(DailyPrices::lastTradeAt)
                 .flatMap(Optional::stream)
                 .findFirst()
-                .map(country::closedAt)
-                .map(closedAt -> closedAt.atZone(country.zoneId()).toOffsetDateTime());
+                .map(country::closedAt);
     }
 }

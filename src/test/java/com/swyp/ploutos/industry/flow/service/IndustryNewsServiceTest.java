@@ -287,9 +287,10 @@ class IndustryNewsServiceTest {
         given(stockNewsService.read(eq(10L), any(), any()))
                 .willReturn(found(article("a", "현대차 수출 증가", 9, 0)));
 
-        // then 외부 검색은 종목당 한 번이라 산업 전체로 넓히지 않는다
+        // when
         List<IndustryNewsDetail> details = industryNewsService.read(Country.KR);
 
+        // then 외부 검색은 종목당 한 번이라 산업 전체로 넓히지 않는다
         assertThat(details.getFirst().news()).extracting(NewsArticle::title)
                 .containsExactly("현대차 수출 증가");
         then(stockNewsService).should(never()).read(eq(11L), any(), any());
