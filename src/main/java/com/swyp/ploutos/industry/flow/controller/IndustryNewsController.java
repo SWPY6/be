@@ -51,7 +51,7 @@ class IndustryNewsController {
             @RequestParam(defaultValue = "KR") Country country) {
 
         List<IndustryNewsResponse> cards = industryNewsService.read(country).stream()
-                .map(detail -> IndustryNewsResponse.from(detail, country))
+                .map(IndustryNewsResponse::from)
                 .toList();
         return ApiResult.of(cards);
     }

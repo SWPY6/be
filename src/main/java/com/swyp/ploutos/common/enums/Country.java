@@ -1,8 +1,8 @@
 package com.swyp.ploutos.common.enums;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 
 import lombok.Getter;
@@ -41,8 +41,8 @@ public enum Country {
 		this.currency = currency;
 	}
 
-	/** 그 거래일의 종가가 확정된 시각. */
-	public LocalDateTime closedAt(LocalDate tradeAt) {
-		return tradeAt.atTime(regularCloseTime);
+	/** 그 거래일의 종가가 확정된 시각. 이 나라의 현지 오프셋을 달아 돌려준다. */
+	public OffsetDateTime closedAt(LocalDate tradeAt) {
+		return tradeAt.atTime(regularCloseTime).atZone(zoneId).toOffsetDateTime();
 	}
 }

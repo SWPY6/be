@@ -51,6 +51,24 @@ public record StockNewsFeed(
                 .orElse(true);
     }
 
+    /**
+     * 여러 종목의 피드를 합쳐 중복 없이 최신순으로 최대 {@code limit}건. 같은 기사가 두 종목에
+     * 걸려도 한 번만 싣는다.
+     *
+     * <p>정렬을 먼저 하고 중복을 없앤다. {@code LATEST_FIRST}가 발표 시각이 같으면
+     * {@code documentId}로 갈라 주므로, 피드를 넘긴 순서가 달라도 같은 기사가 남는다.
+     */
+    public static List<NewsArticle> latestAcross(List<StockNewsFeed> feeds, int limit) {
+        Map<String, NewsArticle> unique = new LinkedHashMap<>();
+        feeds.stream()
+                .flatMap(feed -> feed.items.stream())
+                .sorted(LATEST_FIRST)
+                .forEach(article -> unique.putIfAbsent(article.documentId(), article));
+        return unique.values().stream()
+                .limit(limit)
+                .toList();
+    }
+
     public int total() {
         return items.size();
     }

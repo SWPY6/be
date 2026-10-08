@@ -9,7 +9,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -33,7 +32,7 @@ import com.swyp.ploutos.industry.flow.IndustryFlowStock;
 import com.swyp.ploutos.industry.flow.RankedIndustryFlow;
 import com.swyp.ploutos.industry.flow.service.IndustryNewsDetail;
 import com.swyp.ploutos.industry.flow.service.IndustryNewsService;
-import com.swyp.ploutos.news.RelatedNews;
+import com.swyp.ploutos.news.NewsArticle;
 import com.swyp.ploutos.stock.quote.service.QuoteReader;
 
 @WebMvcTest(IndustryNewsController.class)
@@ -107,7 +106,7 @@ class IndustryNewsControllerTest {
                 detail(IndustryCode.AUTOMOBILE, 1, "1.61", Direction.RISING,
                         SelectedBy.MATCHED, List.of(news()))));
 
-        // when & then 저장된 발표 시각에 시장 오프셋을 붙여 내려준다
+        // when & then 공급자가 준 값을 그대로 내려준다
         mockMvc.perform(get(PATH))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].news.length()").value(1))
@@ -118,16 +117,16 @@ class IndustryNewsControllerTest {
     }
 
     @Test
-    void 해외는_발표_시각에_미국_오프셋을_붙인다() throws Exception {
-        // given
+    void 발표_시각의_오프셋을_그대로_내려준다() throws Exception {
+        // given 공급자가 준 오프셋이 +09:00 이다. 해외 카드라고 바꾸지 않는다
         given(industryNewsService.read(Country.US)).willReturn(List.of(
                 detail(IndustryCode.AUTOMOBILE, 1, "1.61", Direction.RISING,
                         SelectedBy.MATCHED, List.of(news()))));
 
-        // when & then 2026-09-04 는 서머타임 기간이라 -04:00 이다
+        // when & then 기사의 발표 시각은 매체의 시각이지 시장의 시각이 아니다
         mockMvc.perform(get(PATH).param("country", "US"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].news[0].publishedAt").value("2026-09-04T09:00:00-04:00"));
+                .andExpect(jsonPath("$.data[0].news[0].publishedAt").value("2026-09-04T09:00:00+09:00"));
     }
 
     @Test
@@ -198,7 +197,7 @@ class IndustryNewsControllerTest {
     }
 
     private static IndustryNewsDetail detail(IndustryCode code, int rank, String avgChangeRate,
-            Direction direction, SelectedBy selectedBy, List<RelatedNews> news) {
+            Direction direction, SelectedBy selectedBy, List<NewsArticle> news) {
         RankedIndustryFlow flow = new RankedIndustryFlow(code, rank, new BigDecimal(avgChangeRate),
                 4, 3, 1, new IndustryTradingValue(new BigDecimal("120"), new BigDecimal("100")),
                 List.of(new IndustryFlowStock(10L, "005380", "현대차", PRICE, new BigDecimal("3.24"))),
@@ -206,8 +205,10 @@ class IndustryNewsControllerTest {
         return new IndustryNewsDetail(flow, direction, selectedBy, news);
     }
 
-    private static RelatedNews news() {
-        return new RelatedNews(1L, "자동차 수출 증가 발표", "산업통상자원부",
-                LocalDateTime.of(2026, 9, 4, 9, 0), "https://example.com/news/1");
+    private static NewsArticle news() {
+        return new NewsArticle("doc-1", "자동차 수출 증가 발표", "요약",
+                "https://example.com/news/1", NewsArticle.LinkKind.ORIGINAL, "example.com",
+                "산업통상자원부",
+                OffsetDateTime.of(2026, 9, 4, 9, 0, 0, 0, ZoneOffset.ofHours(9)));
     }
 }

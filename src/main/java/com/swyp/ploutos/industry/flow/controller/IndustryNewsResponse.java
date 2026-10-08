@@ -5,12 +5,11 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.common.enums.IndustryCode;
 import com.swyp.ploutos.industry.flow.IndustryCard.Direction;
 import com.swyp.ploutos.industry.flow.RankedIndustryFlow;
 import com.swyp.ploutos.industry.flow.service.IndustryNewsDetail;
-import com.swyp.ploutos.news.RelatedNews;
+import com.swyp.ploutos.news.NewsArticle;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -59,7 +58,7 @@ record IndustryNewsResponse(
         OffsetDateTime calculatedAt
 ) {
 
-    static IndustryNewsResponse from(IndustryNewsDetail detail, Country country) {
+    static IndustryNewsResponse from(IndustryNewsDetail detail) {
         RankedIndustryFlow flow = detail.flow();
         return new IndustryNewsResponse(
                 flow.code(),
@@ -70,7 +69,7 @@ record IndustryNewsResponse(
                 flow.stockCount(),
                 flow.risingCount(),
                 flow.fallingCount(),
-                detail.news().stream().map(news -> RelatedNewsResponse.from(news, country)).toList(),
+                detail.news().stream().map(RelatedNewsResponse::from).toList(),
                 flow.calculatedAt());
     }
 
@@ -83,19 +82,21 @@ record IndustryNewsResponse(
             @Schema(description = "출처", example = "산업통상자원부")
             String publisher,
 
-            // 저장된 발표 시각에는 오프셋이 없다. 시장 타임존을 붙여 내려준다.
+            // 공급자가 준 오프셋을 그대로 내보낸다. 그대로 두면 Jackson 이 UTC 로 옮긴다.
             @JsonFormat(without = JsonFormat.Feature.ADJUST_DATES_TO_CONTEXT_TIME_ZONE)
-            @Schema(description = "발표 시각(시장 현지)", example = "2026-09-04T09:00:00+09:00")
+            @Schema(description = "발표 시각. 공급자가 준 오프셋 그대로이며 시장 시간대가 아니다 "
+                    + "— 한국 매체 기사는 해외 종목 카드에서도 +09:00 이다",
+                    example = "2026-09-04T09:00:00+09:00")
             OffsetDateTime publishedAt,
 
             @Schema(description = "원문 링크", example = "https://example.com/news/1")
             String url
     ) {
 
-        static RelatedNewsResponse from(RelatedNews news, Country country) {
-            return new RelatedNewsResponse(news.title(), news.publisher(),
-                    news.publishedAt().atZone(country.zoneId()).toOffsetDateTime(),
-                    news.url());
+        /** 시각 변환이 없다. {@code NewsArticle}이 이미 오프셋을 들고 있다. */
+        static RelatedNewsResponse from(NewsArticle article) {
+            return new RelatedNewsResponse(article.title(), article.publisherName(),
+                    article.publishedAt(), article.url());
         }
     }
 }
