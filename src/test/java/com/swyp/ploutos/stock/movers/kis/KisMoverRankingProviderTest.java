@@ -82,7 +82,7 @@ class KisMoverRankingProviderTest {
     }
 
     @Test
-    void 거래량_급증은_두_배에_못_미치는_종목을_뺀다() {
+    void 거래량_급증은_두_배에_못_미쳐도_배수_순으로_싣는다() {
         // given 3배 종목과 1.5배 종목
         givenVolumeRank("0001", volumeRank("005380", "현대차", 30_000L, 10_000L));
         givenVolumeRank("1001", volumeRank("035720", "카카오", 15_000L, 10_000L));
@@ -90,8 +90,21 @@ class KisMoverRankingProviderTest {
         // when
         List<StockMover> movers = provider.rank(Country.KR, MoverCondition.VOLUME_SURGE);
 
-        // then
-        assertThat(movers).extracting(StockMover::ticker).containsExactly("005380");
+        // then 장중에는 배수가 1보다 작은 것이 정상이라 고정 숫자로 거르지 않는다
+        assertThat(movers).extracting(StockMover::ticker).containsExactly("005380", "035720");
+    }
+
+    @Test
+    void 배수를_재지_못한_종목은_거래량_급증에서_뺀다() {
+        // given 전일 거래량이 0이라 나눌 수 없다
+        givenVolumeRank("0001", volumeRank("005380", "현대차", 30_000L, 0L));
+        givenVolumeRank("1001", volumeRank("035720", "카카오", 15_000L, 10_000L));
+
+        // when
+        List<StockMover> movers = provider.rank(Country.KR, MoverCondition.VOLUME_SURGE);
+
+        // then 줄을 세울 수 없는 종목은 뺀다
+        assertThat(movers).extracting(StockMover::ticker).containsExactly("035720");
     }
 
     @Test
@@ -131,8 +144,8 @@ class KisMoverRankingProviderTest {
         // when
         List<StockMover> movers = provider.rank(Country.US, MoverCondition.VOLUME_SURGE);
 
-        // then NDAY=5 가 20일이다. 2배 미만은 빠진다
-        assertThat(movers).extracting(StockMover::ticker).containsExactly("AAPL");
+        // then NDAY=5 가 20일이다. 배수 큰 순으로 온다
+        assertThat(movers).extracting(StockMover::ticker).containsExactly("AAPL", "KO");
         then(kisApiClient).should(org.mockito.Mockito.atLeastOnce())
                 .get(any(), any(), params.capture(), eq(KisOverseasTradeGrowthResponse.class));
         assertThat(params.getValue()).containsEntry("NDAY", "5");

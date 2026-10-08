@@ -8,7 +8,7 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.swyp.ploutos.external.kis.KisResponse;
 import com.swyp.ploutos.stock.movers.StockMover;
-import com.swyp.ploutos.stock.movers.VolumeSurge;
+import com.swyp.ploutos.stock.movers.VolumeRatio;
 
 /**
  * 해외 거래증가율순위(HHDFS76330000) 응답. 목록은 {@code output2}에 온다.
@@ -49,7 +49,7 @@ record KisOverseasTradeGrowthResponse(
         StockMover toMover() {
             return new StockMover(null, ticker, name, null, amount(price), amount(changeRate),
                     count(volume), amount(tradingValue), null,
-                    VolumeSurge.ratio(count(volume), count(averageVolume)).orElse(null));
+                    VolumeRatio.of(count(volume), count(averageVolume)).orElse(null));
         }
     }
 }

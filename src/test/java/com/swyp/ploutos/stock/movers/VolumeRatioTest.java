@@ -7,16 +7,16 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 
-class VolumeSurgeTest {
+class VolumeRatioTest {
 
     @Test
     void 당일_거래량이_기준의_두_배면_배수가_2가_된다() {
-        // given 전일 1만주, 당일 2만주
+        // given 기준 1만주, 당일 2만주
         long volume = 20_000L;
         long baseline = 10_000L;
 
         // when
-        Optional<BigDecimal> ratio = VolumeSurge.ratio(volume, baseline);
+        Optional<BigDecimal> ratio = VolumeRatio.of(volume, baseline);
 
         // then
         assertThat(ratio).contains(new BigDecimal("2.00"));
@@ -28,46 +28,34 @@ class VolumeSurgeTest {
         long baseline = 0L;
 
         // when
-        Optional<BigDecimal> ratio = VolumeSurge.ratio(20_000L, baseline);
+        Optional<BigDecimal> ratio = VolumeRatio.of(20_000L, baseline);
 
-        // then 0으로 나눌 수 없다 — 급증 목록에서 빠진다
+        // then 0으로 나눌 수 없다
         assertThat(ratio).isEmpty();
     }
 
     @Test
-    void 두_배에_못_미치면_급증이_아니다() {
-        // given
-        BigDecimal ratio = new BigDecimal("1.99");
+    void 두_배에_못_미쳐도_줄을_세울_수_있다() {
+        // given 장중에는 배수가 1보다 작게 나오는 것이 정상이다
+        BigDecimal ratio = new BigDecimal("0.30");
 
         // when
-        boolean surged = VolumeSurge.surged(ratio);
+        boolean measurable = VolumeRatio.measurable(ratio);
 
-        // then
-        assertThat(surged).isFalse();
+        // then 고정 숫자로 거르지 않는다 — 거르면 장 초반 목록이 통째로 빈다
+        assertThat(measurable).isTrue();
     }
 
     @Test
-    void 정확히_두_배면_급증이다() {
-        // given
-        BigDecimal ratio = new BigDecimal("2.00");
-
-        // when
-        boolean surged = VolumeSurge.surged(ratio);
-
-        // then
-        assertThat(surged).isTrue();
-    }
-
-    @Test
-    void 배수를_재지_못한_종목은_급증이_아니다() {
-        // given 기준이 없어 배수가 비어 있다
+    void 배수를_재지_못한_종목은_줄을_세울_수_없다() {
+        // given 기준 거래량이 없어 배수가 비어 있다
         BigDecimal ratio = null;
 
         // when
-        boolean surged = VolumeSurge.surged(ratio);
+        boolean measurable = VolumeRatio.measurable(ratio);
 
         // then
-        assertThat(surged).isFalse();
+        assertThat(measurable).isFalse();
     }
 
     @Test
@@ -77,7 +65,7 @@ class VolumeSurgeTest {
         long averageVolume = 103_380L;
 
         // when
-        Optional<BigDecimal> ratio = VolumeSurge.ratio(volume, averageVolume);
+        Optional<BigDecimal> ratio = VolumeRatio.of(volume, averageVolume);
 
         // then 원재료를 직접 나누면 상한이 없다
         assertThat(ratio).contains(new BigDecimal("357.90"));

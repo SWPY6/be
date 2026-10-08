@@ -12,7 +12,7 @@ import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.external.kis.KisApiClient;
 import com.swyp.ploutos.stock.movers.MoverCondition;
 import com.swyp.ploutos.stock.movers.StockMover;
-import com.swyp.ploutos.stock.movers.VolumeSurge;
+import com.swyp.ploutos.stock.movers.VolumeRatio;
 import com.swyp.ploutos.stock.movers.service.MoverRankingProvider;
 
 import lombok.RequiredArgsConstructor;
@@ -102,12 +102,16 @@ class KisMoverRankingProvider implements MoverRankingProvider {
                 .toList();
     }
 
-    /** 급증은 2배 관문을 넘은 종목만 싣는다. 나머지 조건은 거르지 않는다. */
+    /**
+     * 급증은 배수를 잰 종목만 싣는다. <b>"2배 이상"으로 거르지 않는다</b> — 장중에는 분자가
+     * 당일 누적이라 배수가 거의 언제나 1보다 작고, 고정 숫자로 거르면 목록이 빈다.
+     * 대신 배수 큰 순으로 줄을 세운다({@link VolumeRatio}).
+     */
     private static boolean passes(StockMover mover, MoverCondition condition) {
         if (condition != MoverCondition.VOLUME_SURGE) {
             return true;
         }
-        return VolumeSurge.surged(mover.volumeRatio());
+        return VolumeRatio.measurable(mover.volumeRatio());
     }
 
     private static Comparator<StockMover> order(MoverCondition condition) {

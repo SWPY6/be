@@ -9,7 +9,7 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.swyp.ploutos.external.kis.KisResponse;
 import com.swyp.ploutos.stock.movers.StockMover;
-import com.swyp.ploutos.stock.movers.VolumeSurge;
+import com.swyp.ploutos.stock.movers.VolumeRatio;
 
 /**
  * 국내 거래량순위(FHPST01710000) 응답. 한 번에 30건이다.
@@ -49,7 +49,7 @@ record KisVolumeRankResponse(
             BigDecimal price = amount(this.price);
             return new StockMover(null, ticker, name, null, price, amount(changeRate),
                     count(volume), amount(tradingValue), marketCap(price),
-                    VolumeSurge.ratio(count(volume), count(previousVolume)).orElse(null));
+                    VolumeRatio.of(count(volume), count(previousVolume)).orElse(null));
         }
 
         private BigDecimal marketCap(BigDecimal price) {

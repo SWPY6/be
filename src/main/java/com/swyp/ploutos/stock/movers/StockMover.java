@@ -12,8 +12,9 @@ import com.swyp.ploutos.common.enums.IndustryCode;
  * @param industry     같은 이유로 {@code null}일 수 있다
  * @param tradingValue 공급자가 주지 않는 조건에서는 {@code null}이다
  * @param marketCap    같다. 임의의 수치로 채우지 않는다(RQ-0706)
- * @param volumeRatio  거래량 배수. 분모는 {@link VolumeBaseline}이 알려 준다.
- *                     거래량 급증이 아닌 조건에서는 {@code null}이다
+ * @param volumeRatio  거래량 배수. <b>줄을 세우는 데만 쓰고 화면에는 내보내지 않는다</b> —
+ *                     분자가 당일 누적이라 장중에는 1보다 작게 나와, 숫자로 보이면
+ *                     "거래가 한산하다"로 읽힌다. 급증이 아닌 조건에서는 {@code null}이다
  */
 public record StockMover(
         Long stockId,
