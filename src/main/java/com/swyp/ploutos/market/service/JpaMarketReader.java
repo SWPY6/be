@@ -1,5 +1,7 @@
 package com.swyp.ploutos.market.service;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 
 import com.swyp.ploutos.market.Markets;
@@ -17,5 +19,10 @@ class JpaMarketReader implements MarketReader {
     public Markets read(Long marketId) {
         return marketRepository.findById(marketId)
                 .orElseThrow(() -> new IllegalStateException("시장 " + marketId + " 이 존재하지 않습니다"));
+    }
+
+    @Override
+    public List<Markets> readAll() {
+        return marketRepository.findAll();
     }
 }

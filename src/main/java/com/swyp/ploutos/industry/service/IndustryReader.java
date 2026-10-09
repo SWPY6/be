@@ -1,6 +1,7 @@
 package com.swyp.ploutos.industry.service;
 
 import java.util.List;
+import java.util.Map;
 
 import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.common.enums.IndustryCode;
@@ -28,4 +29,13 @@ public interface IndustryReader {
 
     /** 종목에 연결된 산업을 중복 없이 한글 표시명 가나다순으로 읽는다. 연결이 없으면 빈 목록이다. */
     List<Industries> readByStockId(Long stockId);
+
+    /**
+     * 여러 종목의 산업을 한 번에. 연결이 없는 종목은 결과에 없다 — 산업에 분류되지 않은 종목도
+     * 목록에 실리므로 그 자체가 정상이다.
+     *
+     * <p>한 종목에 산업이 여럿이면 하나만 담는다. 목록의 산업 열은 한 칸이고, 어느 것을 보일지는
+     * 화면이 정할 문제가 아니다 — 표시명 가나다순으로 앞선 산업을 쓴다.
+     */
+    Map<Long, IndustryCode> readCodesByStockIds(List<Long> stockIds);
 }

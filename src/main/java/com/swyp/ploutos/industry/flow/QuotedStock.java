@@ -1,11 +1,13 @@
 package com.swyp.ploutos.industry.flow;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 import com.swyp.ploutos.common.enums.Country;
 import com.swyp.ploutos.stock.StockWithMarket;
 import com.swyp.ploutos.industry.flow.IndustryTradingValue.StockTradingValue;
 import com.swyp.ploutos.stock.quote.Quote;
+import com.swyp.ploutos.stock.snapshot.StockSnapshot;
 
 /**
  * 시세를 붙인 종목. 평균을 내는 데 필요한 값만 한 단계로 노출해, 계산기가 종목과 시세 중
@@ -15,12 +17,15 @@ import com.swyp.ploutos.stock.quote.Quote;
  *                그러면 DB를 거치지 않은 객체로는 이 코드를 검증할 수 없다
  * @param averageTradingValue20d 저장된 일봉으로 근사한 20거래일 평균 거래대금.
  *                               일봉이 20개에 못 미치면 {@code null}이다
+ * @param averageVolume20d 같은 일봉에서 얻은 20거래일 평균 거래량. 거래량 배수의 분모로
+ *                         스냅샷에 남긴다. 산업 평균 계산에는 쓰지 않는다
  */
 public record QuotedStock(
         Long stockId,
         StockWithMarket stock,
         Quote quote,
-        BigDecimal averageTradingValue20d
+        BigDecimal averageTradingValue20d,
+        Long averageVolume20d
 ) {
 
     public String ticker() {
@@ -61,5 +66,15 @@ public record QuotedStock(
     /** 오늘 누적 거래대금과 20거래일 평균을 짝지어 낸다. 평균이 없으면 견줄 수 없는 종목이 된다. */
     public StockTradingValue toTradingValue() {
         return new StockTradingValue(quote.tradingValue(), averageTradingValue20d);
+    }
+
+    /**
+     * 목록 화면이 쓸 스냅샷. 이미 손에 있는 {@code Quote}에서 꺼내므로 외부 호출이 없다.
+     *
+     * @param calculatedAt 이 종목이 속한 시장의 현지 시각
+     */
+    public StockSnapshot toSnapshot(LocalDateTime calculatedAt) {
+        return new StockSnapshot(stockId, quote.price(), changeRate(), quote.volume(),
+                quote.tradingValue(), marketCap(), averageVolume20d, calculatedAt);
     }
 }

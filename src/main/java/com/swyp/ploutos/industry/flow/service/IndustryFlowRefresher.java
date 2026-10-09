@@ -24,6 +24,7 @@ import com.swyp.ploutos.stock.price.DailyPrices;
 import com.swyp.ploutos.stock.price.service.DailyPriceReader;
 import com.swyp.ploutos.stock.quote.service.QuoteReader;
 import com.swyp.ploutos.stock.service.StockReader;
+import com.swyp.ploutos.stock.snapshot.service.StockSnapshotWriter;
 
 import lombok.RequiredArgsConstructor;
 
@@ -46,6 +47,7 @@ class IndustryFlowRefresher {
     private final DailyPriceReader dailyPriceReader;
     private final IndustryFlowCalculator calculator;
     private final IndustryFlowWriter industryFlowWriter;
+    private final StockSnapshotWriter stockSnapshotWriter;
     private final IndustryFlowProperties properties;
     private final Clock clock;
 
@@ -88,6 +90,20 @@ class IndustryFlowRefresher {
             refreshCountry(industry, country, ofCountry(quotedStocks, country),
                     hasStockOf(targets, country));
         }
+        saveSnapshots(quotedStocks);
+    }
+
+    /**
+     * 종목별 시세를 남긴다. 주요 변동 종목 화면이 외부 호출 없이 정렬·필터하려면 소속 종목
+     * 전체의 값이 있어야 하는데, 산업 평균을 내느라 이미 받아 둔 것이 그것이다 —
+     * <b>여기서 외부 호출이 늘지 않는다.</b>
+     *
+     * <p>산업 흐름을 저장한 <b>뒤에</b> 부른다. 이쪽이 실패해도 한 바퀴치 평균은 이미 남는다.
+     */
+    private void saveSnapshots(List<QuotedStock> quotedStocks) {
+        stockSnapshotWriter.save(quotedStocks.stream()
+                .map(quoted -> quoted.toSnapshot(nowIn(quoted.country())))
+                .toList());
     }
 
     private void refreshCountry(Industries industry, Country country, List<QuotedStock> quotedStocks,
@@ -143,29 +159,33 @@ class IndustryFlowRefresher {
      */
     private Optional<QuotedStock> quote(QuoteTarget target) {
         try {
+            DailyPrices stored = storedPrices(target.stockId());
             return Optional.of(new QuotedStock(target.stockId(), target.stock(),
                     quoteReader.readWithoutTracking(target.stockId()),
-                    averageTradingValue(target.stockId())));
+                    averageTradingValue(stored), stored.averageVolume20d().orElse(null)));
         } catch (RuntimeException ignored) {
             return Optional.empty();
         }
     }
 
     /**
-     * 20거래일 평균 거래대금. 저장된 일봉만 읽는다 — 종목 수만큼 반복되므로 부족분을 외부에서
-     * 채우는 경로({@code findBetween}, {@code averageVolume20d})를 쓰면 KIS 호출이 종목 수만큼 는다.
+     * 저장된 일봉 20거래일치. 종목 수만큼 반복되므로 부족분을 외부에서 채우는 경로
+     * ({@code findBetween})를 쓰지 않는다 — 그러면 KIS 호출이 종목 수만큼 는다.
      *
-     * <p>실패해도 시세는 살린다. 거래대금과 평균 등락률은 독립된 값이라, 여기서 예외를 올리면
-     * 구할 수 있었던 등락률까지 잃는다.
+     * <p>실패해도 시세는 살린다. 일봉에서 얻는 값과 평균 등락률은 독립이라, 여기서 예외를
+     * 올리면 구할 수 있었던 등락률까지 잃는다.
      */
-    private BigDecimal averageTradingValue(Long stockId) {
+    private DailyPrices storedPrices(Long stockId) {
         try {
-            return IndustryTradingValue.approximateAverage(
-                    dailyPriceReader.readStoredLatest(stockId, DailyPrices.AVERAGE_DAYS),
-                    DailyPrices.AVERAGE_DAYS);
+            return dailyPriceReader.readStoredLatest(stockId, DailyPrices.AVERAGE_DAYS);
         } catch (RuntimeException ignored) {
-            return null;
+            return DailyPrices.of(List.of());
         }
+    }
+
+    /** 20거래일 평균 거래대금. 일봉이 모자라면 비어 있다. */
+    private static BigDecimal averageTradingValue(DailyPrices stored) {
+        return IndustryTradingValue.approximateAverage(stored, DailyPrices.AVERAGE_DAYS);
     }
 
     private static List<QuotedStock> ofCountry(List<QuotedStock> quotedStocks, Country country) {

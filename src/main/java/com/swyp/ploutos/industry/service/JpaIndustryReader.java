@@ -1,7 +1,11 @@
 package com.swyp.ploutos.industry.service;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -54,5 +58,24 @@ class JpaIndustryReader implements IndustryReader {
         return industryRepository.findByStockId(stockId).stream()
                 .sorted(Comparator.comparing(Industries::displayName))
                 .toList();
+    }
+
+    /**
+     * 산업 9행을 먼저 읽어 매핑에 붙인다. 조인 대신 이렇게 하는 이유는 산업이 9행뿐이라
+     * 두 번째 조회가 사실상 공짜이고, 표시명 정렬을 Java 에서 해야 하기 때문이다(위와 같은 이유).
+     */
+    @Override
+    public Map<Long, IndustryCode> readCodesByStockIds(List<Long> stockIds) {
+        if (stockIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Industries> byId = readAll().stream()
+                .collect(Collectors.toMap(Industries::industryId, Function.identity()));
+        Map<Long, IndustryCode> codes = new HashMap<>();
+        stockIndustryRepository.findByStockIdIn(stockIds).stream()
+                .filter(link -> byId.containsKey(link.industryId()))
+                .sorted(Comparator.comparing(link -> byId.get(link.industryId()).displayName()))
+                .forEach(link -> codes.putIfAbsent(link.stockId(), byId.get(link.industryId()).name()));
+        return codes;
     }
 }
