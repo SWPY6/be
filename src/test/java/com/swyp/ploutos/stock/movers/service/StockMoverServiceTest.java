@@ -183,6 +183,37 @@ class StockMoverServiceTest {
     }
 
     @Test
+    void 스냅샷_경로도_순위_조건의_상한을_지킨다() {
+        // given 자동차에 오른 종목이 65개다
+        given(industryReader.read(IndustryCode.AUTOMOBILE)).willReturn(AUTOMOBILE);
+        given(industryReader.readStockIds(1L, Country.KR)).willReturn(ids(65));
+        given(snapshotReader.read(any())).willReturn(risingSnapshots(65));
+        given(stockListReader.readAll(any())).willReturn(manyStocks(65));
+        given(industryReader.readCodesByStockIds(any())).willReturn(Map.of());
+
+        // when
+        StockMoverDetail detail = service.read(Country.KR, MoverCondition.RISING,
+                IndustryCode.AUTOMOBILE, null);
+
+        // then 산업을 고르고 말고에 따라 건수 규칙이 달라지면 안 된다
+        assertThat(detail.stocks()).hasSize(60);
+    }
+
+    @Test
+    void 전체_종목의_상한은_순위_조건보다_넓다() {
+        // given 종목이 65개다
+        given(snapshotReader.readAll()).willReturn(risingSnapshots(65));
+        given(stockListReader.readAll(any())).willReturn(manyStocks(65));
+        given(industryReader.readCodesByStockIds(any())).willReturn(Map.of());
+
+        // when
+        StockMoverDetail detail = service.read(Country.KR, MoverCondition.ALL, null, null);
+
+        // then 전체 종목의 상한은 500이라 65건이 모두 남는다
+        assertThat(detail.stocks()).hasSize(65);
+    }
+
+    @Test
     void 검색어는_종목명과_종목코드_모두에_걸린다() {
         // given
         given(rankingProvider.rank(any(), any())).willReturn(List.of(
@@ -222,6 +253,23 @@ class StockMoverServiceTest {
     private static StockMover ranked(String ticker, String name, String changeRate) {
         return new StockMover(null, ticker, name, null, new BigDecimal("1000"),
                 new BigDecimal(changeRate), 100L, null, null, null);
+    }
+
+    private static List<Long> ids(int count) {
+        return java.util.stream.LongStream.rangeClosed(1, count).boxed().toList();
+    }
+
+    /** 모두 오른 종목. 상한에 걸리는지 보려는 것이라 등락률은 서로 달라야 한다. */
+    private static List<StockSnapshot> risingSnapshots(int count) {
+        return ids(count).stream()
+                .map(id -> snapshot(id, "1." + String.format("%02d", id % 100)))
+                .toList();
+    }
+
+    private static List<StockWithMarket> manyStocks(int count) {
+        return ids(count).stream()
+                .map(id -> stock(id, String.format("%06d", id), "종목" + id))
+                .toList();
     }
 
     private static StockSnapshot snapshot(Long stockId, String changeRate) {

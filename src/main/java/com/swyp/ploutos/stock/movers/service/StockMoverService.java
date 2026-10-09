@@ -116,6 +116,7 @@ public class StockMoverService {
                 .map(snapshot -> toMover(snapshot, stocks.get(snapshot.stockId()), industries))
                 .filter(mover -> passes(mover, condition))
                 .sorted(order(condition))
+                .limit(condition.limitIn(country))
                 .toList();
     }
 

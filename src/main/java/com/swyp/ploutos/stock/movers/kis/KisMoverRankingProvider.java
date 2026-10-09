@@ -43,9 +43,6 @@ class KisMoverRankingProvider implements MoverRankingProvider {
     /** 해외 거래소. 우리 {@code Exchange}에 있는 둘만 부른다. */
     private static final List<String> OVERSEAS_EXCHANGES = List.of("NAS", "NYS");
 
-    private static final int DOMESTIC_LIMIT = 60;
-    private static final int OVERSEAS_LIMIT = 100;
-
     /**
      * 제외 대상 10자리 코드. 순서는 투자위험/경고/주의 · 관리종목 · 정리매매 · 불성실공시 ·
      * 우선주 · 거래정지 · ETF · ETN · 신용주문불가 · SPAC 이다. ETF·ETN·스팩을 뺀다 —
@@ -70,19 +67,21 @@ class KisMoverRankingProvider implements MoverRankingProvider {
     }
 
     private List<StockMover> domestic(MoverCondition condition) {
+        int limit = condition.limitIn(Country.KR);
         if (condition == MoverCondition.VOLUME_SURGE) {
-            return merge(DOMESTIC_MARKETS, this::domesticVolumeRank, condition, DOMESTIC_LIMIT);
+            return merge(DOMESTIC_MARKETS, this::domesticVolumeRank, condition, limit);
         }
         return merge(DOMESTIC_MARKETS, market -> domesticFluctuation(market, condition),
-                condition, DOMESTIC_LIMIT);
+                condition, limit);
     }
 
     private List<StockMover> overseas(MoverCondition condition) {
+        int limit = condition.limitIn(Country.US);
         if (condition == MoverCondition.VOLUME_SURGE) {
-            return merge(OVERSEAS_EXCHANGES, this::overseasTradeGrowth, condition, OVERSEAS_LIMIT);
+            return merge(OVERSEAS_EXCHANGES, this::overseasTradeGrowth, condition, limit);
         }
         return merge(OVERSEAS_EXCHANGES, exchange -> overseasUpDown(exchange, condition),
-                condition, OVERSEAS_LIMIT);
+                condition, limit);
     }
 
     /**
