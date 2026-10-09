@@ -82,6 +82,47 @@ class KisMoverRankingProviderTest {
     }
 
     @Test
+    void 시장이_모두_내린_날_상승_목록에_내린_종목을_싣지_않는다() {
+        // given KIS 상승률 순위는 양수만 주지 않는다 — 1위가 음수일 수 있다
+        givenFluctuation("0001", fluctuation("005380", "현대차", "-0.50"));
+        givenFluctuation("1001", fluctuation("035720", "카카오", "0.30"));
+
+        // when
+        List<StockMover> movers = provider.rank(Country.KR, MoverCondition.RISING);
+
+        // then 오른 종목만 남는다
+        assertThat(movers).extracting(StockMover::ticker).containsExactly("035720");
+    }
+
+    @Test
+    void 시장이_모두_오른_날_하락_목록에_오른_종목을_싣지_않는다() {
+        // given
+        givenFluctuation("0001", fluctuation("005380", "현대차", "0.50"));
+        givenFluctuation("1001", fluctuation("035720", "카카오", "-0.30"));
+
+        // when
+        List<StockMover> movers = provider.rank(Country.KR, MoverCondition.FALLING);
+
+        // then
+        assertThat(movers).extracting(StockMover::ticker).containsExactly("035720");
+    }
+
+    @Test
+    void 보합인_종목은_상승에도_하락에도_넣지_않는다() {
+        // given 등락률 0.00
+        givenFluctuation("0001", fluctuation("005380", "현대차", "0.00"));
+        givenFluctuation("1001", new KisFluctuationResponse("0", "", "", List.of()));
+
+        // when
+        List<StockMover> rising = provider.rank(Country.KR, MoverCondition.RISING);
+        List<StockMover> falling = provider.rank(Country.KR, MoverCondition.FALLING);
+
+        // then 오른 것도 내린 것도 아니다
+        assertThat(rising).isEmpty();
+        assertThat(falling).isEmpty();
+    }
+
+    @Test
     void 거래량_급증은_두_배에_못_미쳐도_배수_순으로_싣는다() {
         // given 3배 종목과 1.5배 종목
         givenVolumeRank("0001", volumeRank("005380", "현대차", 30_000L, 10_000L));

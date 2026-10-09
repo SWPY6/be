@@ -103,15 +103,22 @@ class KisMoverRankingProvider implements MoverRankingProvider {
     }
 
     /**
-     * 급증은 배수를 잰 종목만 싣는다. <b>"2배 이상"으로 거르지 않는다</b> — 장중에는 분자가
-     * 당일 누적이라 배수가 거의 언제나 1보다 작고, 고정 숫자로 거르면 목록이 빈다.
-     * 대신 배수 큰 순으로 줄을 세운다({@link VolumeRatio}).
+     * 조건에 맞지 않는 종목을 뺀다. 저장된 스냅샷으로 만드는 경로와 같은 규칙이어야 한다 —
+     * 산업을 고르고 말고에 따라 같은 질문에 다른 답이 나오면 안 된다.
+     *
+     * <p><b>상승·하락은 부호로 거른다.</b> KIS 순위는 "상승률순 정렬"일 뿐 양수만 주지 않는다.
+     * 시장 전체가 내린 날에는 1위조차 음수일 수 있어, 거르지 않으면 상승 TOP 에 내린 종목이 실린다.
+     *
+     * <p><b>급증은 "2배 이상"으로 거르지 않는다.</b> 장중에는 분자가 당일 누적이라 배수가 거의
+     * 언제나 1보다 작고, 고정 숫자로 거르면 목록이 빈다. 배수를 잰 종목을 큰 순으로 줄 세운다.
      */
     private static boolean passes(StockMover mover, MoverCondition condition) {
-        if (condition != MoverCondition.VOLUME_SURGE) {
-            return true;
-        }
-        return VolumeRatio.measurable(mover.volumeRatio());
+        return switch (condition) {
+            case RISING -> mover.changeRate().signum() > 0;
+            case FALLING -> mover.changeRate().signum() < 0;
+            case VOLUME_SURGE -> VolumeRatio.measurable(mover.volumeRatio());
+            case ALL -> throw new IllegalArgumentException("전체 종목은 외부 순위로 답하지 않는다");
+        };
     }
 
     private static Comparator<StockMover> order(MoverCondition condition) {
