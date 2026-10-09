@@ -81,10 +81,12 @@ public class StockMoverService {
     }
 
     /**
-     * 종목코드로 우리 종목을 찾는다. 키는 <b>종목코드와 거래소</b>다 — 같은 코드가 여러 시장에
-     * 속할 수 있고({@code AAPL}이 NASDAQ·S&amp;P500), 외부 순위가 주는 값은 거래소다.
+     * 종목코드로 우리 종목을 찾는다. 키는 <b>종목코드와 국가</b>다.
      *
-     * <p>한 코드에 둘 이상이 걸리면 넣지 않는다. 틀린 종목 상세로 보내는 것보다 비워 두는 쪽이 낫다.
+     * <p>한 코드에 둘 이상이 걸리면 넣지 않는다. 같은 종목이 여러 시장에 속할 수 있어
+     * ({@code AAPL}이 NASDAQ·S&amp;P500) 코드만으로는 특정되지 않는다. 거래소까지 봐도
+     * 둘 다 {@code NASDAQ}이라 갈리지 않으므로, 거르지 않고 비워 둔다 —
+     * 틀린 종목 상세로 보내는 것보다 낫다.
      */
     private Map<String, StockWithMarket> matchByTicker(List<StockMover> movers, Country country) {
         List<String> tickers = movers.stream().map(StockMover::ticker).toList();
