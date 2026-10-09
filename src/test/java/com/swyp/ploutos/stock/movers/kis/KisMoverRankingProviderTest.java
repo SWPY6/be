@@ -66,6 +66,37 @@ class KisMoverRankingProviderTest {
     }
 
     @Test
+    void 거래량_급증에서_ETF와_ETN과_스팩을_제외한다() {
+        // given
+        givenVolumeRank("0001", volumeRank("005380", "현대차", 30_000L, 10_000L));
+        givenVolumeRank("1001", new KisVolumeRankResponse("0", "", "", List.of()));
+
+        // when
+        provider.rank(Country.KR, MoverCondition.VOLUME_SURGE);
+
+        // then 10자리 중 7·8·10번째가 ETF·ETN·SPAC 이다. 빼지 않으면 상위가 레버리지 ETF 로
+        // 채워지고, ETF 만 빼면 그 자리를 스팩이 채운다(둘 다 실측)
+        then(kisApiClient).should(org.mockito.Mockito.atLeastOnce())
+                .get(any(), any(), params.capture(), eq(KisVolumeRankResponse.class));
+        assertThat(params.getValue()).containsEntry("FID_TRGT_EXLS_CLS_CODE", "0000001101");
+    }
+
+    @Test
+    void 상승_하락에서도_같은_제외_대상을_쓴다() {
+        // given
+        givenFluctuation("0001", fluctuation("005380", "현대차", "1.00"));
+        givenFluctuation("1001", new KisFluctuationResponse("0", "", "", List.of()));
+
+        // when
+        provider.rank(Country.KR, MoverCondition.RISING);
+
+        // then 조건마다 다른 목록을 보여 주면 안 된다
+        then(kisApiClient).should(org.mockito.Mockito.atLeastOnce())
+                .get(any(), any(), params.capture(), eq(KisFluctuationResponse.class));
+        assertThat(params.getValue()).containsEntry("fid_trgt_exls_cls_code", "0000001101");
+    }
+
+    @Test
     void 하락은_정렬_코드와_방향이_모두_반대다() {
         // given
         givenFluctuation("0001", fluctuation("005380", "현대차", "-1.00"));
