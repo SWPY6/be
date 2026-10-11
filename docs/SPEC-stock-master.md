@@ -274,7 +274,12 @@ latin1 로 읽으면 한글이 이중 인코딩돼 들어간다 — `삼성전�
 | --- | --- | --- |
 | `Stocks.listedAfter` | 단위 | `listedAt`이 `null`이면 `false` (재현 테스트 먼저) |
 | `StockDailyPriceSyncPolicy` | 단위 | 상장일을 모르는 종목이 NPE 없이 흐른다 |
-| `JpaStockReaderTest` | 슬라이스 | `ceo`·`listed_at`이 `null`인 종목을 읽는다 |
+| `StocksPersistenceTest` | 슬라이스 | `ceo`·`listed_at`·`float_shares`가 비어도 저장·조회된다 |
+
+**`JpaStockReaderTest`에 넣지 않는다.** 그 클래스는 `@Mock` 리포지토리를 쓰는 단위 테스트라
+`null`을 그대로 통과시키는 것만 보이고(분기가 없는 통과 코드다), **DB가 `null`을 받는지는
+증명하지 못한다.** 테스트 스키마는 `ddl-auto=create`로 엔티티에서 생성되므로, 슬라이스로
+저장해 보면 `@Column(nullable = false)`를 한 곳이라도 덜 지웠을 때 거기서 걸린다.
 
 파싱 결과는 테스트가 아니라 **적재 전 검사**로 지킨다 — 상장일 전수 검사, 건수 대조,
 삼성전자·애플 샘플 대조.
