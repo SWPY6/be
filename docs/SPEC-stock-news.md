@@ -101,6 +101,21 @@ StockReader로 종목 확인 → 캐시 조회 → (미스) 호출 예산 확인
 | 결과 타입 이름 | 서비스 결과 record는 `news.service.StockNewsResult`다. 같은 모듈의 엔티티 `news.StockNews`(stock_news 테이블)와 이름이 겹치지 않게 한다. |
 | 두 출처 공존 | 종목 뉴스(이 명세)는 네이버 검색을 저장 없이 쓰고, 산업 뉴스([SPEC-industry-news](SPEC-industry-news.md))는 DB의 `News`·`StockNews`를 읽는다. 의도된 분리이며, 기사 모델(`NewsArticle`과 DB 기반 모델)의 통합은 DB 저장을 정할 때 함께 정한다. |
 
+## 리뷰 반영: OpenAPI 스키마
+
+결정: 프론트 검토에서 공시 응답의 `items`가 뉴스의 `Item` 스키마를 가리킨다는 지적을 받았다. 응답 안 record의 단순 이름이 다른 모듈과 겹쳐 springdoc이 스키마 하나로 합친 것이다. 응답 JSON은 바꾸지 않고 명세만 고친다. 기준은 [공시 명세의 같은 절](SPEC-stock-disclosure.md#리뷰-반영-openapi-스키마)과 같다.
+
+| 문제 | 결정 |
+| --- | --- |
+| 스키마 이름 충돌 | 응답 접두사를 붙인다: `StockNewsWindow`, `StockNewsItem`. |
+| required | 응답은 null인 필드도 키를 빠짐없이 내보낸다. 응답과 하위 record의 모든 필드를 required로 표시한다. null 허용 여부는 `nullable`로 따로 나타낸다. |
+
+**수용 기준**
+
+- `/v3/api-docs`에서 뉴스 응답의 `items`는 `StockNewsItem`을, `window`는 `StockNewsWindow`를 참조한다.
+- `StockNewsResponse`·`StockNewsWindow`·`StockNewsItem`의 모든 속성이 `required`에 있다.
+- 응답 JSON의 필드·값은 바뀌지 않는다(기존 테스트 통과).
+
 ## 네이버 API 계약
 
 아래는 첨부 PDF p.3~7에서 확인한 API 사실이다. 공급자 규칙 변경 여부는 구현 직전에 공식 문서로 재확인한다.
