@@ -281,6 +281,23 @@ class KisMoverRankingProviderTest {
     }
 
     @Test
+    void 해외_상승에서_채권을_뺀다() {
+        // given 종목정보 파일의 종목유형 2 에 채권 154 건이 섞여 있다
+        givenUpDown("NAS", new KisOverseasUpDownResponse("0", "", "", List.of(
+                new KisOverseasUpDownResponse.Row("ATLCP",
+                        "애틀랜티쿠스 홀딩스 후순위채권(2026-11-30 9.250%)",
+                        "20", "30.00", "100", "0"),
+                new KisOverseasUpDownResponse.Row("AAPL", "애플", "100", "2.00", "100", "500"))));
+        givenUpDown("NYS", new KisOverseasUpDownResponse("0", "", "", List.of()));
+
+        // when
+        List<StockMover> movers = provider.rank(Country.US, MoverCondition.RISING);
+
+        // then
+        assertThat(movers).extracting(StockMover::ticker).containsExactly("AAPL");
+    }
+
+    @Test
     void 해외_급증에서도_워런트와_유닛을_뺀다() {
         // given 급증도 같은 API 계열이라 제외 파라미터가 없다
         givenTradeGrowth("NAS", new KisOverseasTradeGrowthResponse("0", "", "", List.of(

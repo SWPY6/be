@@ -54,12 +54,16 @@ class KisMoverRankingProvider implements MoverRankingProvider {
     private static final String OVERSEAS_AVERAGE_DAYS = "5";
 
     /**
-     * 해외 순위에서 뺄 이름. 주식이 아닌데 가격이 센트 단위라 등락률 상위에 쉽게 오른다.
+     * 해외 순위에서 뺄 이름. 워런트·스팩 유닛·채권은 주식이 아니다. 워런트는 가격이 센트
+     * 단위라 등락률 상위에 쉽게 오른다.
      * 국내는 {@code FID_TRGT_EXLS_CLS_CODE}로 KIS가 걸러 주지만 해외 순위 API에는 제외
      * 파라미터가 없어({@code AUTH}·{@code EXCD}·{@code NDAY}·{@code GUBN}·{@code VOL_RANG}·
      * {@code KEYB} 뿐) 받은 뒤에 거른다.
+     *
+     * <p>종목정보 파일 6,409건에서 워런트 141 · 유닛 282 · 채권 154 가 걸린다(겹침이 있어
+     * 합집합은 499). 국내 파일에는 0 건이라 이 규칙은 해외에만 쓴다.
      */
-    private static final List<String> NOT_STOCK = List.of("워런트", "유닛");
+    private static final List<String> NOT_STOCK = List.of("워런트", "유닛", "채권");
 
     private final KisApiClient kisApiClient;
 
