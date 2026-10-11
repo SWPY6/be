@@ -56,13 +56,13 @@ public class Stocks {
 	@Column(nullable = false, length = 10)
 	private Exchange exchange;
 
-	@Column(nullable = false)
+	@Column
 	private Long floatShares;
 
-	@Column(nullable = false, length = 50)
+	@Column(length = 50)
 	private String ceo;
 
-	@Column(nullable = false)
+	@Column
 	private LocalDate listedAt;
 	
 	@CreationTimestamp
@@ -90,8 +90,13 @@ public class Stocks {
 		this.listedAt = listedAt;
 	}
 
+	/**
+	 * 상장일이 이 날짜보다 늦은가. <b>상장일을 모르면 거짓이다</b> — 해외 종목은 KIS
+	 * 종목정보 파일에 상장일이 없어 비어 있고, 모른다고 "그 뒤에 상장했다"고 단정할 수 없다.
+	 * 거짓이면 일봉 동기화가 저장된 봉만 보고 판정해 한 번 더 받으러 가는 쪽으로 흐른다.
+	 */
 	public boolean listedAfter(LocalDate date) {
-		return listedAt.isAfter(date);
+		return listedAt != null && listedAt.isAfter(date);
 	}
 }
 

@@ -75,6 +75,19 @@ class StockWithMarketTest {
         assertThat(stock.isDomestic()).isFalse();
     }
 
+    @Test
+    void 상장일을_모르면_상장일_판정이_거짓이다() {
+        // given 해외 종목은 KIS 종목정보 파일에 상장일이 없어 null 로 적재된다.
+        // 유동주식수·대표자명도 어느 출처도 주지 않아 함께 비어 있다
+        Stocks stocks = new Stocks(1L, "AAPL", "애플", null, StockStatus.ACTIVE, Exchange.NASDAQ,
+                null, null, null);
+        StockWithMarket stock = new StockWithMarket(stocks,
+                new Markets(MarketCode.NASDAQ, Country.US, TradingSession.REGULAR, Currency.USD));
+
+        // when & then 모른다고 "그 날짜 뒤에 상장했다"고 단정할 수 없다
+        assertThat(stock.listedAfter(LISTED_AT)).isFalse();
+    }
+
     private static StockWithMarket stock(Exchange exchange, Country country, Currency currency) {
         Stocks stocks = new Stocks(1L, exchange == Exchange.KRX ? "005930" : "JPM", "종목", null,
                 StockStatus.ACTIVE, exchange, 1L, "대표", LISTED_AT);
