@@ -53,6 +53,18 @@ class KisMoverRankingProvider implements MoverRankingProvider {
     /** 해외 거래증가율의 기간. 5가 20일이고, 그 평균이 직전 20거래일 평균과 일치한다. */
     private static final String OVERSEAS_AVERAGE_DAYS = "5";
 
+    /**
+     * 해외 순위에서 뺄 이름. 워런트·스팩 유닛·채권은 주식이 아니다. 워런트는 가격이 센트
+     * 단위라 등락률 상위에 쉽게 오른다.
+     * 국내는 {@code FID_TRGT_EXLS_CLS_CODE}로 KIS가 걸러 주지만 해외 순위 API에는 제외
+     * 파라미터가 없어({@code AUTH}·{@code EXCD}·{@code NDAY}·{@code GUBN}·{@code VOL_RANG}·
+     * {@code KEYB} 뿐) 받은 뒤에 거른다.
+     *
+     * <p>종목정보 파일 6,409건에서 워런트 141 · 유닛 282 · 채권 154 가 걸린다(겹침이 있어
+     * 합집합은 499). 국내 파일에는 0 건이라 이 규칙은 해외에만 쓴다.
+     */
+    private static final List<String> NOT_STOCK = List.of("워런트", "유닛", "채권");
+
     private final KisApiClient kisApiClient;
 
     @Override
@@ -170,23 +182,39 @@ class KisMoverRankingProvider implements MoverRankingProvider {
     }
 
     private List<StockMover> overseasUpDown(String exchange, MoverCondition condition) {
-        return kisApiClient.get(OVERSEAS_UPDOWN_PATH, OVERSEAS_UPDOWN_TR_ID, Map.of(
+        return tradable(kisApiClient.get(OVERSEAS_UPDOWN_PATH, OVERSEAS_UPDOWN_TR_ID, Map.of(
                 "AUTH", "",
                 "EXCD", exchange,
                 "NDAY", "0",
                 "GUBN", condition == MoverCondition.RISING ? "1" : "0",
                 "VOL_RANG", "0",
                 "KEYB", ""
-        ), KisOverseasUpDownResponse.class).toMovers();
+        ), KisOverseasUpDownResponse.class).toMovers());
     }
 
     private List<StockMover> overseasTradeGrowth(String exchange) {
-        return kisApiClient.get(OVERSEAS_GROWTH_PATH, OVERSEAS_GROWTH_TR_ID, Map.of(
+        return tradable(kisApiClient.get(OVERSEAS_GROWTH_PATH, OVERSEAS_GROWTH_TR_ID, Map.of(
                 "AUTH", "",
                 "EXCD", exchange,
                 "NDAY", OVERSEAS_AVERAGE_DAYS,
                 "VOL_RANG", "0",
                 "KEYB", ""
-        ), KisOverseasTradeGrowthResponse.class).toMovers();
+        ), KisOverseasTradeGrowthResponse.class).toMovers());
+    }
+
+    /**
+     * 주식이 아닌 줄을 뺀다. 상승·하락·급증 모두에 적용한다.
+     *
+     * <p>신호가 <b>한글명뿐</b>이다. 종목정보 파일의 종목유형은 {@code 2}·{@code 3} 두 값이고
+     * {@code 2}는 "주식"이 아니라 "ETF가 아닌 것"이라 워런트도 {@code 2}다. 티커 접미사도
+     * 못 쓴다 — 정상 종목도 {@code W}로 끝날 수 있다(둘 다 실측).
+     *
+     * <p>외부 문자열에 의존하므로 KIS가 표기를 바꾸면 새어 들어온다. 다른 신호가 없어
+     * 감수한다 — 깨져도 잘못된 값이 아니라 한 줄이 더 보일 뿐이다.
+     */
+    private static List<StockMover> tradable(List<StockMover> movers) {
+        return movers.stream()
+                .filter(mover -> NOT_STOCK.stream().noneMatch(mover.name()::contains))
+                .toList();
     }
 }

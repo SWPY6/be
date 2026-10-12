@@ -247,6 +247,75 @@ class KisMoverRankingProviderTest {
         assertThat(movers.getFirst().industry()).isNull();
     }
 
+    @Test
+    void 해외_상승에서_워런트를_뺀다() {
+        // given 워런트는 8센트짜리라 3센트만 움직여도 상위에 오른다(운영 실측)
+        givenUpDown("NAS", new KisOverseasUpDownResponse("0", "", "", List.of(
+                new KisOverseasUpDownResponse.Row("BAERW",
+                        "브리저 에어로스페이스 그룹 콜 워런트(2028-01-24)",
+                        "0.0796", "64.46", "280", "0"),
+                new KisOverseasUpDownResponse.Row("AAPL", "애플", "100", "2.00", "100", "500"))));
+        givenUpDown("NYS", new KisOverseasUpDownResponse("0", "", "", List.of()));
+
+        // when
+        List<StockMover> movers = provider.rank(Country.US, MoverCondition.RISING);
+
+        // then 등락률이 훨씬 높지만 주식이 아니라 뺀다
+        assertThat(movers).extracting(StockMover::ticker).containsExactly("AAPL");
+    }
+
+    @Test
+    void 해외_상승에서_스팩_유닛을_뺀다() {
+        // given 유닛은 주식과 워런트를 묶어 판 것이다
+        givenUpDown("NAS", new KisOverseasUpDownResponse("0", "", "", List.of(
+                new KisOverseasUpDownResponse.Row("ADACU", "아메리칸드라이브유닛",
+                        "10", "50.00", "100", "0"),
+                new KisOverseasUpDownResponse.Row("AAPL", "애플", "100", "2.00", "100", "500"))));
+        givenUpDown("NYS", new KisOverseasUpDownResponse("0", "", "", List.of()));
+
+        // when
+        List<StockMover> movers = provider.rank(Country.US, MoverCondition.RISING);
+
+        // then
+        assertThat(movers).extracting(StockMover::ticker).containsExactly("AAPL");
+    }
+
+    @Test
+    void 해외_상승에서_채권을_뺀다() {
+        // given 종목정보 파일의 종목유형 2 에 채권 154 건이 섞여 있다
+        givenUpDown("NAS", new KisOverseasUpDownResponse("0", "", "", List.of(
+                new KisOverseasUpDownResponse.Row("ATLCP",
+                        "애틀랜티쿠스 홀딩스 후순위채권(2026-11-30 9.250%)",
+                        "20", "30.00", "100", "0"),
+                new KisOverseasUpDownResponse.Row("AAPL", "애플", "100", "2.00", "100", "500"))));
+        givenUpDown("NYS", new KisOverseasUpDownResponse("0", "", "", List.of()));
+
+        // when
+        List<StockMover> movers = provider.rank(Country.US, MoverCondition.RISING);
+
+        // then
+        assertThat(movers).extracting(StockMover::ticker).containsExactly("AAPL");
+    }
+
+    @Test
+    void 해외_급증에서도_워런트와_유닛을_뺀다() {
+        // given 급증도 같은 API 계열이라 제외 파라미터가 없다
+        givenTradeGrowth("NAS", new KisOverseasTradeGrowthResponse("0", "", "", List.of(
+                new KisOverseasTradeGrowthResponse.Row("BAERW", "브리저 에어로스페이스 그룹 콜 워런트",
+                        "0.08", "1.00", "90000", "10000", "500"),
+                new KisOverseasTradeGrowthResponse.Row("ADACU", "아메리칸드라이브유닛",
+                        "10", "1.00", "50000", "10000", "500"),
+                new KisOverseasTradeGrowthResponse.Row("AAPL", "애플",
+                        "100", "1.00", "30000", "10000", "500"))));
+        givenTradeGrowth("NYS", new KisOverseasTradeGrowthResponse("0", "", "", List.of()));
+
+        // when
+        List<StockMover> movers = provider.rank(Country.US, MoverCondition.VOLUME_SURGE);
+
+        // then 배수가 더 큰 둘을 빼고 주식만 남는다
+        assertThat(movers).extracting(StockMover::ticker).containsExactly("AAPL");
+    }
+
     private void givenFluctuation(String market, KisFluctuationResponse response) {
         given(kisApiClient.get(any(), any(), argThatHas("fid_input_iscd", market),
                 eq(KisFluctuationResponse.class))).willReturn(response);

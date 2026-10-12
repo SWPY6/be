@@ -56,6 +56,20 @@ class StockDailyPriceSyncPolicyTest {
     }
 
     @Test
+    void 상장일을_모르는_종목은_저장된_봉으로만_판정한다() {
+        // given 저장된 봉이 시작일을 덮지 못해 상장일까지 보게 된다.
+        // 해외 종목은 상장일이 null 로 적재된다
+        StoredRange stored = new StoredRange(Optional.of(FROM.plusDays(1)),
+                Optional.of(WEDNESDAY.minusDays(1)));
+
+        // when
+        boolean covers = policy.covers(stored, FROM, stockListedOn(null), WEDNESDAY);
+
+        // then 터지지 않고 "덮지 못한다"가 나와 한 번 더 받으러 간다
+        assertThat(covers).isFalse();
+    }
+
+    @Test
     void 저장된_봉이_시작일을_덮지_못하면_동기화한다() {
         // given
         StoredRange stored = new StoredRange(Optional.of(LocalDate.of(2026, 6, 1)), Optional.of(WEDNESDAY.minusDays(1)));
