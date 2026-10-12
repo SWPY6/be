@@ -38,6 +38,7 @@
 | `ploutos.kis.base-url` | `KIS_BASE_URL` | `https://openapivts.koreainvestment.com:29443` (모의투자) | 실전은 `https://openapi.koreainvestment.com:9443` |
 | `ploutos.kis.app-key` | `KIS_APP_KEY` | — | 앱키 |
 | `ploutos.kis.app-secret` | `KIS_APP_SECRET` | — | 앱시크릿 |
+| `ploutos.kis.max-calls-per-second` | `KIS_MAX_CALLS_PER_SECOND` | `15` | 스스로 지키는 초당 호출 수 |
 
 셋 중 하나라도 비어 있으면 애플리케이션 기동에 실패한다(잘못된 배포를 빨리 드러낸다).
 
@@ -47,6 +48,23 @@
 - 만료 오류(`msg_cd = EGW00123`)를 받으면 토큰을 버리고 1회 재발급한 뒤 같은 요청을 한 번 재시도한다. 재시도도 실패하면 오류로 던진다.
 - 발급 요청 자체가 실패하면 `BusinessException(MARKET_DATA_UNAVAILABLE)`.
 - 동시에 여러 스레드가 만료를 감지해도 발급은 1회만 한다(잠금).
+
+### 호출 제한
+
+**KIS 를 부르기 전에 스스로 간격을 둔다.** 한도에 부딪힌 뒤 쉬는 것(아래 「호출 한도 초과」)만으로는
+부족하다는 것이 운영에서 드러났다 — 산업 흐름이 1,599종목을 훑자 **거의 모든 호출이 한도 초과로
+1초씩 쉬어** 한 바퀴가 27분이 됐다(실측 2026-10-12).
+
+- `ploutos.kis.max-calls-per-second`(기본 `15`)로 **호출을 시작하는 간격**을 벌린다. 15면 약 66ms다.
+- 실전 한도는 초당 20건인데 15로 둔다. 사용자 요청과 배치가 **같은 앱키를 쓰므로** 꽉 채우면 둘이
+  부딪힌다. 남긴 5건이 사용자 몫이다.
+- **간격만 벌리고 동시 실행을 막지 않는다.** 순번을 받아 그 시각까지 기다린 뒤 HTTP 는 각자 보낸다.
+  한 호출이 느려도 뒤가 막히지 않는다.
+- JVM 안에서만 센다. 인스턴스가 하나라서다 — 2대가 되면 각자 15건을 보내 합이 한도를 넘는다
+  (「미해결 질문」).
+
+제한기가 있어도 한도를 맞을 수 있다. 시계가 어긋나거나 KIS 가 다르게 셀 수 있어서다. 그때는 아래대로
+한 번 더 기회를 준다 — **둘은 다른 장치다.** 제한기는 예방, 아래는 복구다.
 
 ### 호출 한도 초과
 
@@ -122,7 +140,7 @@ Run: ./gradlew bootRun
 ## 프로젝트 구조
 
 ```
-src/main/java/com/swyp/ploutos/external/kis/        → KisApiClient, KisResponse, RestClientKisApiClient, KisProperties, KisClientConfig(RestClient 빈)
+src/main/java/com/swyp/ploutos/external/kis/        → KisApiClient, KisResponse, RestClientKisApiClient, KisRateLimiter, KisProperties, KisClientConfig(RestClient 빈)
 src/main/java/com/swyp/ploutos/external/kis/auth/   → KisAccessTokenProvider, CachedKisAccessTokenProvider, KisTokenResponse(package-private)
 src/main/java/com/swyp/ploutos/common/config/       → ClockConfig(Clock 빈 — KIS의 관심사가 아니므로 공통에 둔다)
 src/main/java/com/swyp/ploutos/common/exception/    → ErrorCode에 MARKET_DATA_UNAVAILABLE(P007) 추가
@@ -164,7 +182,7 @@ DomesticPriceResponse body = kisApiClient.get(
 ## 경계
 
 - **항상:** 앱키·시크릿은 환경변수로만 주입한다. KIS 실패는 `MARKET_DATA_UNAVAILABLE`로만 던진다. 커밋 전 `./gradlew test`.
-- **먼저 묻기:** 의존성 추가(`spring-boot-starter-restclient`, 재시도·서킷브레이커 라이브러리), 호출 제한기 도입, 타임아웃 값 변경.
+- **먼저 묻기:** 의존성 추가(`spring-boot-starter-restclient`, 재시도·서킷브레이커 라이브러리), 타임아웃 값 변경, 초당 호출 수를 20 이상으로 올리기.
 - **절대 안 함:** 앱키·시크릿·토큰을 로그·응답·저장소에 남기기, 테스트에서 실제 KIS 호출, 토큰을 매 요청마다 발급.
 
 ## 성공 기준
@@ -183,6 +201,9 @@ DomesticPriceResponse body = kisApiClient.get(
 | 10 | base-url·앱키·시크릿이 비어 있으면 기동에 실패한다. | `KisPropertiesTest.base_url이_없으면_기동에_실패한다`, `앱키가_없으면_기동에_실패한다` |
 | 11 | 한도 초과 오류(`EGW00201`)를 받으면 1초 쉬고 1회 재시도한다. | `초당_한도_초과를_받으면_잠시_쉬고_한_번_재시도한다` |
 | 12 | 한도 초과 재시도도 실패하면 예외를 던지고 더 재시도하지 않는다. | `한도_초과_재시도도_실패하면_예외를_던진다` |
+| 13 | 연속 호출은 설정한 간격만큼 벌어진다. | `KisRateLimiterTest.연속_호출은_설정한_간격만큼_벌어진다` |
+| 14 | 간격이 이미 지났으면 기다리지 않는다. | `드문드문_부르면_기다리지_않는다` |
+| 15 | 초당 호출 수가 1 미만이면 기동에 실패한다. | `KisPropertiesTest.초당_호출_수가_0이면_기동에_실패한다` |
 
 ## 미해결 질문
 
@@ -190,4 +211,6 @@ DomesticPriceResponse body = kisApiClient.get(
 - 모의투자 도메인의 호출 한도. 실전은 초당 20건인데 모의투자 수치는 확인하지 못했다. 캐시 TTL 설계가 이 값을 전제로 한다.
 - 모의투자 계정은 참가 기간이 있어 만료되면 키가 막힌다. 운영 전환 시점에 실전 키로 바꾼다.
 - ~~호출 한도(초당 20건) 초과 시 KIS가 주는 오류 코드~~ → `EGW00201`(실측 기록은 `SPEC-industry-flow.md`). 1회 재시도 대상에 넣었다.
+- **인스턴스가 2대 이상이 되면 호출 제한기를 Redis 카운터로 옮겨야 한다.** 지금은 JVM 안에서만
+  세므로 2대가 각자 초당 15건을 보내 합이 한도를 넘는다.
 - 인스턴스가 2대 이상이 되면 토큰 캐시를 Redis로 옮길지. 시세 캐시(`stock-quote`)는 Redis를 쓰기로 했지만 토큰은 이번 범위에서 메모리에 둔다. 인스턴스마다 따로 발급하면 1분 1회 제한에 걸릴 수 있다.

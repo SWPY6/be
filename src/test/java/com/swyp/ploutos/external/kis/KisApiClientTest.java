@@ -50,10 +50,13 @@ class KisApiClientTest {
         RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
         server = MockRestServiceServer.bindTo(builder).build();
         tokenProvider = new FakeTokenProvider();
+        // 간격 규칙은 KisRateLimiterTest 가 본다. 여기서는 기다리지 않도록 충분히 빠르게 둔다.
+        KisProperties properties = new KisProperties(BASE_URL, "my-key", "my-secret", 100_000);
         client = new RestClientKisApiClient(
                 builder.build(),
                 tokenProvider,
-                new KisProperties(BASE_URL, "my-key", "my-secret")
+                properties,
+                new KisRateLimiter(properties)
         );
     }
 
