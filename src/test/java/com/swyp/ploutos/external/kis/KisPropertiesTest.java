@@ -16,7 +16,7 @@ class KisPropertiesTest {
     @Test
     void base_url이_없으면_기동에_실패한다() {
         // when & then
-        assertThatThrownBy(() -> new KisProperties(" ", "key", "secret"))
+        assertThatThrownBy(() -> new KisProperties(" ", "key", "secret", 15))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("ploutos.kis.base-url");
     }
@@ -24,7 +24,7 @@ class KisPropertiesTest {
     @Test
     void 앱키가_없으면_기동에_실패한다() {
         // when & then
-        assertThatThrownBy(() -> new KisProperties(BASE_URL, "", "secret"))
+        assertThatThrownBy(() -> new KisProperties(BASE_URL, "", "secret", 15))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("ploutos.kis.app-key");
     }
@@ -32,9 +32,17 @@ class KisPropertiesTest {
     @Test
     void 시크릿이_없으면_기동에_실패한다() {
         // when & then
-        assertThatThrownBy(() -> new KisProperties(BASE_URL, "key", null))
+        assertThatThrownBy(() -> new KisProperties(BASE_URL, "key", null, 15))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("ploutos.kis.app-secret");
+    }
+
+    @Test
+    void 초당_호출_수가_0이면_기동에_실패한다() {
+        // when & then
+        assertThatThrownBy(() -> new KisProperties(BASE_URL, "key", "secret", 0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("ploutos.kis.max-calls-per-second");
     }
 
     @Test

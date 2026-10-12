@@ -11,6 +11,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import org.hamcrest.Matchers;
@@ -50,10 +52,13 @@ class KisApiClientTest {
         RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
         server = MockRestServiceServer.bindTo(builder).build();
         tokenProvider = new FakeTokenProvider();
+        // 간격 규칙은 KisRateLimiterTest 가 본다. 여기서는 기다리지 않도록 충분히 빠르게 둔다.
+        KisProperties properties = new KisProperties(BASE_URL, "my-key", "my-secret", 100_000);
         client = new RestClientKisApiClient(
                 builder.build(),
                 tokenProvider,
-                new KisProperties(BASE_URL, "my-key", "my-secret")
+                properties,
+                new KisRateLimiter(properties)
         );
     }
 
@@ -182,6 +187,62 @@ class KisApiClientTest {
     }
 
     // 무효화될 때마다 다음 토큰을 내어 주는 가짜 제공자
+    @Test
+    void 토큰을_먼저_받고_그다음에_호출_간격을_잡는다() {
+        // given 토큰 발급은 잠금 안에서 HTTP 를 보낸다. 순번을 먼저 잡으면 잠금에서 기다리는
+        // 동안 간격이 지나가고, 발급이 끝나는 순간 대기하던 요청이 한꺼번에 나간다
+        List<String> order = new ArrayList<>();
+        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
+        MockRestServiceServer ordered = MockRestServiceServer.bindTo(builder).build();
+        KisProperties properties = new KisProperties(BASE_URL, "my-key", "my-secret", 100_000);
+        KisApiClient recording = new RestClientKisApiClient(
+                builder.build(),
+                new RecordingTokenProvider(order),
+                properties,
+                new RecordingRateLimiter(properties, order)
+        );
+        ordered.expect(once(), requestTo(Matchers.startsWith(BASE_URL + PATH)))
+                .andRespond(withSuccess(SUCCESS_BODY, MediaType.APPLICATION_JSON));
+
+        // when
+        recording.get(PATH, TR_ID, Map.of("FID_INPUT_ISCD", "005930"), PriceResponse.class);
+
+        // then
+        assertThat(order).containsExactly("token", "limiter");
+        ordered.verify();
+    }
+
+    /** 토큰을 받을 때 기록한다. */
+    private record RecordingTokenProvider(List<String> order) implements KisAccessTokenProvider {
+
+        @Override
+        public String accessToken() {
+            order.add("token");
+            return "token-1";
+        }
+
+        @Override
+        public void invalidate() {
+        }
+    }
+
+    /** 순번을 잡을 때 기록한다. 간격 규칙은 KisRateLimiterTest 가 본다. */
+    private static final class RecordingRateLimiter extends KisRateLimiter {
+
+        private final List<String> order;
+
+        private RecordingRateLimiter(KisProperties properties, List<String> order) {
+            super(properties);
+            this.order = order;
+        }
+
+        @Override
+        void acquire() {
+            order.add("limiter");
+            super.acquire();
+        }
+    }
+
     private static final class FakeTokenProvider implements KisAccessTokenProvider {
 
         private int invalidatedCount = 0;
