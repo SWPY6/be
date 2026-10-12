@@ -73,6 +73,10 @@ class RestClientKisApiClient implements KisApiClient {
     }
 
     private <T extends KisResponse> T exchange(String path, String trId, Map<String, String> queryParams, Class<T> responseType) {
+        // 토큰을 먼저 받는다. 발급은 잠금 안에서 HTTP 를 보내므로(CachedKisAccessTokenProvider),
+        // 순번을 잡아 둔 채로 잠금에서 기다리면 그동안 간격이 지나간다. 그러면 발급이 끝나는
+        // 순간 대기하던 요청이 모두 제한 없이 한꺼번에 나간다.
+        String accessToken = tokenProvider.accessToken();
         // 한도에 부딪히기 전에 스스로 간격을 둔다. 재시도도 이 길을 지나므로 함께 제한된다.
         rateLimiter.acquire();
         try {
@@ -83,7 +87,7 @@ class RestClientKisApiClient implements KisApiClient {
                         return builder.build();
                     })
                     .header(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenProvider.accessToken())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                     .header("appkey", properties.appKey())
                     .header("appsecret", properties.appSecret())
                     .header("tr_id", trId)
