@@ -236,6 +236,28 @@ class StockDisclosureIntegrationTest {
                 .andExpect(jsonPath("$.paths['/api/v1/stocks/{stockId}/disclosures'].get.responses['503']").exists());
     }
 
+    @Test
+    void Swagger_문서의_공시_스키마가_실제_응답과_맞다() throws Exception {
+        // given
+        String response = "$.components.schemas.StockDisclosureResponse";
+
+        // when & then
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(response + ".properties.items.items.$ref")
+                        .value("#/components/schemas/StockDisclosureItem"))
+                .andExpect(jsonPath("$.components.schemas.StockNewsResponse.properties.items.items.$ref")
+                        .value("#/components/schemas/StockNewsItem"))
+                .andExpect(jsonPath(response + ".properties.filedDateRange.$ref").doesNotExist())
+                .andExpect(jsonPath(response + ".properties.filedDateRange.type").doesNotExist())
+                .andExpect(jsonPath(response + ".properties.filedDateRange.anyOf[0].$ref")
+                        .value("#/components/schemas/StockDisclosureFiledDateRange"))
+                .andExpect(jsonPath(response + ".properties.filedDateRange.anyOf[1].type").value("null"))
+                .andExpect(jsonPath(response + ".properties.windowPrecision.enum",
+                        Matchers.contains("DATE_EXPANDED", "EXACT", null)))
+                .andExpect(jsonPath(response + ".required", Matchers.hasItems("filedDateRange", "windowPrecision")));
+    }
+
     private static String todayKst() {
         return LocalDate.now(Country.KR.zoneId()).format(DateTimeFormatter.BASIC_ISO_DATE);
     }

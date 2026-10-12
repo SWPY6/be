@@ -130,6 +130,26 @@ StockReader로 종목 확인 → 기간 검증 → (US) 외부 호출 없이 UNS
 | 국가 필드 | 응답의 종목 국가 키는 `country`(KR/US)다. 이전 `market`은 `Country` 값을 시장처럼 읽히게 해 바꿨다(프론트 연동 전). |
 | 남은 한계 | 인증 없는 API라 종목 ID를 바꿔 가며 부르면 여전히 종목 수 × (하루 / 캐시 TTL)만큼 호출할 수 있다. 끝 날짜를 하루씩 과거로 옮기며 불러도 종목당 날짜 수만큼 호출할 수 있다. 이 경우에도 공시검색만 막히고 매핑 갱신은 남는다. 근본 대책은 클라이언트별 요청 제한(후속 제안). |
 
+## 리뷰 반영: OpenAPI 스키마
+
+결정: 프론트 검토에서 Swagger 명세가 실제 응답과 다르다는 지적을 받았다. 응답 JSON은 바꾸지 않고 명세만 실제 응답에 맞춘다. 이 절이 위 절들과 충돌하면 이 절이 우선한다.
+
+| 문제 | 결정 |
+| --- | --- |
+| 스키마 이름 충돌 | 응답 안 record의 단순 이름이 다른 모듈과 겹치면 springdoc이 스키마 하나로 합친다(공시 `items`가 뉴스 `Item`을 가리켰다). 이름에 응답 접두사를 붙인다: `StockDisclosureWindow`, `StockDisclosureFiledDateRange`, `StockDisclosureItem`. |
+| null인 객체 | `filedDateRange`가 `type: null`과 `$ref`를 함께 가져 null만 허용하는 뜻이 됐다. `anyOf: [{$ref}, {type: null}]`로 표현한다. |
+| null인 enum | `windowPrecision`이 `type: [string, null]`인데 `enum`에 null이 없어 null 값이 명세를 어긴다. `enum`에 null을 넣는다. |
+| required | 응답은 null인 필드도 키를 빠짐없이 내보낸다. 응답과 하위 record의 모든 필드를 required로 표시한다. null 허용 여부는 `nullable`로 따로 나타낸다. |
+| 후처리 | swagger-core 어노테이션만으로는 null인 객체·enum을 표현할 수 없다(어떤 조합이든 `$ref` 옆에 `type`이 붙는다). `common/config`의 OpenAPI 후처리기가 문서 생성 뒤 모든 스키마 속성에서 `$ref`+null 타입은 `anyOf`로 바꾸고, null 타입 enum에는 null을 넣는다. 현재 해당하는 속성은 이 응답의 두 필드뿐이다. |
+
+**수용 기준**
+
+- `/v3/api-docs`에서 공시 응답의 `items`는 `StockDisclosureItem`을 참조한다.
+- `filedDateRange`는 `anyOf`로 `StockDisclosureFiledDateRange`와 null을 허용하고, 속성에 `type`·`$ref`를 직접 두지 않는다.
+- `windowPrecision`의 `enum`은 `DATE_EXPANDED`, `EXACT`, null이다.
+- `StockDisclosureResponse`·`StockDisclosureWindow`·`StockDisclosureFiledDateRange`·`StockDisclosureItem`의 모든 속성이 `required`에 있다.
+- 응답 JSON의 필드·값은 바뀌지 않는다(기존 테스트 통과).
+
 ## 근거와 상태 구분
 
 | 기획 근거 | 위치 | 반영 |
