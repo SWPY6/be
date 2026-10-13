@@ -18,17 +18,31 @@ class StockNewsFeedTest {
     private static final String STOCK = "삼성전자";
 
     @Test
-    void 제목이나_요약에_종목명이_있는_기사만_남긴다() {
+    void 제목에_종목명이_있는_기사만_남긴다() {
         // given
         NewsArticle inTitle = article("삼성전자 실적 발표", "요약", "https://a.com/1", NOW.minusHours(1));
-        NewsArticle inSummary = article("반도체 업황", "삼성전자가 증설한다", "https://a.com/2", NOW.minusHours(2));
         NewsArticle unrelated = article("SK하이닉스 실적", "요약", "https://a.com/3", NOW.minusHours(3));
 
         // when
-        StockNewsFeed feed = StockNewsFeed.of(STOCK, List.of(inTitle, inSummary, unrelated), true, WINDOW);
+        StockNewsFeed feed = StockNewsFeed.of(STOCK, List.of(inTitle, unrelated), true, WINDOW);
 
         // then
-        assertThat(feed.items()).containsExactly(inTitle, inSummary);
+        assertThat(feed.items()).containsExactly(inTitle);
+    }
+
+    @Test
+    void 요약에만_종목명이_있으면_뺀다() {
+        // given
+        NewsArticle homonym = article("불가리아 앞 흑해서 선박 침몰", "러시아가 기아를 무기화하고", "https://a.com/1",
+                NOW.minusHours(1));
+        NewsArticle listed = article("코스피 5.5% 급락", "삼성바이오로직스(0.4%), 기아(0.2%) 등은 상승했다", "https://a.com/2",
+                NOW.minusHours(2));
+
+        // when
+        StockNewsFeed feed = StockNewsFeed.of("기아", List.of(homonym, listed), true, WINDOW);
+
+        // then
+        assertThat(feed.items()).isEmpty();
     }
 
     @Test

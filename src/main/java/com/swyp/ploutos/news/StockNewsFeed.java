@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 한 종목의 뉴스 목록. 검색 후보에서 종목명이 언급되고 기간 안에 있는 기사만 골라
+ * 한 종목의 뉴스 목록. 검색 후보에서 제목에 종목명이 있고 기간 안에 있는 기사만 골라
  * 중복을 없애고 최신순으로 최대 20건을 담는다.
  *
  * @param windowCovered 기간 시작까지 검색 결과를 훑었는지. 받은 후보가 기간 시작에 닿지 못했고
@@ -33,7 +33,7 @@ public record StockNewsFeed(
     ) {
         Map<String, NewsArticle> unique = new LinkedHashMap<>();
         candidates.stream()
-                .filter(article -> article.mentions(stockName))
+                .filter(article -> article.titleMentions(stockName))
                 .filter(article -> article.publishedIn(window))
                 .sorted(LATEST_FIRST)
                 .forEach(article -> unique.putIfAbsent(article.documentId(), article));

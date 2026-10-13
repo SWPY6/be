@@ -59,13 +59,12 @@ public record NewsArticle(
         ));
     }
 
-    /** 제목이나 요약에 이름이 들어 있는지. 대소문자는 가리지 않는다. */
-    public boolean mentions(String name) {
-        String target = name.toLowerCase(Locale.ROOT);
-        if (title.toLowerCase(Locale.ROOT).contains(target)) {
-            return true;
-        }
-        return summary != null && summary.toLowerCase(Locale.ROOT).contains(target);
+    /**
+     * 제목에 이름이 들어 있는지. 대소문자는 가리지 않는다. 요약은 보지 않는다 — 요약에만 나오는
+     * 언급은 동음이의어·시황 기사의 종목 나열·지나가는 언급이 대부분이다.
+     */
+    public boolean titleMentions(String name) {
+        return title.toLowerCase(Locale.ROOT).contains(name.toLowerCase(Locale.ROOT));
     }
 
     public boolean publishedIn(NewsWindow window) {
