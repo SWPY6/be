@@ -48,12 +48,16 @@ class NaverNewsProvider implements NewsProvider {
     public NewsSearchResult search(String query) {
         NaverNewsResponse response = fetch(query);
         List<NaverNewsResponse.Item> items = response.items() == null ? List.of() : response.items();
-        List<NewsArticle> articles = items.stream()
+        // 스포츠 기사는 무효 레코드가 아니라 거른 것이다. 전부 스포츠여도 정상 0건이다.
+        List<NaverNewsResponse.Item> newsItems = items.stream()
+                .filter(item -> !NaverNewsArticles.isSports(item))
+                .toList();
+        List<NewsArticle> articles = newsItems.stream()
                 .map(NaverNewsArticles::from)
                 .flatMap(Optional::stream)
                 .toList();
-        if (!items.isEmpty() && articles.isEmpty()) {
-            log.error("네이버 뉴스 응답 {}건이 모두 쓸 수 없는 레코드다.", items.size());
+        if (!newsItems.isEmpty() && articles.isEmpty()) {
+            log.error("네이버 뉴스 응답 {}건이 모두 쓸 수 없는 레코드다.", newsItems.size());
             throw new BusinessException(ErrorCode.NEWS_UNAVAILABLE);
         }
         return new NewsSearchResult(articles, isExhausted(response.total(), items.size()));
