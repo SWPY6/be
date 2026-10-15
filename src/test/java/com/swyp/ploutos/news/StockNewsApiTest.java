@@ -101,7 +101,7 @@ class StockNewsApiTest {
         NewsArticle unrelated = NewsArticle.of(
                 "SK하이닉스 실적", "요약", URI.create("https://www.hankyung.com/article/1"), LinkKind.ORIGINAL, publishedAt
         ).orElseThrow();
-        given(newsProvider.search("삼성전자")).willReturn(new NewsSearchResult(List.of(related, unrelated), true));
+        given(newsProvider.search("삼성전자")).willReturn(new NewsSearchResult(List.of(related, unrelated), true, null));
 
         // when & then
         for (int i = 0; i < 2; i++) {
@@ -115,7 +115,7 @@ class StockNewsApiTest {
                     .andExpect(jsonPath("$.data.items[0].publishedAt").value(publishedAt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)));
         }
         then(newsProvider).should(times(1)).search("삼성전자");
-        assertThat(redisTemplate.hasKey("news:v1:" + samsung.stockId())).isTrue();
+        assertThat(redisTemplate.hasKey("news:v2:" + samsung.stockId())).isTrue();
     }
 
     @Test

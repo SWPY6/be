@@ -129,43 +129,6 @@ class StockNewsFeedTest {
         assertThat(feed.total()).isZero();
     }
 
-    @Test
-    void 결과가_더_남았고_가장_오래된_후보가_기간_시작보다_늦으면_기간을_다_훑지_못한_것이다() {
-        // given
-        NewsArticle oldest = article("삼성전자", "요약", "https://a.com/1", NOW.minusDays(1));
-
-        // when
-        StockNewsFeed feed = StockNewsFeed.of(STOCK, List.of(oldest), false, WINDOW);
-
-        // then
-        assertThat(feed.windowCovered()).isFalse();
-    }
-
-    @Test
-    void 결과가_더_남았어도_관련_없는_후보까지_기간_시작에_닿았으면_기간을_다_훑은_것이다() {
-        // given
-        NewsArticle recent = article("삼성전자", "요약", "https://a.com/1", NOW.minusDays(1));
-        NewsArticle unrelatedOld = article("SK하이닉스", "요약", "https://a.com/2", WINDOW.from());
-
-        // when
-        StockNewsFeed feed = StockNewsFeed.of(STOCK, List.of(recent, unrelatedOld), false, WINDOW);
-
-        // then
-        assertThat(feed.windowCovered()).isTrue();
-    }
-
-    @Test
-    void 검색_결과를_끝까지_받았으면_기간을_다_훑은_것이다() {
-        // given
-        NewsArticle oldest = article("삼성전자", "요약", "https://a.com/1", NOW.minusDays(1));
-
-        // when
-        StockNewsFeed feed = StockNewsFeed.of(STOCK, List.of(oldest), true, WINDOW);
-
-        // then
-        assertThat(feed.windowCovered()).isTrue();
-    }
-
     private static NewsArticle article(String title, String summary, String url, OffsetDateTime publishedAt) {
         return NewsArticle.of(title, summary, URI.create(url), NewsArticle.LinkKind.ORIGINAL, publishedAt).orElseThrow();
     }

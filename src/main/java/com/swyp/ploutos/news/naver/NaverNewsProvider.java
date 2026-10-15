@@ -60,7 +60,9 @@ class NaverNewsProvider implements NewsProvider {
             log.error("네이버 뉴스 응답 {}건이 모두 쓸 수 없는 레코드다.", newsItems.size());
             throw new BusinessException(ErrorCode.NEWS_UNAVAILABLE);
         }
-        return new NewsSearchResult(articles, isExhausted(response.total(), items.size()));
+        // 구간 커버는 검색 결과를 어디까지 훑었는가의 문제라 거르기 전 원본으로 판정한다.
+        return new NewsSearchResult(articles, isExhausted(response.total(), items.size()),
+                NaverNewsArticles.oldestPublishedAt(items));
     }
 
     private NaverNewsResponse fetch(String query) {

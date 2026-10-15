@@ -175,13 +175,13 @@ class StockNewsControllerTest {
                 .andExpect(jsonPath("$.error.name").value("NewsQuotaExceededException"));
     }
 
-    private static StockNewsResult news(List<NewsArticle> candidates, boolean exhausted) {
+    private static StockNewsResult news(List<NewsArticle> candidates, boolean windowCovered) {
         return new StockNewsResult(
                 STOCK_ID,
                 Country.KR,
                 WINDOW,
                 OffsetDateTime.parse("2026-09-30T13:55:12+09:00"),
-                StockNewsFeed.of("삼성전자", candidates, exhausted, WINDOW)
+                StockNewsFeed.of("삼성전자", candidates, windowCovered, WINDOW)
         );
     }
 }
