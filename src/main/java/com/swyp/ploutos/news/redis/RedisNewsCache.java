@@ -26,7 +26,7 @@ class RedisNewsCache implements NewsCache {
 
     private static final Logger log = LoggerFactory.getLogger(RedisNewsCache.class);
     // 저장 형식이 바뀌면 버전을 올려 이전 형식의 값을 읽지 않게 한다.
-    private static final String KEY_PREFIX = "news:v1:";
+    private static final String KEY_PREFIX = "news:v2:";
 
     private final StringRedisTemplate redisTemplate;
     private final JsonMapper jsonMapper;

@@ -120,4 +120,56 @@ class NaverNewsArticlesTest {
         // then
         assertThat(article).isEmpty();
     }
+
+    @Test
+    void 네이버_링크가_스포츠_섹션이면_스포츠_기사다() {
+        // given
+        NaverNewsResponse.Item item = item("https://m.sports.naver.com/kbaseball/article/014/0005588720");
+
+        // when
+        boolean sports = NaverNewsArticles.isSports(item);
+
+        // then
+        assertThat(sports).isTrue();
+    }
+
+    @Test
+    void 네이버_링크가_뉴스_섹션이면_스포츠_기사가_아니다() {
+        // given
+        NaverNewsResponse.Item item = item("https://n.news.naver.com/mnews/article/277/0005827978?sid=101");
+
+        // when
+        boolean sports = NaverNewsArticles.isSports(item);
+
+        // then
+        assertThat(sports).isFalse();
+    }
+
+    @Test
+    void 네이버_링크가_연예_섹션이면_스포츠_기사가_아니다() {
+        // given
+        NaverNewsResponse.Item item = item("https://m.entertain.naver.com/article/477/0000632826");
+
+        // when
+        boolean sports = NaverNewsArticles.isSports(item);
+
+        // then
+        assertThat(sports).isFalse();
+    }
+
+    @Test
+    void 네이버_링크가_없으면_스포츠_기사로_보지_않는다() {
+        // given
+        NaverNewsResponse.Item item = item("");
+
+        // when
+        boolean sports = NaverNewsArticles.isSports(item);
+
+        // then
+        assertThat(sports).isFalse();
+    }
+
+    private static NaverNewsResponse.Item item(String link) {
+        return new NaverNewsResponse.Item("제목", ORIGINAL, link, "요약", "Wed, 30 Sep 2026 09:12:00 +0900");
+    }
 }

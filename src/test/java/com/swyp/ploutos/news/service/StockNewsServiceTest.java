@@ -75,7 +75,7 @@ class StockNewsServiceTest {
     @Test
     void 캐시에_없으면_종목명으로_검색하고_결과를_캐시한다() {
         // given
-        provider.result = new NewsSearchResult(List.of(article("삼성전자 실적", 1)), true);
+        provider.result = new NewsSearchResult(List.of(article("삼성전자 실적", 1)), true, null);
 
         // when
         StockNewsResult news = service.read(KR_STOCK_ID, null, null);
@@ -92,7 +92,7 @@ class StockNewsServiceTest {
         // given
         Instant fetchedAt = NOW.minusSeconds(300);
         cache.store.put(KR_STOCK_ID,
-                new CachedSearch(new NewsSearchResult(List.of(article("삼성전자 실적", 1)), true), fetchedAt));
+                new CachedSearch(new NewsSearchResult(List.of(article("삼성전자 실적", 1)), true, null), fetchedAt));
 
         // when
         StockNewsResult news = service.read(KR_STOCK_ID, null, null);
@@ -110,7 +110,7 @@ class StockNewsServiceTest {
                 article("삼성전자 오늘", 1),
                 article("삼성전자 사흘 전", 72),
                 article("SK하이닉스 오늘", 2)
-        ), true), NOW));
+        ), true, null), NOW));
         OffsetDateTime from = NOW.atOffset(KST).minusDays(1);
         OffsetDateTime to = NOW.atOffset(KST);
 
@@ -123,9 +123,22 @@ class StockNewsServiceTest {
     }
 
     @Test
+    void 후보가_모두_걸러졌어도_검색_결과가_더_남았고_원본이_기간_시작에_닿지_못했으면_기간을_다_훑지_못한_것이다() {
+        // given
+        provider.result = new NewsSearchResult(List.of(), false, NOW.atOffset(KST).minusHours(3));
+
+        // when
+        StockNewsResult news = service.read(KR_STOCK_ID, null, null);
+
+        // then
+        assertThat(news.feed().items()).isEmpty();
+        assertThat(news.feed().windowCovered()).isFalse();
+    }
+
+    @Test
     void 기간을_생략하면_종목_시장_현지_시각_기준_최근_7일이다() {
         // given
-        provider.result = new NewsSearchResult(List.of(), true);
+        provider.result = new NewsSearchResult(List.of(), true, null);
 
         // when
         StockNewsResult news = service.read(US_STOCK_ID, null, null);
@@ -157,7 +170,7 @@ class StockNewsServiceTest {
     @Test
     void 관련_기사가_없으면_빈_목록이고_결과는_캐시한다() {
         // given
-        provider.result = new NewsSearchResult(List.of(article("SK하이닉스 실적", 1)), true);
+        provider.result = new NewsSearchResult(List.of(article("SK하이닉스 실적", 1)), true, null);
 
         // when
         StockNewsResult news = service.read(KR_STOCK_ID, null, null);
@@ -237,7 +250,7 @@ class StockNewsServiceTest {
     private static final class FakeNewsProvider implements NewsProvider {
 
         private final List<String> queries = new ArrayList<>();
-        private NewsSearchResult result = new NewsSearchResult(List.of(), true);
+        private NewsSearchResult result = new NewsSearchResult(List.of(), true, null);
         private ErrorCode failure;
 
         @Override

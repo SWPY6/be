@@ -177,6 +177,69 @@ class NaverNewsProviderTest {
     }
 
     @Test
+    void 스포츠_섹션_기사는_빼고_나머지를_돌려준다() {
+        // given
+        String body = ONE_ITEM.replace("\"items\": [{", """
+                "items": [{"title": "KIA 김도영 홈런", "originallink": "https://a.com/1", "link": "https://m.sports.naver.com/kbaseball/article/014/1", "description": "기아", "pubDate": "Wed, 30 Sep 2026 09:00:00 +0900"}, {""");
+        server.expect(once(), requestTo(Matchers.startsWith(SEARCH_URL)))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+
+        // when
+        NewsSearchResult result = provider.search(QUERY);
+
+        // then
+        assertThat(result.articles()).extracting(NewsArticle::title).containsExactly("삼성전자, \"HBM\" 증설");
+    }
+
+    @Test
+    void 레코드가_모두_스포츠_섹션_기사면_빈_후보를_돌려준다() {
+        // given
+        String body = ONE_ITEM.replace("https://n.news.naver.com/mnews/article/008/1",
+                "https://m.sports.naver.com/kbaseball/article/008/1");
+        server.expect(once(), requestTo(Matchers.startsWith(SEARCH_URL)))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+
+        // when
+        NewsSearchResult result = provider.search(QUERY);
+
+        // then
+        assertThat(result.articles()).isEmpty();
+    }
+
+    @Test
+    void 첫_페이지가_모두_스포츠여도_가장_오래된_기사_시각은_응답_원본에서_읽는다() {
+        // given
+        String body = ONE_ITEM.replace("\"total\": 1", "\"total\": 5000")
+                .replace("https://n.news.naver.com/mnews/article/008/1", "https://m.sports.naver.com/kbaseball/article/008/1");
+        server.expect(once(), requestTo(Matchers.startsWith(SEARCH_URL)))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+
+        // when
+        NewsSearchResult result = provider.search(QUERY);
+
+        // then
+        assertThat(result.articles()).isEmpty();
+        assertThat(result.oldestPublishedAt())
+                .isEqualTo(OffsetDateTime.of(2026, 9, 30, 9, 12, 0, 0, ZoneOffset.ofHours(9)));
+    }
+
+    @Test
+    void 가장_오래된_기사가_스포츠여도_그_시각을_가장_오래된_시각으로_돌려준다() {
+        // given
+        String body = ONE_ITEM.replace("\"total\": 1", "\"total\": 5000").replace("\"items\": [{", """
+                "items": [{"title": "KIA 김도영 홈런", "originallink": "https://a.com/1", "link": "https://m.sports.naver.com/kbaseball/article/014/1", "description": "기아", "pubDate": "Mon, 21 Sep 2026 09:00:00 +0900"}, {""");
+        server.expect(once(), requestTo(Matchers.startsWith(SEARCH_URL)))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+
+        // when
+        NewsSearchResult result = provider.search(QUERY);
+
+        // then
+        assertThat(result.oldestPublishedAt())
+                .isEqualTo(OffsetDateTime.of(2026, 9, 21, 9, 0, 0, 0, ZoneOffset.ofHours(9)));
+    }
+
+    @Test
     void 레코드가_있는데_모두_쓸_수_없으면_공급_실패다() {
         // given
         String body = ONE_ITEM.replace("Wed, 30 Sep 2026 09:12:00 +0900", "not a date");

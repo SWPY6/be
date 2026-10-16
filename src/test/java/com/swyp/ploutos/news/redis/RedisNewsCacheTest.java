@@ -50,7 +50,7 @@ class RedisNewsCacheTest {
     @BeforeEach
     void setUp() {
         redisTemplate = template(redis.getHost(), redis.getMappedPort(REDIS_PORT));
-        redisTemplate.delete(List.of("news:v1:1", "news:v1:2", "news:v1:3"));
+        redisTemplate.delete(List.of("news:v2:1", "news:v2:2", "news:v2:3"));
         cache = cacheOn(redisTemplate);
     }
 
@@ -78,6 +78,8 @@ class RedisNewsCacheTest {
         assertThat(found.result().articles().getFirst().publishedAt().getOffset()).isEqualTo(ZoneOffset.ofHours(9));
         assertThat(found.fetchedAt()).isEqualTo(FETCHED_AT);
         assertThat(found.result().exhausted()).isFalse();
+        assertThat(found.result().oldestPublishedAt()).isEqualTo(PUBLISHED_AT);
+        assertThat(found.result().oldestPublishedAt().getOffset()).isEqualTo(ZoneOffset.ofHours(9));
     }
 
     @Test
@@ -104,7 +106,7 @@ class RedisNewsCacheTest {
     @Test
     void 저장된_값을_읽지_못하면_캐시_미스로_본다() {
         // given
-        redisTemplate.opsForValue().set("news:v1:1", "{broken");
+        redisTemplate.opsForValue().set("news:v2:1", "{broken");
 
         // when
         Optional<CachedSearch> found = cache.find(1L);
@@ -142,7 +144,7 @@ class RedisNewsCacheTest {
         NewsArticle article = NewsArticle.of(
                 "삼성전자 증설", "요약", URI.create("https://news.mt.co.kr/mtview.php?no=1"), LinkKind.ORIGINAL, PUBLISHED_AT
         ).orElseThrow();
-        return new CachedSearch(new NewsSearchResult(List.of(article), exhausted), FETCHED_AT);
+        return new CachedSearch(new NewsSearchResult(List.of(article), exhausted, PUBLISHED_AT), FETCHED_AT);
     }
 
     private static RedisNewsCache cacheOn(StringRedisTemplate template) {

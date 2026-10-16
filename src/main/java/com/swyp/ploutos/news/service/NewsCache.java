@@ -23,7 +23,7 @@ public interface NewsCache {
 
         /** 종목과 관련 있고 기간에 든 기사로 목록을 만든다. */
         StockNewsFeed feedIn(String stockName, NewsWindow window) {
-            return StockNewsFeed.of(stockName, result.articles(), result.exhausted(), window);
+            return StockNewsFeed.of(stockName, result.articles(), result.covers(window), window);
         }
     }
 }
